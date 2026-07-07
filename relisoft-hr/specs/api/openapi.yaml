@@ -1,0 +1,1102 @@
+openapi: "3.0.3"
+info:
+  title: ReliSoft HR API
+  description: |
+    ReliSoft HR - Comprehensive Human Resource Management System API.
+    This API follows RESTful principles and uses JWT-based authentication.
+  version: 1.0.0
+  contact:
+    name: ReliSoft Development Team
+    email: dev@relisofttechnologies.com
+
+servers:
+  - url: https://api.relisofttechnologies.com/v1
+    description: Production server
+  - url: https://staging-api.relisofttechnologies.com/v1
+    description: Staging server
+  - url: http://localhost:5000/api/v1
+    description: Local development
+
+security:
+  - BearerAuth: []
+
+paths:
+  /auth/login:
+    post:
+      tags: [Authentication]
+      summary: Authenticate user and get tokens
+      operationId: login
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [email, password]
+              properties:
+                email:
+                  type: string
+                  format: email
+                  example: john.doe@relisofttechnologies.com
+                password:
+                  type: string
+                  format: password
+                  example: "SecurePass123!"
+      responses:
+        "200":
+          description: Login successful
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                    example: true
+                  data:
+                    $ref: "#/components/schemas/LoginResponse"
+        "401":
+          description: Invalid credentials
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /auth/refresh:
+    post:
+      tags: [Authentication]
+      summary: Refresh access token
+      operationId: refreshToken
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [refreshToken]
+              properties:
+                refreshToken:
+                  type: string
+                  example: "dGhpcyBpcyBhIHJlZnJl..."
+      responses:
+        "200":
+          description: Token refreshed
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                  data:
+                    $ref: "#/components/schemas/TokenResponse"
+
+  /auth/logout:
+    post:
+      tags: [Authentication]
+      summary: Invalidate refresh token
+      operationId: logout
+      security:
+        - BearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [refreshToken]
+              properties:
+                refreshToken:
+                  type: string
+      responses:
+        "200":
+          description: Logged out successfully
+
+  /employees:
+    get:
+      tags: [Employees]
+      summary: List employees with pagination
+      operationId: listEmployees
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: page
+          in: query
+          schema:
+            type: integer
+            default: 1
+        - name: limit
+          in: query
+          schema:
+            type: integer
+            default: 20
+        - name: search
+          in: query
+          schema:
+            type: string
+          description: Search by name, email, employee ID
+        - name: department
+          in: query
+          schema:
+            type: string
+          description: Department ID filter
+        - name: employmentStatus
+          in: query
+          schema:
+            type: string
+            enum: [Active, Inactive, Terminated, Resigned, OnLeave]
+        - name: sortBy
+          in: query
+          schema:
+            type: string
+            default: createdAt
+        - name: sortOrder
+          in: query
+          schema:
+            type: string
+            enum: [asc, desc]
+            default: desc
+      responses:
+        "200":
+          description: Employee list
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                  data:
+                    type: object
+                    properties:
+                      employees:
+                        type: array
+                        items:
+                          $ref: "#/components/schemas/EmployeeSummary"
+                      pagination:
+                        $ref: "#/components/schemas/Pagination"
+
+    post:
+      tags: [Employees]
+      summary: Create new employee
+      operationId: createEmployee
+      security:
+        - BearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreateEmployeeRequest"
+      responses:
+        "201":
+          description: Employee created
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                  data:
+                    $ref: "#/components/schemas/EmployeeDetail"
+        "400":
+          description: Validation error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /employees/{id}:
+    get:
+      tags: [Employees]
+      summary: Get employee details
+      operationId: getEmployee
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Employee details
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                  data:
+                    $ref: "#/components/schemas/EmployeeDetail"
+
+    put:
+      tags: [Employees]
+      summary: Update employee
+      operationId: updateEmployee
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/UpdateEmployeeRequest"
+      responses:
+        "200":
+          description: Employee updated
+
+  /leaves/apply:
+    post:
+      tags: [Leaves]
+      summary: Apply for leave
+      operationId: applyLeave
+      security:
+        - BearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/LeaveApplicationRequest"
+      responses:
+        "201":
+          description: Leave application submitted
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                  data:
+                    $ref: "#/components/schemas/LeaveApplication"
+
+  /leaves/balance/{employeeId}:
+    get:
+      tags: [Leaves]
+      summary: Get employee leave balance
+      operationId: getLeaveBalance
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: employeeId
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Leave balance
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                  data:
+                    $ref: "#/components/schemas/LeaveBalanceResponse"
+
+  /leaves/pending-approvals:
+    get:
+      tags: [Leaves]
+      summary: Get pending leave approvals
+      operationId: pendingLeaveApprovals
+      security:
+        - BearerAuth: []
+      responses:
+        "200":
+          description: Pending approvals list
+
+  /leaves/{id}/approve:
+    put:
+      tags: [Leaves]
+      summary: Approve leave application
+      operationId: approveLeave
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                remarks:
+                  type: string
+      responses:
+        "200":
+          description: Leave approved
+
+  /attendance/punch:
+    post:
+      tags: [Attendance]
+      summary: Record punch in/out
+      operationId: recordPunch
+      security:
+        - BearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/PunchRequest"
+      responses:
+        "200":
+          description: Punch recorded
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                  data:
+                    $ref: "#/components/schemas/PunchResponse"
+
+  /attendance/monthly/{employeeId}:
+    get:
+      tags: [Attendance]
+      summary: Get monthly attendance
+      operationId: getMonthlyAttendance
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: employeeId
+          in: path
+          required: true
+          schema:
+            type: string
+        - name: month
+          in: query
+          required: true
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 12
+        - name: year
+          in: query
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Monthly attendance
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                  data:
+                    $ref: "#/components/schemas/MonthlyAttendance"
+
+  /payroll/process:
+    post:
+      tags: [Payroll]
+      summary: Initiate monthly payroll processing
+      operationId: processPayroll
+      security:
+        - BearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/PayrollProcessRequest"
+      responses:
+        "200":
+          description: Payroll processing initiated
+
+  /payroll/payslips/{employeeId}:
+    get:
+      tags: [Payroll]
+      summary: Get employee payslip
+      operationId: getPayslip
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: employeeId
+          in: path
+          required: true
+          schema:
+            type: string
+        - name: month
+          in: query
+          required: true
+          schema:
+            type: integer
+        - name: year
+          in: query
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Payslip data
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                  data:
+                    $ref: "#/components/schemas/Payslip"
+
+  /analytics/headcount:
+    get:
+      tags: [Analytics]
+      summary: Get headcount analytics
+      operationId: getHeadcount
+      security:
+        - BearerAuth: []
+      responses:
+        "200":
+          description: Headcount data
+
+components:
+  securitySchemes:
+    BearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+      description: Enter JWT Bearer token
+
+  schemas:
+    ErrorResponse:
+      type: object
+      properties:
+        success:
+          type: boolean
+          example: false
+        error:
+          type: object
+          properties:
+            code:
+              type: string
+              example: VALIDATION_ERROR
+            message:
+              type: string
+              example: Validation failed
+            details:
+              type: array
+              items:
+                type: object
+                properties:
+                  field:
+                    type: string
+                  message:
+                    type: string
+
+    Pagination:
+      type: object
+      properties:
+        page:
+          type: integer
+          example: 1
+        limit:
+          type: integer
+          example: 20
+        total:
+          type: integer
+          example: 150
+        totalPages:
+          type: integer
+          example: 8
+
+    LoginResponse:
+      type: object
+      properties:
+        accessToken:
+          type: string
+          example: eyJhbGciOiJIUzI1NiIs...
+        refreshToken:
+          type: string
+          example: dGhpcyBpcyBhIHJlZnJl...
+        expiresIn:
+          type: integer
+          example: 900
+        mfaRequired:
+          type: boolean
+          example: false
+        user:
+          $ref: "#/components/schemas/UserSummary"
+
+    TokenResponse:
+      type: object
+      properties:
+        accessToken:
+          type: string
+        expiresIn:
+          type: integer
+
+    UserSummary:
+      type: object
+      properties:
+        id:
+          type: string
+        email:
+          type: string
+          format: email
+        name:
+          type: string
+        roles:
+          type: array
+          items:
+            type: string
+
+    EmployeeSummary:
+      type: object
+      properties:
+        _id:
+          type: string
+        employeeId:
+          type: string
+          example: EMP-00001
+        firstName:
+          type: string
+        lastName:
+          type: string
+        workEmail:
+          type: string
+          format: email
+        departmentId:
+          type: object
+          properties:
+            _id:
+              type: string
+            name:
+              type: string
+        designationId:
+          type: object
+          properties:
+            _id:
+              type: string
+            title:
+              type: string
+        employmentStatus:
+          type: string
+          enum: [Active, Inactive, Terminated, Resigned, OnLeave]
+        dateOfJoining:
+          type: string
+          format: date
+        profileImageUrl:
+          type: string
+
+    EmployeeDetail:
+      type: object
+      allOf:
+        - $ref: "#/components/schemas/EmployeeSummary"
+        - type: object
+          properties:
+            middleName:
+              type: string
+            preferredName:
+              type: string
+            gender:
+              type: string
+              enum: [Male, Female, Other, PreferNotToSay]
+            dateOfBirth:
+              type: string
+              format: date
+            personalEmail:
+              type: string
+              format: email
+            phoneNumber:
+              type: string
+            address:
+              $ref: "#/components/schemas/Address"
+            emergencyContacts:
+              type: array
+              items:
+                $ref: "#/components/schemas/EmergencyContact"
+            gradeId:
+              type: object
+              properties:
+                _id:
+                  type: string
+                name:
+                  type: string
+                level:
+                  type: integer
+            employmentType:
+              type: string
+              enum: [Permanent, Contract, Probation, Intern, Trainee]
+            managerId:
+              $ref: "#/components/schemas/EmployeeSummary"
+            skills:
+              type: array
+              items:
+                $ref: "#/components/schemas/Skill"
+            education:
+              type: array
+              items:
+                $ref: "#/components/schemas/Education"
+            createdAt:
+              type: string
+              format: date-time
+            updatedAt:
+              type: string
+              format: date-time
+
+    Address:
+      type: object
+      properties:
+        line1:
+          type: string
+        line2:
+          type: string
+        city:
+          type: string
+        state:
+          type: string
+        zipCode:
+          type: string
+        country:
+          type: string
+
+    EmergencyContact:
+      type: object
+      properties:
+        name:
+          type: string
+        relationship:
+          type: string
+        phone:
+          type: string
+
+    Skill:
+      type: object
+      properties:
+        skillName:
+          type: string
+        proficiency:
+          type: string
+          enum: [Beginner, Intermediate, Advanced, Expert]
+        yearsOfExperience:
+          type: integer
+
+    Education:
+      type: object
+      properties:
+        degree:
+          type: string
+        institution:
+          type: string
+        yearOfPassing:
+          type: integer
+        percentage:
+          type: number
+
+    CreateEmployeeRequest:
+      type: object
+      required:
+        - firstName
+        - lastName
+        - gender
+        - dateOfBirth
+        - personalEmail
+        - phoneNumber
+        - address
+        - departmentId
+        - designationId
+        - gradeId
+        - employmentType
+        - dateOfJoining
+      properties:
+        firstName:
+          type: string
+        lastName:
+          type: string
+        gender:
+          type: string
+          enum: [Male, Female, Other, PreferNotToSay]
+        dateOfBirth:
+          type: string
+          format: date
+        personalEmail:
+          type: string
+          format: email
+        phoneNumber:
+          type: string
+        address:
+          $ref: "#/components/schemas/Address"
+        departmentId:
+          type: string
+        designationId:
+          type: string
+        gradeId:
+          type: string
+        employmentType:
+          type: string
+          enum: [Permanent, Contract, Probation, Intern, Trainee]
+        dateOfJoining:
+          type: string
+          format: date
+        workLocation:
+          type: string
+        workMode:
+          type: string
+          enum: [Office, Remote, Hybrid]
+        managerId:
+          type: string
+
+    UpdateEmployeeRequest:
+      type: object
+      properties:
+        firstName:
+          type: string
+        lastName:
+          type: string
+        phoneNumber:
+          type: string
+        address:
+          $ref: "#/components/schemas/Address"
+        emergencyContacts:
+          type: array
+          items:
+            $ref: "#/components/schemas/EmergencyContact"
+        skills:
+          type: array
+          items:
+            $ref: "#/components/schemas/Skill"
+        workLocation:
+          type: string
+        workMode:
+          type: string
+          enum: [Office, Remote, Hybrid]
+
+    LeaveApplicationRequest:
+      type: object
+      required:
+        - employeeId
+        - leaveTypeId
+        - fromDate
+        - toDate
+        - reason
+      properties:
+        employeeId:
+          type: string
+        leaveTypeId:
+          type: string
+        fromDate:
+          type: string
+          format: date
+        toDate:
+          type: string
+          format: date
+        isHalfDay:
+          type: boolean
+          default: false
+        halfDayType:
+          type: string
+          enum: [FirstHalf, SecondHalf]
+        reason:
+          type: string
+        contactNumber:
+          type: string
+        alternateArrangement:
+          type: string
+
+    LeaveApplication:
+      type: object
+      properties:
+        _id:
+          type: string
+        employeeId:
+          type: object
+          properties:
+            _id:
+              type: string
+            firstName:
+              type: string
+            lastName:
+              type: string
+            employeeId:
+              type: string
+        leaveTypeId:
+          type: object
+          properties:
+            _id:
+              type: string
+            name:
+              type: string
+            code:
+              type: string
+        fromDate:
+          type: string
+          format: date
+        toDate:
+          type: string
+          format: date
+        totalDays:
+          type: integer
+        status:
+          type: string
+          enum: [Pending, Approved, Rejected, Cancelled, Withdrawn]
+        appliedOn:
+          type: string
+          format: date-time
+        balanceAfterApplication:
+          type: object
+          properties:
+            totalCredited:
+              type: integer
+            totalAvailed:
+              type: integer
+            pendingApplications:
+              type: integer
+            availableBalance:
+              type: integer
+
+    LeaveBalanceResponse:
+      type: object
+      properties:
+        employeeId:
+          type: string
+        financialYear:
+          type: string
+        balances:
+          type: array
+          items:
+            type: object
+            properties:
+              leaveTypeId:
+                type: object
+                properties:
+                  _id:
+                    type: string
+                  name:
+                    type: string
+                  code:
+                    type: string
+              openingBalance:
+                type: integer
+              totalCredited:
+                type: integer
+              totalAvailed:
+                type: integer
+              pendingApplications:
+                type: integer
+              availableBalance:
+                type: integer
+
+    PunchRequest:
+      type: object
+      required:
+        - employeeId
+        - type
+        - source
+      properties:
+        employeeId:
+          type: string
+        type:
+          type: string
+          enum: [In, Out, BreakIn, BreakOut]
+        source:
+          type: string
+          enum: [Biometric, Web, Mobile, Manual, API]
+        deviceId:
+          type: string
+        geoLocation:
+          type: object
+          properties:
+            latitude:
+              type: number
+            longitude:
+              type: number
+            address:
+              type: string
+
+    PunchResponse:
+      type: object
+      properties:
+        punchId:
+          type: string
+        employeeId:
+          type: string
+        punchTime:
+          type: string
+          format: date-time
+        punchType:
+          type: string
+        totalHoursToday:
+          type: number
+          nullable: true
+        status:
+          type: string
+        lateMinutes:
+          type: integer
+
+    MonthlyAttendance:
+      type: object
+      properties:
+        employeeId:
+          type: string
+        month:
+          type: string
+        year:
+          type: integer
+        summary:
+          type: object
+          properties:
+            present:
+              type: integer
+            absent:
+              type: integer
+            halfDay:
+              type: integer
+            late:
+              type: integer
+            holiday:
+              type: integer
+            weekOff:
+              type: integer
+            onLeave:
+              type: integer
+        totalHoursWorked:
+          type: number
+        totalOvertimeMinutes:
+          type: integer
+        records:
+          type: array
+          items:
+            type: object
+            properties:
+              date:
+                type: string
+                format: date
+              dayType:
+                type: string
+              punchIn:
+                type: string
+              punchOut:
+                type: string
+              totalHours:
+                type: number
+              status:
+                type: string
+              lateMinutes:
+                type: integer
+              overtimeMinutes:
+                type: integer
+
+    PayrollProcessRequest:
+      type: object
+      required:
+        - month
+        - year
+      properties:
+        month:
+          type: integer
+          minimum: 1
+          maximum: 12
+        year:
+          type: integer
+        employeeIds:
+          type: array
+          items:
+            type: string
+          description: Employee IDs to process (empty = all)
+        runName:
+          type: string
+        includeArrears:
+          type: boolean
+          default: false
+        includeFinalSettlements:
+          type: boolean
+          default: false
+
+    Payslip:
+      type: object
+      properties:
+        employeeName:
+          type: string
+        employeeId:
+          type: string
+        department:
+          type: string
+        designation:
+          type: string
+        month:
+          type: string
+        year:
+          type: integer
+        panNumber:
+          type: string
+        uanNumber:
+          type: string
+        totalDaysInMonth:
+          type: integer
+        paidDays:
+          type: integer
+        lopDays:
+          type: integer
+        earnings:
+          type: array
+          items:
+            type: object
+            properties:
+              payHead:
+                type: string
+              amount:
+                type: number
+        deductions:
+          type: array
+          items:
+            type: object
+            properties:
+              payHead:
+                type: string
+              amount:
+                type: number
+        grossEarnings:
+          type: number
+        grossDeductions:
+          type: number
+        netPay:
+          type: number
+        netPayInWords:
+          type: string
+
+    PayHead:
+      type: object
+      properties:
+        _id:
+          type: string
+        name:
+          type: string
+        code:
+          type: string
+        type:
+          type: string
+          enum: [Earning, Deduction]
+        category:
+          type: string
+          enum: [Fixed, Variable, Reimbursement, Statutory]
+        isStatutory:
+          type: boolean
+        computationType:
+          type: string
+          enum: [Percentage, Fixed, Formula]
+        computationValue:
+          type: number
+        isTaxable:
+          type: boolean

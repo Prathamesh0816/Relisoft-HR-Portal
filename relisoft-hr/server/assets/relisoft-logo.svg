@@ -1,0 +1,5 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 200 50">
+  <rect x="0" y="0" width="200" height="50" rx="4" fill="#1e40af"/>
+  <text x="16" y="34" font-family="Arial, sans-serif" font-size="22" font-weight="bold" fill="white">ReliSoft</text>
+  <text x="108" y="34" font-family="Arial, sans-serif" font-size="14" font-weight="300" fill="#93c5fd">People Hub</text>
+</svg>
