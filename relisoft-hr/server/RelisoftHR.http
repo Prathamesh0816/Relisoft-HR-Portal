@@ -1,0 +1,6 @@
+@RelisoftHR_HostAddress = http://localhost:5049
+
+GET {{RelisoftHR_HostAddress}}/weatherforecast/
+Accept: application/json
+
+###
