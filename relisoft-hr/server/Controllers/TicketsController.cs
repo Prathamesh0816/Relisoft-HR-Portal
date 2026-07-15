@@ -3,6 +3,7 @@ using Microsoft.EntityFrameworkCore;
 using RelisoftHR.Data;
 using RelisoftHR.DTOs;
 using RelisoftHR.Models;
+using RelisoftHR.Services;
 
 namespace RelisoftHR.Controllers;
 
@@ -11,8 +12,13 @@ namespace RelisoftHR.Controllers;
 public class TicketsController : ControllerBase
 {
     private readonly AppDbContext _db;
+    private readonly NotificationHelper _notif;
 
-    public TicketsController(AppDbContext db) => _db = db;
+    public TicketsController(AppDbContext db, NotificationHelper notif)
+    {
+        _db = db;
+        _notif = notif;
+    }
 
     [HttpPost]
     public async Task<ActionResult> CreateTicket(CreateTicketRequest req)
@@ -39,6 +45,16 @@ public class TicketsController : ControllerBase
         });
 
         await _db.SaveChangesAsync();
+
+        var emp = await _db.Employees.FindAsync(req.EmployeeId);
+        if (emp != null)
+        {
+            await _notif.NotifyEmployeeAsync(emp.Id, emp, "Ticket Created",
+                $"Your ticket '{req.Subject}' has been submitted.", "ticket",
+                "Ticket Created", EmailTemplates.TicketCreated(emp.FullName, req.Subject, ticket.Id.ToString()),
+                link: "/employee-tickets");
+        }
+
         return Ok(new { message = "Ticket generated.", ticketId = ticket.Id });
     }
 
@@ -90,6 +106,16 @@ public class TicketsController : ControllerBase
         });
 
         await _db.SaveChangesAsync();
+
+        var ticketEmp = await _db.Employees.FindAsync(ticket.EmployeeId);
+        if (ticketEmp != null)
+        {
+            await _notif.NotifyEmployeeAsync(ticket.EmployeeId, ticketEmp, "Ticket Updated",
+                $"Ticket '{ticket.Subject}' status changed to {req.Status}.", "ticket",
+                "Ticket Updated", EmailTemplates.TicketUpdated(ticketEmp.FullName, ticket.Subject, req.Status, req.Notes),
+                link: "/employee-tickets");
+        }
+
         return Ok(new { message = "Timeline updated." });
     }
 

@@ -1,16 +1,24 @@
-# React + Vite
+# ReliSoft HR Portal — Frontend App
 
-This template provides a minimal setup to get React working in Vite with HMR and some Oxlint rules.
+This is the website you see in the browser. It talks to the .NET server to show data and handle your actions.
 
-Currently, two official plugins are available:
+### Quick Start
 
-- [@vitejs/plugin-react](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react) uses [Oxc](https://oxc.rs)
-- [@vitejs/plugin-react-swc](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react-swc) uses [SWC](https://swc.rs/)
+```bash
+npm install           # Install once
+npm run dev           # Start the app (http://localhost:5173)
+npm run build         # Build for production (outputs to dist/)
+npm test              # Run 34 component + API tests
+```
 
-## React Compiler
+The app needs the .NET server running on http://localhost:5049 to work.
 
-The React Compiler is not enabled on this template because of its impact on dev & build performances. To add it, see [this documentation](https://react.dev/learn/react-compiler/installation).
+### What's Here
 
-## Expanding the Oxlint configuration
+- `src/components/` — 60 pages and screens (leave forms, tickets, directory, onboarding, etc.)
+- `src/api.js` — All the calls to the server (1,200+ lines)
+- `src/store.js` — Central data storage for the app
+- `src/App.jsx` — Main app screen with login flow
+- `src/__tests__/` — 34 automated tests
 
-If you are developing a production application, we recommend using TypeScript with type-aware lint rules enabled. Check out the [TS template](https://github.com/vitejs/vite/tree/main/packages/create-vite/template-react-ts) for information on how to integrate TypeScript and Oxlint's TypeScript related rules in your project.
+See the main [README](../README.md) for usage instructions and [TECHNICAL.md](../TECHNICAL.md) for developer docs.

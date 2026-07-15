@@ -3,6 +3,7 @@ using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using RelisoftHR.Data;
 using RelisoftHR.Models;
+using RelisoftHR.Services;
 
 namespace RelisoftHR.Controllers;
 
@@ -12,7 +13,13 @@ namespace RelisoftHR.Controllers;
 public class LoanController : ControllerBase
 {
     private readonly AppDbContext _db;
-    public LoanController(AppDbContext db) => _db = db;
+    private readonly NotificationHelper _notif;
+
+    public LoanController(AppDbContext db, NotificationHelper notif)
+    {
+        _db = db;
+        _notif = notif;
+    }
 
     private int GetUserId()
     {
@@ -63,6 +70,16 @@ public class LoanController : ControllerBase
         req.CreatedOn = DateTime.UtcNow;
         _db.EmployeeLoans.Add(req);
         await _db.SaveChangesAsync();
+
+        var emp = await _db.Employees.FindAsync(req.EmployeeId);
+        if (emp != null)
+        {
+            await _notif.NotifyEmployeeAsync(emp.Id, emp, "Loan Application Submitted",
+                $"Your loan application for {loanType.Name} of {req.Amount:C} has been submitted.", "loan",
+                "Loan Application Submitted", EmailTemplates.LoanSubmitted(emp.FullName, loanType.Name, req.Amount, ""),
+                link: "/loans");
+        }
+
         return Ok(req);
     }
 
@@ -81,7 +98,7 @@ public class LoanController : ControllerBase
     [HttpPost("{id}/approve")]
     public async Task<ActionResult> ApproveLoan(int id)
     {
-        var loan = await _db.EmployeeLoans.FindAsync(id);
+        var loan = await _db.EmployeeLoans.Include(l => l.LoanType).FirstOrDefaultAsync(l => l.Id == id);
         if (loan == null) return NotFound();
         loan.Status = "Approved";
         loan.ApprovedById = GetUserId();
@@ -101,16 +118,38 @@ public class LoanController : ControllerBase
             });
         }
         await _db.SaveChangesAsync();
+
+        var emp = await _db.Employees.FindAsync(loan.EmployeeId);
+        if (emp != null)
+        {
+            var loanTypeName = loan.LoanType?.Name ?? "";
+            await _notif.NotifyEmployeeAsync(emp.Id, emp, "Loan Approved",
+                $"Your loan application has been approved.", "loan",
+                "Loan Application Approved", EmailTemplates.LoanDecision(emp.FullName, loanTypeName, "Approved", null),
+                link: "/loans");
+        }
+
         return Ok(loan);
     }
 
     [HttpPost("{id}/reject")]
     public async Task<ActionResult> RejectLoan(int id)
     {
-        var loan = await _db.EmployeeLoans.FindAsync(id);
+        var loan = await _db.EmployeeLoans.Include(l => l.LoanType).FirstOrDefaultAsync(l => l.Id == id);
         if (loan == null) return NotFound();
         loan.Status = "Rejected";
         await _db.SaveChangesAsync();
+
+        var emp = await _db.Employees.FindAsync(loan.EmployeeId);
+        if (emp != null)
+        {
+            var loanTypeName = loan.LoanType?.Name ?? "";
+            await _notif.NotifyEmployeeAsync(emp.Id, emp, "Loan Rejected",
+                $"Your loan application has been rejected.", "loan",
+                "Loan Application Rejected", EmailTemplates.LoanDecision(emp.FullName, loanTypeName, "Rejected", null),
+                link: "/loans");
+        }
+
         return Ok(loan);
     }
 

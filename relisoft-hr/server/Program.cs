@@ -30,11 +30,17 @@ builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
         };
     });
 
+builder.Services.AddScoped<IEmailService, EmailService>();
+builder.Services.AddScoped<INotificationService, NotificationService>();
+builder.Services.AddScoped<NotificationHelper>();
+
+var corsOrigins = (builder.Configuration["CorsOrigins"] ?? "http://localhost:5173")
+    .Split(',', StringSplitOptions.TrimEntries | StringSplitOptions.RemoveEmptyEntries);
 builder.Services.AddCors(options =>
 {
     options.AddDefaultPolicy(policy =>
     {
-        policy.WithOrigins("http://localhost:5173")
+        policy.WithOrigins(corsOrigins)
             .AllowAnyHeader().AllowAnyMethod();
     });
 });
@@ -66,6 +72,7 @@ using (var scope = app.Services.CreateScope())
 {
     var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
     await WorkforceSeeder.SeedAsync(db);
+    await DemoDataSeeder.SeedAsync(db);
 }
 
 app.Run();

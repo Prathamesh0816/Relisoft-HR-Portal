@@ -3,7 +3,8 @@ using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using RelisoftHR.Data;
 using RelisoftHR.Models;
-
+using RelisoftHR.Services;
+ 
 namespace RelisoftHR.Controllers;
 
 [ApiController]
@@ -12,7 +13,12 @@ namespace RelisoftHR.Controllers;
 public class RewardsController : ControllerBase
 {
     private readonly AppDbContext _db;
-    public RewardsController(AppDbContext db) => _db = db;
+    private readonly NotificationHelper _notif;
+    public RewardsController(AppDbContext db, NotificationHelper notif)
+    {
+        _db = db;
+        _notif = notif;
+    }
 
     private int GetUserId()
     {
@@ -93,6 +99,16 @@ public class RewardsController : ControllerBase
             Reference = $"Redeemed: {item.Name}"
         });
         await _db.SaveChangesAsync();
+
+        var emp = await _db.Employees.FindAsync(empId);
+        if (emp != null)
+        {
+            await _notif.NotifyEmployeeAsync(emp.Id, emp, "Reward Redeemed",
+                $"You redeemed {item.Name} for {item.PointsCost} points.", "rewards",
+                "Reward Redeemed", EmailTemplates.RewardsEarned(emp.FullName, item.PointsCost, $"Redeemed: {item.Name}"),
+                link: "/rewards");
+        }
+
         return Ok(new { redemption.Id, message = $"Redeemed {item.Name} for {item.PointsCost} points" });
     }
 

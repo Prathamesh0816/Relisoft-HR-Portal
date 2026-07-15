@@ -1,6 +1,7 @@
 import { useEffect } from 'react'
 import useStore from '../store'
 import { getReviewerRequests, checkAllBalances, downloadLeaveReport } from '../api'
+import { Bell, CheckCheck } from 'lucide-react'
 
 function ActionCard({ title, description, detail, onClick }) {
   return (
@@ -13,7 +14,11 @@ function ActionCard({ title, description, detail, onClick }) {
 }
 
 export default function HrHome() {
-  const { data, reviewer, setReviewerId, setAppraisalData, appraisalData, setReviewerData, currentUser, setMessage } = useStore()
+  const { data, reviewer, setReviewerId, setAppraisalData, appraisalData, setReviewerData, currentUser, setMessage, notifications, fetchNotifications } = useStore()
+
+  useEffect(() => {
+    fetchNotifications()
+  }, [])
 
   useEffect(() => {
     if (reviewer.reviewerId) {
@@ -73,6 +78,48 @@ export default function HrHome() {
             <ActionCard title="My onboarding details" description="Fill part 2 details like PAN, Aadhaar, experience proof." onClick={() => useStore.getState().setActiveView('onboarding')} />
             <ActionCard title="Employee directory" description="Check current structure, team ownership, and approver mapping." onClick={() => useStore.getState().setActiveView('directory')} />
           </div>
+        </div>
+      </div>
+      <div className="card-surface">
+        <div className="p-5">
+          <div className="flex items-center justify-between">
+            <div>
+              <h2 className="font-heading font-bold text-xl text-navy dark:text-white">Recent Notifications</h2>
+              <p className="text-muted text-sm mt-1">Stay updated on latest events</p>
+            </div>
+            <div className="flex items-center gap-2">
+              <div className="w-9 h-9 rounded-xl bg-gradient-to-br from-gold-1 to-gold-2 flex items-center justify-center relative">
+                <Bell size={16} className="text-navy-dark" />
+                {notifications.unreadCount > 0 && (
+                  <span className="absolute -top-1 -right-1 w-4 h-4 rounded-full bg-red-500 text-white text-[8px] font-bold flex items-center justify-center">{notifications.unreadCount > 9 ? '9+' : notifications.unreadCount}</span>
+                )}
+              </div>
+              {notifications.unreadCount > 0 && (
+                <button onClick={async () => { try { await (await import('../api')).markAllNotificationsRead(); fetchNotifications() } catch {} }} className="p-1.5 rounded-lg text-muted hover:text-navy dark:hover:text-white"><CheckCheck size={16} /></button>
+              )}
+            </div>
+          </div>
+        </div>
+        <div className="px-5 pb-5">
+          {notifications.list.length === 0 ? (
+            <div className="text-center py-6 text-muted text-sm">No notifications yet.</div>
+          ) : (
+            <div className="space-y-2 max-h-64 overflow-y-auto">
+              {notifications.list.slice(0, 10).map((n) => (
+                <div key={n.id} className={`flex items-start gap-3 p-3 rounded-xl border transition-all ${n.isRead ? 'border-navy/5 dark:border-white/5' : 'border-amber-200 dark:border-amber-800 bg-amber-50/30 dark:bg-amber-900/10'}`}>
+                  <div className="flex-1 min-w-0">
+                    <div className="flex items-center gap-2">
+                      <span className="text-[10px] font-bold uppercase px-1.5 py-0.5 rounded bg-navy/5 dark:bg-white/10 text-muted">{n.category || 'General'}</span>
+                      {!n.isRead && <span className="w-1.5 h-1.5 rounded-full bg-gold-1 shrink-0" />}
+                    </div>
+                    <div className={`text-sm font-bold truncate mt-0.5 ${n.isRead ? 'text-navy/60 dark:text-white/60' : 'text-navy dark:text-white'}`}>{n.title}</div>
+                    {n.message && <div className="text-xs text-muted truncate mt-0.5">{n.message}</div>}
+                    <div className="text-[10px] text-muted mt-1">{new Date(n.createdOn).toLocaleDateString()}</div>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
         </div>
       </div>
       <div className="card-surface">

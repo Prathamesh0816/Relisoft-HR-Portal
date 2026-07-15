@@ -3,6 +3,7 @@ using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using RelisoftHR.Data;
 using RelisoftHR.Models;
+using RelisoftHR.Services;
 
 namespace RelisoftHR.Controllers;
 
@@ -12,7 +13,13 @@ namespace RelisoftHR.Controllers;
 public class ExpenseController : ControllerBase
 {
     private readonly AppDbContext _db;
-    public ExpenseController(AppDbContext db) => _db = db;
+    private readonly NotificationHelper _notif;
+
+    public ExpenseController(AppDbContext db, NotificationHelper notif)
+    {
+        _db = db;
+        _notif = notif;
+    }
 
     private int GetUserId()
     {
@@ -58,6 +65,17 @@ public class ExpenseController : ControllerBase
         req.CreatedOn = DateTime.UtcNow;
         _db.ExpenseClaims.Add(req);
         await _db.SaveChangesAsync();
+
+        var emp = await _db.Employees.FindAsync(req.EmployeeId);
+        if (emp != null)
+        {
+            var cat = await _db.ExpenseCategories.FindAsync(req.CategoryId);
+            await _notif.NotifyEmployeeAsync(emp.Id, emp, "Expense Claim Submitted",
+                $"Your expense claim of {req.Amount:C} has been submitted.", "expense",
+                "Expense Claim Submitted", EmailTemplates.ExpenseSubmitted(emp.FullName, cat?.Name ?? "", req.Amount, ""),
+                link: "/expenses");
+        }
+
         return Ok(req);
     }
 
@@ -82,6 +100,16 @@ public class ExpenseController : ControllerBase
         claim.ApprovedById = GetUserId();
         claim.ApprovedOn = DateTime.UtcNow;
         await _db.SaveChangesAsync();
+
+        var emp = await _db.Employees.FindAsync(claim.EmployeeId);
+        if (emp != null)
+        {
+            await _notif.NotifyEmployeeAsync(emp.Id, emp, "Expense Claim Approved",
+                $"Your expense claim has been approved.", "expense",
+                "Expense Claim Approved", EmailTemplates.ExpenseDecision(emp.FullName, "Approved", null),
+                link: "/expenses");
+        }
+
         return Ok(claim);
     }
 
@@ -93,6 +121,16 @@ public class ExpenseController : ControllerBase
         claim.Status = "Rejected";
         claim.RejectionReason = reason ?? "";
         await _db.SaveChangesAsync();
+
+        var emp = await _db.Employees.FindAsync(claim.EmployeeId);
+        if (emp != null)
+        {
+            await _notif.NotifyEmployeeAsync(emp.Id, emp, "Expense Claim Rejected",
+                $"Your expense claim has been rejected.", "expense",
+                "Expense Claim Rejected", EmailTemplates.ExpenseDecision(emp.FullName, "Rejected", reason),
+                link: "/expenses");
+        }
+
         return Ok(claim);
     }
 

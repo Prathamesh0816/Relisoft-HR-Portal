@@ -3,7 +3,8 @@ using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using RelisoftHR.Data;
 using RelisoftHR.Models;
-
+using RelisoftHR.Services;
+ 
 namespace RelisoftHR.Controllers;
 
 [ApiController]
@@ -12,7 +13,12 @@ namespace RelisoftHR.Controllers;
 public class TrainingController : ControllerBase
 {
     private readonly AppDbContext _db;
-    public TrainingController(AppDbContext db) => _db = db;
+    private readonly NotificationHelper _notif;
+    public TrainingController(AppDbContext db, NotificationHelper notif)
+    {
+        _db = db;
+        _notif = notif;
+    }
 
     private int GetUserId()
     {
@@ -91,6 +97,16 @@ public class TrainingController : ControllerBase
         };
         _db.TrainingRegistrations.Add(reg);
         await _db.SaveChangesAsync();
+
+        var emp = await _db.Employees.FindAsync(GetUserId());
+        if (emp != null)
+        {
+            await _notif.NotifyEmployeeAsync(emp.Id, emp, "Training Enrollment",
+                $"You have registered for {course.Title}.", "training",
+                "Training Enrolled", EmailTemplates.TrainingEnrolled(emp.FullName, course.Title, course.StartDate.ToString("dd-MMM-yyyy")),
+                link: "/training");
+        }
+
         return Ok(reg);
     }
 

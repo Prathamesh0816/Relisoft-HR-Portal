@@ -68,6 +68,24 @@ export async function cancelLeave(id, req) {
   return data
 }
 
+export async function requestCancellation(id, req) {
+  const { data } = await api.post(`/api/leave/${id}/request-cancellation`, req)
+  return data
+}
+
+export async function bulkDecision(req) {
+  const { data } = await api.post('/api/leave/reviewer/bulk-decision', req)
+  return data
+}
+
+export async function getLeaveCalendar(from, to) {
+  const params = new URLSearchParams()
+  if (from) params.append('from', from)
+  if (to) params.append('to', to)
+  const { data } = await api.get(`/api/leave/calendar?${params}`)
+  return data
+}
+
 export async function getOnboardingProfile(employeeId) {
   const { data } = await api.get(`/api/onboarding/${employeeId}`)
   return data

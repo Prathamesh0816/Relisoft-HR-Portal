@@ -1,4 +1,5 @@
 import { create } from 'zustand'
+import { getMyNotifications, getUnreadNotificationCount } from './api'
 
 const useStore = create((set, get) => ({
   loading: true,
@@ -136,13 +137,19 @@ const useStore = create((set, get) => ({
   setSurveys: (data) => set((s) => ({ surveys: { ...s.surveys, ...data } })),
   setBenefits: (data) => set((s) => ({ benefits: { ...s.benefits, ...data } })),
   setNotifications: (data) => set((s) => ({ notifications: { ...s.notifications, ...data } })),
+  fetchNotifications: async () => {
+    try {
+      const [list, cnt] = await Promise.all([getMyNotifications(), getUnreadNotificationCount()])
+      set({ notifications: { list: Array.isArray(list) ? list : [], unreadCount: cnt?.count || 0, loading: false } })
+    } catch { set((s) => ({ notifications: { ...s.notifications, loading: false } })) }
+  },
   setInternalMobility: (data) => set((s) => ({ internalMobility: { ...s.internalMobility, ...data } })),
   setCompliance: (data) => set((s) => ({ compliance: { ...s.compliance, ...data } })),
   setContractors: (data) => set((s) => ({ contractors: { ...s.contractors, ...data } })),
   setResilience: (data) => set((s) => ({ resilience: { ...s.resilience, ...data } })),
   logout: () => set({
     currentUser: null, activeView: 'login', message: null,
-    reviewer: { reviewerId: '', reviewerName: '', requests: [], recentDecisions: [], loading: false },
+  reviewer: { reviewerId: '', reviewerName: '', requests: [], cancellationRequests: [], recentDecisions: [], loading: false },
     myLeaves: { employeeId: '', requests: [], loading: false },
     employeeTickets: { employeeId: '', tickets: [], loading: false },
     hrTickets: { tickets: [], loading: false },

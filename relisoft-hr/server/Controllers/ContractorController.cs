@@ -3,7 +3,8 @@ using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using RelisoftHR.Data;
 using RelisoftHR.Models;
-
+using RelisoftHR.Services;
+ 
 namespace RelisoftHR.Controllers;
 
 [ApiController]
@@ -12,7 +13,12 @@ namespace RelisoftHR.Controllers;
 public class ContractorController : ControllerBase
 {
     private readonly AppDbContext _db;
-    public ContractorController(AppDbContext db) => _db = db;
+    private readonly NotificationHelper _notif;
+    public ContractorController(AppDbContext db, NotificationHelper notif)
+    {
+        _db = db;
+        _notif = notif;
+    }
 
     private int GetUserId()
     {
@@ -32,6 +38,16 @@ public class ContractorController : ControllerBase
     {
         _db.Contractors.Add(req);
         await _db.SaveChangesAsync();
+
+        var emp = await _db.Employees.FindAsync(GetUserId());
+        if (emp != null)
+        {
+            await _notif.NotifyEmployeeAsync(emp.Id, emp, "Contractor Onboarded",
+                $"Contractor {req.CompanyName} has been onboarded.", "contractor",
+                "Contractor Onboarded", EmailTemplates.ContractorOnboarded(emp.FullName, req.ContactPerson ?? "N/A", req.CompanyName),
+                link: "/contractors");
+        }
+
         return Ok(req);
     }
 

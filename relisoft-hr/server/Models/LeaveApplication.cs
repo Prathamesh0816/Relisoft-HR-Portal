@@ -28,6 +28,11 @@ public class LeaveApplication
     public string? MedicalCertificatePath { get; set; }
     public bool LossOfPay { get; set; }
 
+    public string? CancellationReason { get; set; }
+    public DateTime? CancellationRequestedOn { get; set; }
+    public int? CancellationActionedById { get; set; }
+    public DateTime? CancellationActionedOn { get; set; }
+
     [ForeignKey(nameof(EmployeeId))]
     public Employee? Employee { get; set; }
     [ForeignKey(nameof(LeaveTypeId))]

@@ -3,7 +3,8 @@ using Microsoft.EntityFrameworkCore;
 using RelisoftHR.Data;
 using RelisoftHR.DTOs;
 using RelisoftHR.Models;
-
+using RelisoftHR.Services;
+ 
 namespace RelisoftHR.Controllers;
 
 [ApiController]
@@ -11,8 +12,13 @@ namespace RelisoftHR.Controllers;
 public class OnboardingController : ControllerBase
 {
     private readonly AppDbContext _db;
+    private readonly NotificationHelper _notif;
 
-    public OnboardingController(AppDbContext db) => _db = db;
+    public OnboardingController(AppDbContext db, NotificationHelper notif)
+    {
+        _db = db;
+        _notif = notif;
+    }
 
     [HttpGet("{employeeId}")]
     public async Task<ActionResult<OnboardingProfileResponse>> GetProfile(int employeeId)
@@ -161,6 +167,16 @@ public class OnboardingController : ControllerBase
         }
 
         await _db.SaveChangesAsync();
+
+        var emp = await _db.Employees.FindAsync(employeeId);
+        if (emp != null)
+        {
+            await _notif.NotifyEmployeeAsync(emp.Id, emp, "Profile Saved",
+                "Your onboarding profile has been saved successfully.", "onboarding",
+                "Profile Saved", EmailTemplates.OnboardingStepCompleted(emp.FullName, "Profile Saved", "Employee"),
+                link: "/onboarding");
+        }
+
         return Ok(new { message = "Onboarding profile saved." });
     }
 

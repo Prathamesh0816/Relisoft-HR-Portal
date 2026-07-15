@@ -126,9 +126,7 @@ export default function AppLayout({ onLogout }) {
           <div className="flex items-center gap-3 cursor-pointer" onClick={() => useStore.getState().setActiveView(
             ['HRL2','HR'].includes(useStore.getState().currentUser?.role) ? 'hrHome' : ['OrganizationHead','ManagerL2','Manager'].includes(useStore.getState().currentUser?.role) ? 'overview' : 'apply'
           )}>
-            <div className="w-12 h-12 rounded-xl bg-white dark:bg-navy-dark shadow-lg flex items-center justify-center">
-              <div className="w-8 h-8 rounded-full bg-gradient-to-br from-gold-1 to-gold-2 flex items-center justify-center text-navy-dark font-bold text-[10px]">RS</div>
-            </div>
+            <img src="/relisoft-logo.webp" alt="ReliSoft" className="h-10 w-auto" />
             <div>
               <div className="font-heading font-extrabold text-navy dark:text-white text-sm">ReliSoft Technologies</div>
               <div className="text-muted dark:text-white/50 text-xs">People Hub</div>

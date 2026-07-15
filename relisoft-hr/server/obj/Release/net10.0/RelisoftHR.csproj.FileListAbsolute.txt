@@ -1,5 +1,11 @@
 C:\Users\Abcom\Projects\Relisoft-HR-Portal\relisoft-hr\server\bin\Release\net10.0\appsettings.Development.json
 C:\Users\Abcom\Projects\Relisoft-HR-Portal\relisoft-hr\server\bin\Release\net10.0\appsettings.json
+C:\Users\Abcom\Projects\Relisoft-HR-Portal\relisoft-hr\server\bin\Release\net10.0\publish\web.config
+C:\Users\Abcom\Projects\Relisoft-HR-Portal\relisoft-hr\server\bin\Release\net10.0\publish\appsettings.Development.json
+C:\Users\Abcom\Projects\Relisoft-HR-Portal\relisoft-hr\server\bin\Release\net10.0\publish\appsettings.json
+C:\Users\Abcom\Projects\Relisoft-HR-Portal\relisoft-hr\server\bin\Release\net10.0\publish\RelisoftHR.deps.json
+C:\Users\Abcom\Projects\Relisoft-HR-Portal\relisoft-hr\server\bin\Release\net10.0\publish\RelisoftHR.runtimeconfig.json
+C:\Users\Abcom\Projects\Relisoft-HR-Portal\relisoft-hr\server\bin\Release\net10.0\publish\RelisoftHR.staticwebassets.endpoints.json
 C:\Users\Abcom\Projects\Relisoft-HR-Portal\relisoft-hr\server\bin\Release\net10.0\RelisoftHR.staticwebassets.endpoints.json
 C:\Users\Abcom\Projects\Relisoft-HR-Portal\relisoft-hr\server\bin\Release\net10.0\RelisoftHR.exe
 C:\Users\Abcom\Projects\Relisoft-HR-Portal\relisoft-hr\server\bin\Release\net10.0\RelisoftHR.deps.json
@@ -167,3 +173,4 @@ C:\Users\Abcom\Projects\Relisoft-HR-Portal\relisoft-hr\server\obj\Release\net10.
 C:\Users\Abcom\Projects\Relisoft-HR-Portal\relisoft-hr\server\obj\Release\net10.0\RelisoftHR.pdb
 C:\Users\Abcom\Projects\Relisoft-HR-Portal\relisoft-hr\server\obj\Release\net10.0\RelisoftHR.genruntimeconfig.cache
 C:\Users\Abcom\Projects\Relisoft-HR-Portal\relisoft-hr\server\obj\Release\net10.0\ref\RelisoftHR.dll
+C:\Users\Abcom\Projects\Relisoft-HR-Portal\relisoft-hr\server\bin\Release\net10.0\appsettings.Production.json

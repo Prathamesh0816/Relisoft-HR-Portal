@@ -18,9 +18,9 @@ namespace RelisoftHR.Migrations
                 columns: new[] { "Id", "CreatedOn", "Department", "Designation", "Email", "EmployeeCode", "EmploymentType", "FullName", "JobRole", "JoinDate", "Location", "PrimaryTeamId", "RoleId", "SalaryStructureDetails", "UpdatedOn" },
                 values: new object[,]
                 {
-                    { 1, new DateTime(2026, 1, 1, 0, 0, 0, 0, DateTimeKind.Utc), "HR", "HR Lead", "preeti@relisoft.com", "EMP-001", "Full-time", "Preeti Sharma", "HR Lead", new DateTime(2024, 1, 15, 0, 0, 0, 0, DateTimeKind.Unspecified), "Mumbai", null, 7, null, null },
-                    { 2, new DateTime(2026, 1, 1, 0, 0, 0, 0, DateTimeKind.Utc), "Management", "CEO", "rakesh@relisoft.com", "EMP-002", "Full-time", "Rakesh Mehta", "CEO", new DateTime(2023, 6, 1, 0, 0, 0, 0, DateTimeKind.Unspecified), "Mumbai", null, 6, null, null },
-                    { 3, new DateTime(2026, 1, 1, 0, 0, 0, 0, DateTimeKind.Utc), "Engineering", "Software Engineer", "aradhana@relisoft.com", "EMP-003", "Full-time", "Aradhana Singh", "Software Engineer", new DateTime(2025, 3, 10, 0, 0, 0, 0, DateTimeKind.Unspecified), "Mumbai", null, 1, null, null }
+                    { 1, new DateTime(2026, 1, 1, 0, 0, 0, 0, DateTimeKind.Utc), "HR", "HR Lead", "preeti@relisoft.com", "EMP-001", "Full-time", "Preeti Patil", "HR Lead", new DateTime(2024, 1, 15, 0, 0, 0, 0, DateTimeKind.Unspecified), "Mumbai", null, 7, null, null },
+                    { 2, new DateTime(2026, 1, 1, 0, 0, 0, 0, DateTimeKind.Utc), "Management", "CEO", "rakesh@relisoft.com", "EMP-002", "Full-time", "Rakesh Patil", "CEO", new DateTime(2023, 6, 1, 0, 0, 0, 0, DateTimeKind.Unspecified), "Mumbai", null, 6, null, null },
+                    { 3, new DateTime(2026, 1, 1, 0, 0, 0, 0, DateTimeKind.Utc), "Engineering", "Software Engineer", "aradhana@relisoft.com", "EMP-003", "Full-time", "Aradhana Shinde", "Software Engineer", new DateTime(2025, 3, 10, 0, 0, 0, 0, DateTimeKind.Unspecified), "Mumbai", null, 1, null, null }
                 });
 
             migrationBuilder.InsertData(

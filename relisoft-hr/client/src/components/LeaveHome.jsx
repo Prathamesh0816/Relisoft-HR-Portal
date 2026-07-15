@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react'
 import useStore from '../store'
-import { applyLeave, getMyLeaveRequests, cancelLeave, loadWorkspace, checkLeaveBalance, applyCompOff, getFloaterUsage, uploadMedicalCertificate, transferCompOff, getCompOffTransfers } from '../api'
+import { applyLeave, getMyLeaveRequests, cancelLeave, requestCancellation, loadWorkspace, checkLeaveBalance, applyCompOff, getFloaterUsage, uploadMedicalCertificate, transferCompOff, getCompOffTransfers } from '../api'
 
 function statusClass(status) {
   const s = String(status || '').toLowerCase()
@@ -85,12 +85,17 @@ export default function LeaveHome() {
     if (!cancelDialog.request || cancelDialog.submitting) return
     setCancelDialog((c) => ({ ...c, submitting: true }))
     try {
-      await cancelLeave(cancelDialog.request.id, { employeeId: currentUser?.employeeId, reason: cancelDialog.reason })
-      setMessage({ type: 'success', text: 'Leave request cancelled.' })
+      if (cancelDialog.request.status === 'Approved') {
+        await requestCancellation(cancelDialog.request.id, { employeeId: currentUser?.employeeId, reason: cancelDialog.reason })
+        setMessage({ type: 'success', text: 'Cancellation request submitted for approval.' })
+      } else {
+        await cancelLeave(cancelDialog.request.id, { employeeId: currentUser?.employeeId, reason: cancelDialog.reason })
+        setMessage({ type: 'success', text: 'Leave request withdrawn.' })
+      }
       setCancelDialog({ request: null, reason: 'Plans changed.', submitting: false })
       await Promise.all([loadWorkspace().then((d) => useStore.getState().setData(d)), getMyLeaveRequests(currentUser?.employeeId).then((r) => setMyLeaves({ requests: r.requests || [] }))])
     } catch (err) {
-      setMessage({ type: 'error', text: err.response?.data?.message || 'Failed to cancel.' })
+      setMessage({ type: 'error', text: err.response?.data?.message || 'Failed.' })
       setCancelDialog((c) => ({ ...c, submitting: false }))
     }
   }
@@ -394,9 +399,9 @@ export default function LeaveHome() {
                   ))}
                 </div>
                 <p className="text-sm text-navy/70 dark:text-white/70">{req.reason || 'No note'}</p>
-                {req.canCancel && (
+                {(req.status === 'Pending' || req.status === 'Approved') && (
                   <button onClick={() => setCancelDialog({ request: req, reason: 'Plans changed.', submitting: false })} className="px-4 py-2 rounded-xl bg-red-50 dark:bg-red-900/30 text-red-600 border border-red-200 font-bold text-xs hover:bg-red-100 transition-all">
-                    Cancel request
+                    {req.status === 'Approved' ? 'Request cancellation' : 'Withdraw'}
                   </button>
                 )}
               </div>
@@ -409,7 +414,7 @@ export default function LeaveHome() {
           <div className="card-surface w-full max-w-lg max-h-[90vh] overflow-hidden">
             <div className="flex items-start justify-between gap-4 p-5 border-b border-navy/10 bg-white dark:bg-[var(--bg-secondary)]">
               <div>
-                <h2 className="font-heading font-bold text-xl text-navy dark:text-white">Cancel leave request</h2>
+                <h2 className="font-heading font-bold text-xl text-navy dark:text-white">{cancelDialog.request?.status === 'Approved' ? 'Request cancellation' : 'Cancel leave request'}</h2>
                 <p className="text-muted dark:text-white/60 text-sm mt-1">{cancelDialog.request.leaveTypeName} — {new Date(cancelDialog.request.fromDate).toLocaleDateString()} to {new Date(cancelDialog.request.toDate).toLocaleDateString()}</p>
               </div>
               <button onClick={() => setCancelDialog({ request: null, reason: 'Plans changed.', submitting: false })} className="px-4 py-2 rounded-xl border border-navy/10 dark:border-white/10 text-navy/70 dark:text-white/70 font-bold text-xs hover:bg-navy/5">Close</button>

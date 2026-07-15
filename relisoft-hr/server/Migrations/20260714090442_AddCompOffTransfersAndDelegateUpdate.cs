@@ -49,13 +49,13 @@ namespace RelisoftHR.Migrations
                         column: x => x.FromEmployeeId,
                         principalTable: "Employees",
                         principalColumn: "Id",
-                        onDelete: ReferentialAction.Cascade);
+                        onDelete: ReferentialAction.NoAction);
                     table.ForeignKey(
                         name: "FK_CompOffTransfers_Employees_ToEmployeeId",
                         column: x => x.ToEmployeeId,
                         principalTable: "Employees",
                         principalColumn: "Id",
-                        onDelete: ReferentialAction.Cascade);
+                        onDelete: ReferentialAction.NoAction);
                 });
 
             migrationBuilder.CreateIndex(

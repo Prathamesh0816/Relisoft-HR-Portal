@@ -3,7 +3,8 @@ using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using RelisoftHR.Data;
 using RelisoftHR.Models;
-
+using RelisoftHR.Services;
+ 
 namespace RelisoftHR.Controllers;
 
 [ApiController]
@@ -12,7 +13,12 @@ namespace RelisoftHR.Controllers;
 public class VisitorController : ControllerBase
 {
     private readonly AppDbContext _db;
-    public VisitorController(AppDbContext db) => _db = db;
+    private readonly NotificationHelper _notif;
+    public VisitorController(AppDbContext db, NotificationHelper notif)
+    {
+        _db = db;
+        _notif = notif;
+    }
 
     private int GetUserId()
     {
@@ -38,6 +44,19 @@ public class VisitorController : ControllerBase
         req.CreatedOn = DateTime.UtcNow;
         _db.Visitors.Add(req);
         await _db.SaveChangesAsync();
+
+        if (req.HostEmployeeId.HasValue)
+        {
+            var host = await _db.Employees.FindAsync(req.HostEmployeeId.Value);
+            if (host != null)
+            {
+                await _notif.NotifyEmployeeAsync(host.Id, host, "Visitor Registered",
+                    $"{req.FullName} has been registered to visit you.", "visitor",
+                    "Visitor Registered", EmailTemplates.VisitorRegistered(host.FullName, req.FullName, req.ExpectedDate),
+                    link: "/visitors");
+            }
+        }
+
         return Ok(req);
     }
 

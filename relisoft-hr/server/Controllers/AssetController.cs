@@ -3,6 +3,7 @@ using Microsoft.EntityFrameworkCore;
 using RelisoftHR.Data;
 using RelisoftHR.DTOs;
 using RelisoftHR.Models;
+using RelisoftHR.Services;
 
 namespace RelisoftHR.Controllers;
 
@@ -11,8 +12,13 @@ namespace RelisoftHR.Controllers;
 public class AssetController : ControllerBase
 {
     private readonly AppDbContext _db;
+    private readonly NotificationHelper _notif;
 
-    public AssetController(AppDbContext db) => _db = db;
+    public AssetController(AppDbContext db, NotificationHelper notif)
+    {
+        _db = db;
+        _notif = notif;
+    }
 
     [HttpGet]
     public async Task<ActionResult<List<AssetDto>>> GetAssets()
@@ -79,6 +85,15 @@ public class AssetController : ControllerBase
         });
         asset.Status = "Assigned";
         await _db.SaveChangesAsync();
+
+        if (emp != null)
+        {
+            await _notif.NotifyEmployeeAsync(emp.Id, emp, "Asset Assigned",
+                $"Asset '{asset.Name}' has been assigned to you.", "asset",
+                "Asset Assigned", EmailTemplates.AssetAssigned(emp.FullName, asset.Name, asset.SerialNumber ?? ""),
+                link: "/my-assets");
+        }
+
         return Ok(new { message = "Asset assigned." });
     }
 

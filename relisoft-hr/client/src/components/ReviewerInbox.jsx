@@ -38,6 +38,7 @@ export default function ReviewerInbox() {
         setReviewerData({
           reviewerName: res.reviewer?.fullName || '',
           requests: res.requests || [],
+          cancellationRequests: res.cancellationRequests || [],
           recentDecisions: res.recentDecisions || [],
           loading: false
         })
@@ -163,6 +164,48 @@ export default function ReviewerInbox() {
               </div>
             ))}
           </div>
+          {reviewer.cancellationRequests?.length > 0 && (
+            <>
+              <hr className="border-navy/10 dark:border-white/10" />
+              <div>
+                <h3 className="font-heading font-bold text-lg text-navy dark:text-white">Cancellation requests ({reviewer.cancellationRequests.length})</h3>
+                <p className="text-muted dark:text-white/60 text-xs mt-1">Employees requesting cancellation of approved leaves.</p>
+                <div className="space-y-3 mt-4">
+                  {reviewer.cancellationRequests.map((req) => (
+                    <div key={req.id} className="p-5 rounded-xl border border-orange-200 dark:border-orange-900/30 bg-orange-50 dark:bg-orange-900/30 space-y-3">
+                      <div className="flex items-start justify-between gap-3 flex-wrap">
+                        <div>
+                          <h3 className="font-heading font-bold text-navy dark:text-white">{req.employeeName}</h3>
+                          <div className="text-xs text-navy/50 dark:text-white/50">{req.employeeCode}</div>
+                        </div>
+                        <div className="flex gap-2">
+                          <span className="px-3 py-1 rounded-full bg-orange-200 dark:bg-orange-900/30 text-orange-800 text-xs font-bold">Cancellation requested</span>
+                          <span className="px-3 py-1 rounded-full bg-navy/5 text-navy/70 text-xs font-bold">{req.leaveTypeName}</span>
+                          <span className="px-3 py-1 rounded-full bg-navy/5 text-navy/70 text-xs font-bold">{req.totalDays} day{req.totalDays > 1 ? 's' : ''}</span>
+                        </div>
+                      </div>
+                      <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+                        {[['From', req.fromDate], ['To', req.toDate], ['Requested', req.cancellationRequestedOn], ['Reason', req.cancellationReason || req.reason]].map(([label, value]) => (
+                          <div key={label} className="p-3 rounded-xl bg-white dark:bg-[var(--bg-secondary)] border border-navy/5">
+                            <span className="text-[10px] font-bold text-navy/50 uppercase tracking-wider">{label}</span>
+                            <strong className="block text-sm text-navy dark:text-white mt-1">{label === 'Reason' ? (value || 'No reason') : (value ? new Date(value).toLocaleDateString() : 'N/A')}</strong>
+                          </div>
+                        ))}
+                      </div>
+                      <div className="flex gap-3">
+                        <button onClick={() => handleDecision(req.id, 'cancel_approve')} disabled={Boolean(decisionInFlight)} className="px-5 py-2.5 rounded-xl bg-red-50 dark:bg-red-900/30 text-red-600 border border-red-200 font-bold text-xs hover:bg-red-100">
+                          {decisionInFlight === req.id ? 'Sending...' : 'Approve cancellation'}
+                        </button>
+                        <button onClick={() => handleDecision(req.id, 'cancel_reject')} disabled={Boolean(decisionInFlight)} className="px-5 py-2.5 rounded-xl border border-navy/10 dark:border-white/10 text-navy/70 font-bold text-xs hover:bg-navy/5">
+                          {decisionInFlight === req.id ? 'Sending...' : 'Reject cancellation'}
+                        </button>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            </>
+          )}
           <hr className="border-navy/10 dark:border-white/10" />
           <div>
             <h3 className="font-heading font-bold text-lg text-navy dark:text-white">Recent decisions</h3>

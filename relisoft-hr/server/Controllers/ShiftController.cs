@@ -3,7 +3,8 @@ using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using RelisoftHR.Data;
 using RelisoftHR.Models;
-
+using RelisoftHR.Services;
+ 
 namespace RelisoftHR.Controllers;
 
 [ApiController]
@@ -12,7 +13,12 @@ namespace RelisoftHR.Controllers;
 public class ShiftController : ControllerBase
 {
     private readonly AppDbContext _db;
-    public ShiftController(AppDbContext db) => _db = db;
+    private readonly NotificationHelper _notif;
+    public ShiftController(AppDbContext db, NotificationHelper notif)
+    {
+        _db = db;
+        _notif = notif;
+    }
 
     private int GetUserId()
     {
@@ -68,6 +74,18 @@ public class ShiftController : ControllerBase
     {
         _db.ShiftAssignments.Add(req);
         await _db.SaveChangesAsync();
+
+        var emp = await _db.Employees.FindAsync(req.EmployeeId);
+        if (emp != null)
+        {
+            var template = await _db.ShiftTemplates.FindAsync(req.ShiftTemplateId);
+            var shiftName = template?.Name ?? "Unknown";
+            await _notif.NotifyEmployeeAsync(emp.Id, emp, "Shift Assigned",
+                $"A new shift ({shiftName}) has been assigned to you.", "shift",
+                "Shift Changed", EmailTemplates.ShiftChanged(emp.FullName, "None", shiftName, req.StartDate.ToString("dd-MMM-yyyy")),
+                link: "/shifts");
+        }
+
         return Ok(req);
     }
 

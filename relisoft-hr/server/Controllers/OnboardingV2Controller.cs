@@ -187,7 +187,7 @@ public class OnboardingV2Controller : ControllerBase
 
         if (string.IsNullOrEmpty(emp.Email) && !string.IsNullOrEmpty(emp.FullName))
         {
-            var email = emp.FullName.ToLower().Replace(" ", ".") + "@relisoft.com";
+            var email = emp.FullName.ToLower().Replace(" ", ".") + "@relisofttechnologies.com";
             emp.Email = email;
         }
 

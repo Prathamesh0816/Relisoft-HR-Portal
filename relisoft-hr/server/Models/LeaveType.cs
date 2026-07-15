@@ -15,4 +15,7 @@ public class LeaveType
     public bool IsFloaterHoliday { get; set; }
     public int MaxFloaterPerYear { get; set; }
     public int CompOffValidityDays { get; set; }
+    public int MaxConsecutiveDays { get; set; }
+    public bool RequiresAdvanceNotice { get; set; }
+    public int AdvanceNoticeDays { get; set; }
 }

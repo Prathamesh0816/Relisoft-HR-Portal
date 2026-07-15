@@ -3,7 +3,8 @@ using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using RelisoftHR.Data;
 using RelisoftHR.Models;
-
+using RelisoftHR.Services;
+ 
 namespace RelisoftHR.Controllers;
 
 [ApiController]
@@ -12,7 +13,12 @@ namespace RelisoftHR.Controllers;
 public class BenefitsController : ControllerBase
 {
     private readonly AppDbContext _db;
-    public BenefitsController(AppDbContext db) => _db = db;
+    private readonly NotificationHelper _notif;
+    public BenefitsController(AppDbContext db, NotificationHelper notif)
+    {
+        _db = db;
+        _notif = notif;
+    }
 
     private int GetUserId()
     {
@@ -73,6 +79,16 @@ public class BenefitsController : ControllerBase
         req.CreatedOn = DateTime.UtcNow;
         _db.BenefitEnrollments.Add(req);
         await _db.SaveChangesAsync();
+
+        var emp = await _db.Employees.FindAsync(GetUserId());
+        if (emp != null)
+        {
+            await _notif.NotifyEmployeeAsync(emp.Id, emp, "Benefit Enrolled",
+                $"You have been enrolled in {plan.Name}.", "benefits",
+                "Benefit Enrolled", EmailTemplates.BenefitEnrolled(emp.FullName, plan.Name, req.EffectiveDate?.ToString("dd-MMM-yyyy") ?? "N/A"),
+                link: "/benefits");
+        }
+
         return Ok(req);
     }
 

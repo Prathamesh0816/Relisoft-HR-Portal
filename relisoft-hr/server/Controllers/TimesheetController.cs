@@ -3,6 +3,7 @@ using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using RelisoftHR.Data;
 using RelisoftHR.Models;
+using RelisoftHR.Services;
 
 namespace RelisoftHR.Controllers;
 
@@ -12,7 +13,13 @@ namespace RelisoftHR.Controllers;
 public class TimesheetController : ControllerBase
 {
     private readonly AppDbContext _db;
-    public TimesheetController(AppDbContext db) => _db = db;
+    private readonly NotificationHelper _notif;
+
+    public TimesheetController(AppDbContext db, NotificationHelper notif)
+    {
+        _db = db;
+        _notif = notif;
+    }
 
     private int GetUserId()
     {
@@ -89,6 +96,17 @@ public class TimesheetController : ControllerBase
         req.CreatedOn = DateTime.UtcNow;
         _db.TimesheetPeriods.Add(req);
         await _db.SaveChangesAsync();
+
+        var emp = await _db.Employees.FindAsync(req.EmployeeId);
+        if (emp != null)
+        {
+            var periodStr = $"{req.WeekStart:dd-MMM-yyyy} - {req.WeekEnd:dd-MMM-yyyy}";
+            await _notif.NotifyEmployeeAsync(emp.Id, emp, "Timesheet Submitted",
+                $"Your timesheet for period {periodStr} has been submitted.", "timesheet",
+                "Timesheet Submitted", EmailTemplates.TimesheetSubmitted(emp.FullName, periodStr, ""),
+                link: "/timesheets");
+        }
+
         return Ok(req);
     }
 
@@ -116,6 +134,17 @@ public class TimesheetController : ControllerBase
         entry.ApprovedById = GetUserId();
         entry.ApprovedOn = DateTime.UtcNow;
         await _db.SaveChangesAsync();
+
+        var emp = await _db.Employees.FindAsync(entry.EmployeeId);
+        if (emp != null)
+        {
+            var periodStr = entry.Date.ToString("dd-MMM-yyyy");
+            await _notif.NotifyEmployeeAsync(emp.Id, emp, "Timesheet Entry Approved",
+                $"Your timesheet entry for {periodStr} has been approved.", "timesheet",
+                "Timesheet Entry Approved", EmailTemplates.TimesheetDecision(emp.FullName, periodStr, "Approved", null),
+                link: "/timesheets");
+        }
+
         return Ok(entry);
     }
 
@@ -128,6 +157,17 @@ public class TimesheetController : ControllerBase
         entry.ApprovedById = GetUserId();
         entry.ApprovedOn = DateTime.UtcNow;
         await _db.SaveChangesAsync();
+
+        var emp = await _db.Employees.FindAsync(entry.EmployeeId);
+        if (emp != null)
+        {
+            var periodStr = entry.Date.ToString("dd-MMM-yyyy");
+            await _notif.NotifyEmployeeAsync(emp.Id, emp, "Timesheet Entry Rejected",
+                $"Your timesheet entry for {periodStr} has been rejected.", "timesheet",
+                "Timesheet Entry Rejected", EmailTemplates.TimesheetDecision(emp.FullName, periodStr, "Rejected", null),
+                link: "/timesheets");
+        }
+
         return Ok(entry);
     }
 }

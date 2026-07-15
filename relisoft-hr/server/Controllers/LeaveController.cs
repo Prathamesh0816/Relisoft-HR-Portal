@@ -3,6 +3,7 @@ using Microsoft.EntityFrameworkCore;
 using RelisoftHR.Data;
 using RelisoftHR.DTOs;
 using RelisoftHR.Models;
+using RelisoftHR.Services;
 
 namespace RelisoftHR.Controllers;
 
@@ -11,10 +12,16 @@ namespace RelisoftHR.Controllers;
 public class LeaveController : ControllerBase
 {
     private readonly AppDbContext _db;
+    private readonly IEmailService _emailService;
+    private readonly NotificationHelper _notif;
+    private readonly ILogger<LeaveController> _logger;
 
-    public LeaveController(AppDbContext db)
+    public LeaveController(AppDbContext db, IEmailService emailService, NotificationHelper notif, ILogger<LeaveController> logger)
     {
         _db = db;
+        _emailService = emailService;
+        _notif = notif;
+        _logger = logger;
     }
 
     [HttpPost("apply-leave")]
@@ -41,6 +48,16 @@ public class LeaveController : ControllerBase
         }
 
         if (req.IsHalfDay) totalDays = Math.Max(1, totalDays * 0.5m);
+
+        if (leaveType.MaxConsecutiveDays > 0 && totalDays > leaveType.MaxConsecutiveDays)
+            return BadRequest(new { message = $"This leave type allows a maximum of {leaveType.MaxConsecutiveDays} consecutive days." });
+
+        if (leaveType.RequiresAdvanceNotice && leaveType.AdvanceNoticeDays > 0)
+        {
+            var minStartDate = DateTime.UtcNow.Date.AddDays(leaveType.AdvanceNoticeDays);
+            if (req.StartDate.Date < minStartDate)
+                return BadRequest(new { message = $"This leave type requires {leaveType.AdvanceNoticeDays} day(s) advance notice. Earliest start date: {minStartDate:yyyy-MM-dd}." });
+        }
 
         var isMedical = totalDays > 3;
 
@@ -75,6 +92,9 @@ public class LeaveController : ControllerBase
 
         _db.LeaveApplications.Add(application);
         await _db.SaveChangesAsync();
+
+        var approver = await GetApprover(employee);
+        _ = SendEmailLeaveSubmitted(employee, leaveType, application, approver?.FullName ?? "Manager");
 
         return Ok(new
         {
@@ -113,7 +133,26 @@ public class LeaveController : ControllerBase
             .OrderByDescending(l => l.AppliedOn)
             .ToListAsync();
 
-        return Ok(requests.Select(MapRequest).ToList());
+        var cancellationRequests = await _db.LeaveApplications
+            .Include(l => l.LeaveType).Include(l => l.Employee)
+            .Where(l => managedEmployeeIds.Contains(l.EmployeeId) && l.Status == "CancellationRequested")
+            .OrderByDescending(l => l.CancellationRequestedOn ?? l.AppliedOn)
+            .ToListAsync();
+
+        var recentDecisions = await _db.LeaveApplications
+            .Include(l => l.LeaveType).Include(l => l.Employee)!.ThenInclude(e => e!.PrimaryTeam)
+            .Where(l => managedEmployeeIds.Contains(l.EmployeeId) && l.Status != "Pending" && l.Status != "CancellationRequested")
+            .OrderByDescending(l => l.ActionedOn ?? l.AppliedOn)
+            .Take(20)
+            .ToListAsync();
+
+        return Ok(new
+        {
+            Reviewer = new { reviewer.Id, reviewer.FullName, Role = reviewer.Role?.Label ?? "" },
+            Requests = requests.Select(MapRequest).ToList(),
+            CancellationRequests = cancellationRequests.Select(MapRequest).ToList(),
+            RecentDecisions = recentDecisions.Select(MapRequest).ToList()
+        });
     }
 
     [HttpPost("reviewer/decision")]
@@ -127,17 +166,46 @@ public class LeaveController : ControllerBase
 
         var approver = await _db.Employees.Include(e => e.Role).FirstOrDefaultAsync(e => e.Id == req.ApproverId);
 
+        if (application.Status == "CancellationRequested")
+        {
+            var isApproved = req.Action.Equals("cancel_approve", StringComparison.OrdinalIgnoreCase);
+            application.Status = isApproved ? "Cancelled" : "Approved";
+            application.CancellationActionedById = req.ApproverId;
+            application.CancellationActionedOn = DateTime.UtcNow;
+            application.ApprovalReason = req.Reason;
+            application.ActionedOn = DateTime.UtcNow;
+
+            if (isApproved)
+            {
+                application.CanCancel = false;
+                var balance = await _db.EmployeeLeaveBalances
+                    .FirstOrDefaultAsync(lb => lb.EmployeeId == application.EmployeeId && lb.LeaveTypeId == application.LeaveTypeId);
+                if (balance != null)
+                {
+                    balance.UsedLeaves -= application.TotalDays;
+                    balance.RemainingLeaves = balance.AllocatedLeaves - balance.UsedLeaves;
+                    balance.UpdatedOn = DateTime.UtcNow;
+                }
+            }
+
+            await _db.SaveChangesAsync();
+            _ = SendEmailCancellationDecision(application, isApproved, req.Reason);
+
+            return Ok(new { message = isApproved ? "Cancellation approved. Leave cancelled." : "Cancellation rejected. Leave remains approved." });
+        }
+
         if (application.IsMedicalLeave && string.IsNullOrEmpty(application.MedicalCertificatePath))
             return BadRequest(new { message = "Medical certificate required before approval." });
 
-        var isApproved = req.Action.Equals("approve", StringComparison.OrdinalIgnoreCase);
-        application.Status = isApproved ? "Approved" : "Rejected";
+        var isApprove = req.Action.Equals("approve", StringComparison.OrdinalIgnoreCase);
+        application.Status = isApprove ? "Approved" : "Rejected";
         application.ApproverId = req.ApproverId;
         application.ApproverName = approver?.FullName;
         application.ActionedOn = DateTime.UtcNow;
         application.CanCancel = false;
+        application.ApprovalReason = req.Reason;
 
-        if (isApproved)
+        if (isApprove)
         {
             var balance = await _db.EmployeeLeaveBalances
                 .FirstOrDefaultAsync(lb => lb.EmployeeId == application.EmployeeId && lb.LeaveTypeId == application.LeaveTypeId);
@@ -150,35 +218,166 @@ public class LeaveController : ControllerBase
         }
 
         await _db.SaveChangesAsync();
-        return Ok(new { message = isApproved ? "Leave approved." : "Leave rejected." });
+
+        if (isApprove)
+            _ = SendEmailLeaveDecision(application, "approved");
+        else
+            _ = SendEmailLeaveDecision(application, "rejected");
+
+        return Ok(new { message = isApprove ? "Leave approved." : "Leave rejected." });
+    }
+
+    [HttpPost("reviewer/bulk-decision")]
+    public async Task<ActionResult> BulkDecision(BulkDecisionRequest req)
+    {
+        if (req.LeaveApplicationIds == null || req.LeaveApplicationIds.Count == 0)
+            return BadRequest(new { message = "At least one leave application ID is required." });
+
+        if (req.Action != "approve" && req.Action != "reject")
+            return BadRequest(new { message = "Action must be 'approve' or 'reject'." });
+
+        var results = new List<object>();
+        var approvalsProcessed = 0;
+        var errors = 0;
+
+        foreach (var leaveId in req.LeaveApplicationIds)
+        {
+            try
+            {
+                var application = await _db.LeaveApplications
+                    .Include(l => l.Employee)
+                    .Include(l => l.LeaveType)
+                    .FirstOrDefaultAsync(l => l.Id == leaveId);
+                if (application == null)
+                {
+                    errors++;
+                    results.Add(new { LeaveId = leaveId, Success = false, Message = "Leave not found." });
+                    continue;
+                }
+
+                var approver = await _db.Employees.FindAsync(req.ApproverId);
+
+                if (application.IsMedicalLeave && string.IsNullOrEmpty(application.MedicalCertificatePath) && req.Action == "approve")
+                {
+                    errors++;
+                    results.Add(new { LeaveId = leaveId, Success = false, Message = "Medical certificate required." });
+                    continue;
+                }
+
+                var isApprove = req.Action.Equals("approve", StringComparison.OrdinalIgnoreCase);
+                application.Status = isApprove ? "Approved" : "Rejected";
+                application.ApproverId = req.ApproverId;
+                application.ApproverName = approver?.FullName;
+                application.ActionedOn = DateTime.UtcNow;
+                application.CanCancel = false;
+                application.ApprovalReason = req.Reason;
+
+                if (isApprove)
+                {
+                    var balance = await _db.EmployeeLeaveBalances
+                        .FirstOrDefaultAsync(lb => lb.EmployeeId == application.EmployeeId && lb.LeaveTypeId == application.LeaveTypeId);
+                    if (balance != null)
+                    {
+                        balance.UsedLeaves += application.TotalDays;
+                        balance.RemainingLeaves = balance.AllocatedLeaves - balance.UsedLeaves;
+                        balance.UpdatedOn = DateTime.UtcNow;
+                    }
+                }
+
+                await _db.SaveChangesAsync();
+
+                if (isApprove)
+                    _ = SendEmailLeaveDecision(application, "approved");
+                else
+                    _ = SendEmailLeaveDecision(application, "rejected");
+
+                approvalsProcessed++;
+                results.Add(new { LeaveId = leaveId, Success = true, Message = isApprove ? "Approved." : "Rejected." });
+            }
+            catch (Exception ex)
+            {
+                errors++;
+                _logger.LogError(ex, "Bulk decision failed for leave {LeaveId}", leaveId);
+                results.Add(new { LeaveId = leaveId, Success = false, Message = "Error processing." });
+            }
+        }
+
+        return Ok(new
+        {
+            Success = errors == 0,
+            Message = $"Processed {results.Count} leave request(s): {approvalsProcessed} succeeded, {errors} failed.",
+            Results = results
+        });
+    }
+
+    [HttpPost("{id}/request-cancellation")]
+    public async Task<ActionResult> RequestCancellation(int id, RequestCancellationRequest req)
+    {
+        var application = await _db.LeaveApplications
+            .Include(l => l.Employee)
+            .Include(l => l.LeaveType)
+            .FirstOrDefaultAsync(l => l.Id == id);
+        if (application == null || application.EmployeeId != req.EmployeeId)
+            return NotFound(new { message = "Leave application not found." });
+
+        if (application.Status != "Approved")
+            return BadRequest(new { message = "Only approved leaves can be cancelled. Pending leaves can be withdrawn directly." });
+
+        if (application.Status == "CancellationRequested")
+            return BadRequest(new { message = "A cancellation request is already pending for this leave." });
+
+        application.Status = "CancellationRequested";
+        application.CancellationReason = string.IsNullOrWhiteSpace(req.Reason) ? "No reason provided" : req.Reason.Trim();
+        application.CancellationRequestedOn = DateTime.UtcNow;
+        await _db.SaveChangesAsync();
+
+        _ = SendEmailCancellationRequested(application);
+
+        return Ok(new { message = "Cancellation request submitted for approval." });
     }
 
     [HttpPost("{id}/cancel")]
     public async Task<ActionResult> CancelLeave(int id, CancelLeaveRequest req)
     {
-        var application = await _db.LeaveApplications.FindAsync(id);
+        var application = await _db.LeaveApplications
+            .Include(l => l.LeaveType)
+            .FirstOrDefaultAsync(l => l.Id == id);
         if (application == null || application.EmployeeId != req.EmployeeId)
             return NotFound(new { message = "Leave application not found." });
 
-        if (!application.CanCancel)
-            return BadRequest(new { message = "Cannot cancel this leave." });
+        if (application.Status != "Pending")
+            return BadRequest(new { message = $"Leave is {application.Status.ToLowerInvariant()} and cannot be withdrawn directly. Use cancellation request for approved leaves." });
 
         application.Status = "Cancelled";
         application.CanCancel = false;
-
-        if (application.Status == "Approved" || application.Status == "Cancelled")
-        {
-            var balance = await _db.EmployeeLeaveBalances
-                .FirstOrDefaultAsync(lb => lb.EmployeeId == application.EmployeeId && lb.LeaveTypeId == application.LeaveTypeId);
-            if (balance != null)
-            {
-                balance.UsedLeaves -= application.TotalDays;
-                balance.RemainingLeaves = balance.AllocatedLeaves - balance.UsedLeaves;
-            }
-        }
+        application.ActionedOn = DateTime.UtcNow;
+        application.ApprovalReason = string.IsNullOrWhiteSpace(req.Reason) ? "Withdrawn by employee" : "Withdrawn by employee: " + req.Reason.Trim();
 
         await _db.SaveChangesAsync();
-        return Ok(new { message = "Leave cancelled." });
+
+        return Ok(new { message = "Leave request withdrawn." });
+    }
+
+    [HttpGet("calendar")]
+    public async Task<ActionResult> GetCalendar([FromQuery] DateTime? from, [FromQuery] DateTime? to)
+    {
+        var fromDate = from ?? new DateTime(DateTime.UtcNow.Year, DateTime.UtcNow.Month, 1);
+        var toDate = to ?? fromDate.AddMonths(2).AddDays(-1);
+
+        var leaves = await _db.LeaveApplications
+            .AsNoTracking()
+            .Include(l => l.Employee)
+            .Include(l => l.LeaveType)
+            .Where(l => l.Status == "Approved" && l.FromDate <= toDate && l.ToDate >= fromDate)
+            .OrderBy(l => l.FromDate)
+            .ToListAsync();
+
+        var events = leaves.Select(l => new CalendarEvent(
+            l.Id, l.EmployeeId, l.Employee?.FullName ?? "", l.Employee?.EmployeeCode ?? "",
+            l.LeaveType?.Name ?? "", l.FromDate, l.ToDate, l.TotalDays
+        )).ToList();
+
+        return Ok(new { Leaves = events, FromDate = fromDate, ToDate = toDate });
     }
 
     [HttpPost("comp-off")]
@@ -268,6 +467,8 @@ public class LeaveController : ControllerBase
 
         _db.CompOffTransfers.Add(transfer);
         await _db.SaveChangesAsync();
+
+        _ = SendCompOffTransferEmails(fromEmp, toEmp, req.Days, req.Reason);
 
         return Ok(new { message = $"{req.Days} comp off day(s) transferred to {toEmp.FullName}.", transfer.Id });
     }
@@ -361,14 +562,29 @@ public class LeaveController : ControllerBase
         });
     }
 
+    private async Task<Employee?> GetApprover(Employee employee)
+    {
+        var empWithRole = await _db.Employees.Include(e => e.Role).FirstOrDefaultAsync(e => e.Id == employee.Id);
+        if (empWithRole?.Role?.Name == "OrganizationHead" || empWithRole?.Role?.Name is "HRL2" or "HR")
+            return await _db.Employees.FirstOrDefaultAsync(e => e.RoleId == 6);
+
+        if (empWithRole?.Role?.Name is "Manager" or "ManagerL2")
+            return await _db.Employees.FirstOrDefaultAsync(e => e.RoleId == 7 || e.RoleId == 6);
+
+        var team = await _db.Teams.Include(t => t.Lead).FirstOrDefaultAsync(t => t.EmployeeTeams.Any(et => et.EmployeeId == employee.Id));
+        if (team?.Lead != null) return team.Lead;
+
+        var project = await _db.Projects.Include(p => p.Teams).ThenInclude(t => t.Lead)
+            .FirstOrDefaultAsync(p => p.Teams.Any(t => t.EmployeeTeams.Any(et => et.EmployeeId == employee.Id)));
+        return project?.Teams.FirstOrDefault()?.Lead;
+    }
+
     private async Task<List<int>> GetManagedEmployeeIds(Employee reviewer)
     {
         var allEmployees = await _db.Employees.Include(e => e.Role).ToListAsync();
 
         if (reviewer.Role?.Name == "OrganizationHead" || reviewer.Role?.Name == "HRL2")
-        {
             return allEmployees.Select(e => e.Id).ToList();
-        }
 
         var directTeam = await _db.Teams.Include(t => t.EmployeeTeams)
             .FirstOrDefaultAsync(t => t.LeadId == reviewer.Id);
@@ -437,7 +653,90 @@ public class LeaveController : ControllerBase
             l.Employee?.Role?.Name ?? "", l.LeaveType?.Name ?? "",
             l.FromDate, l.ToDate, l.TotalDays, l.IsHalfDay, l.Reason ?? "", l.Status,
             l.ApproverName, l.AppliedOn, l.ActionedOn, l.ApprovalReason, l.CanCancel,
-            l.Employee?.PrimaryTeam?.Name, l.IsMedicalLeave, l.LossOfPay, l.MedicalCertificatePath
+            l.Employee?.PrimaryTeam?.Name, l.IsMedicalLeave, l.LossOfPay, l.MedicalCertificatePath,
+            l.CancellationReason, l.CancellationRequestedOn
         );
+    }
+
+    private async Task SendEmailLeaveSubmitted(Employee employee, LeaveType leaveType, LeaveApplication app, string approverName)
+    {
+        try
+        {
+            await _emailService.SendEmailAsync(employee.Email, "Leave Request Submitted",
+                EmailTemplates.LeaveSubmitted(employee, leaveType, app.FromDate, app.ToDate, app.TotalDays, approverName));
+            await _notif.NotifyAsync(employee.Id, "Leave Request Submitted",
+                $"Your {leaveType.Name} ({app.FromDate:dd-MMM} - {app.ToDate:dd-MMM}) has been submitted for approval.",
+                "leave", link: "/apply");
+        }
+        catch (Exception ex) { _logger.LogError(ex, "Failed to send leave submitted email to {Email}", employee.Email); }
+    }
+
+    private async Task SendEmailLeaveDecision(LeaveApplication app, string action)
+    {
+        try
+        {
+            if (app.Employee?.Email != null)
+            {
+                var body = action == "approved" ? EmailTemplates.LeaveApproved(app) : EmailTemplates.LeaveRejected(app);
+                await _emailService.SendEmailAsync(app.Employee.Email, $"Leave Request {action}", body);
+                await _notif.NotifyAsync(app.EmployeeId, $"Leave {action}",
+                    $"Your leave ({app.LeaveType?.Name}) from {app.FromDate:dd-MMM} to {app.ToDate:dd-MMM} has been {action}.",
+                    "leave", link: "/my-leaves");
+            }
+        }
+        catch (Exception ex) { _logger.LogError(ex, "Failed to send leave decision email"); }
+    }
+
+    private async Task SendEmailCancellationRequested(LeaveApplication app)
+    {
+        try
+        {
+            var approver = await _db.Employees.FindAsync(app.ApproverId);
+            var employee = await _db.Employees.FindAsync(app.EmployeeId);
+            if (approver != null && employee != null)
+            {
+                await _emailService.SendEmailAsync(approver.Email, "Cancellation Request - Action Required",
+                    EmailTemplates.CancellationRequested(app, approver, app.CancellationReason ?? ""));
+                await _notif.NotifyAsync(approver.Id, "Cancellation Request",
+                    $"{employee.FullName} has requested to cancel their leave ({app.FromDate:dd-MMM} - {app.ToDate:dd-MMM}).",
+                    "leave", link: "/reviewer");
+            }
+        }
+        catch (Exception ex) { _logger.LogError(ex, "Failed to send cancellation request email"); }
+    }
+
+    private async Task SendEmailCancellationDecision(LeaveApplication app, bool approved, string? reason)
+    {
+        try
+        {
+            if (app.Employee?.Email != null)
+            {
+                await _emailService.SendEmailAsync(app.Employee.Email,
+                    $"Cancellation {(approved ? "Approved" : "Rejected")}",
+                    EmailTemplates.CancellationDecision(app, approved, reason));
+                await _notif.NotifyAsync(app.EmployeeId, $"Cancellation {(approved ? "Approved" : "Rejected")}",
+                    $"Your cancellation request for leave ({app.FromDate:dd-MMM} - {app.ToDate:dd-MMM}) has been {(!approved ? "rejected" : "approved")}.",
+                    "leave", link: "/my-leaves");
+            }
+        }
+        catch (Exception ex) { _logger.LogError(ex, "Failed to send cancellation decision email"); }
+    }
+
+    private async Task SendCompOffTransferEmails(Employee from, Employee to, decimal days, string? reason)
+    {
+        try
+        {
+            await _emailService.SendEmailAsync(to.Email, "Comp-Off Transfer Received",
+                EmailTemplates.CompOffTransferred(from, to, days, reason));
+            await _emailService.SendEmailAsync(from.Email, "Comp-Off Transfer Sent",
+                EmailTemplates.CompOffTransferred(from, to, days, reason));
+            await _notif.NotifyAsync(to.Id, "Comp-Off Received",
+                $"{from.FullName} transferred {days} comp-off day(s) to you.",
+                "leave", link: "/my-leaves");
+            await _notif.NotifyAsync(from.Id, "Comp-Off Sent",
+                $"You transferred {days} comp-off day(s) to {to.FullName}.",
+                "leave", link: "/my-leaves");
+        }
+        catch (Exception ex) { _logger.LogError(ex, "Failed to send comp-off transfer emails"); }
     }
 }

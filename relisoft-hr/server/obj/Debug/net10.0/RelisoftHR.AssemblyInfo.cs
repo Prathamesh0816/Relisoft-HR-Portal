@@ -13,7 +13,7 @@ using System.Reflection;
 [assembly: System.Reflection.AssemblyCompanyAttribute("RelisoftHR")]
 [assembly: System.Reflection.AssemblyConfigurationAttribute("Debug")]
 [assembly: System.Reflection.AssemblyFileVersionAttribute("1.0.0.0")]
-[assembly: System.Reflection.AssemblyInformationalVersionAttribute("1.0.0+e104cf6994316b647a419345f34ad2bd9ee88f2d")]
+[assembly: System.Reflection.AssemblyInformationalVersionAttribute("1.0.0+3a655b51cfa645feb7c22458d88eccde45bfb509")]
 [assembly: System.Reflection.AssemblyProductAttribute("RelisoftHR")]
 [assembly: System.Reflection.AssemblyTitleAttribute("RelisoftHR")]
 [assembly: System.Reflection.AssemblyVersionAttribute("1.0.0.0")]

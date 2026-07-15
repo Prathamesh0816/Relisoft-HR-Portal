@@ -1,10 +1,10 @@
 import { useState, useEffect } from 'react'
 import useStore from '../store'
 import { getDashboardStats, getAttendance } from '../api'
-import { Users, CalendarCheck, Ticket, Clock, Briefcase } from 'lucide-react'
+import { Users, CalendarCheck, Ticket, Clock, Briefcase, Bell } from 'lucide-react'
 
 export default function EmployeeDashboard() {
-  const { currentUser, dashboard, setDashboard, attendance, setAttendance } = useStore()
+  const { currentUser, dashboard, setDashboard, attendance, setAttendance, notifications, fetchNotifications } = useStore()
   const [stats, setStats] = useState(null)
 
   useEffect(() => {
@@ -16,6 +16,7 @@ export default function EmployeeDashboard() {
       })
       setAttendance({ records: r, today, loading: false })
     }).catch(() => {})
+    fetchNotifications()
   }, [])
 
   const statCards = [
@@ -89,6 +90,35 @@ export default function EmployeeDashboard() {
             </div>
           </div>
         </div>
+      </div>
+
+      <div className="card-surface p-5">
+        <h3 className="font-heading font-bold text-navy dark:text-white text-lg mb-4">
+          <Bell size={18} className="inline mr-2 text-gold-1" />
+          Recent Notifications
+          {notifications.unreadCount > 0 && (
+            <span className="ml-2 text-xs bg-red-500 text-white px-2 py-0.5 rounded-full">{notifications.unreadCount} new</span>
+          )}
+        </h3>
+        {notifications.list.length === 0 ? (
+          <div className="text-center py-6 text-muted text-sm">No notifications yet.</div>
+        ) : (
+          <div className="space-y-2 max-h-48 overflow-y-auto">
+            {notifications.list.slice(0, 8).map((n) => (
+              <div key={n.id} className={`flex items-start gap-3 p-3 rounded-xl border ${n.isRead ? 'border-navy/5 dark:border-white/5' : 'border-amber-200 dark:border-amber-800 bg-amber-50/30 dark:bg-amber-900/10'}`}>
+                <div className="flex-1 min-w-0">
+                  <div className="flex items-center gap-2">
+                    <span className="text-[10px] font-bold uppercase px-1.5 py-0.5 rounded bg-navy/5 dark:bg-white/10 text-muted">{n.category || 'General'}</span>
+                    {!n.isRead && <span className="w-1.5 h-1.5 rounded-full bg-gold-1 shrink-0" />}
+                  </div>
+                  <div className={`text-sm font-bold truncate mt-0.5 ${n.isRead ? 'text-navy/60 dark:text-white/60' : 'text-navy dark:text-white'}`}>{n.title}</div>
+                  {n.message && <div className="text-xs text-muted truncate mt-0.5">{n.message}</div>}
+                  <div className="text-[10px] text-muted mt-1">{new Date(n.createdOn).toLocaleDateString()}</div>
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
       </div>
 
       {stats?.departmentCounts && (
