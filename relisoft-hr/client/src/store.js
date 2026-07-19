@@ -37,7 +37,7 @@ const useStore = create((set, get) => ({
   },
   employeeTickets: { employeeId: '', tickets: [], loading: false },
   hrTickets: { tickets: [], loading: false },
-  projectForm: { name: '', managerId: '', approvalRoute: 'ProjectManager', approvalDelegateId: '' },
+  projectForm: { name: '', managerId: '', approvalRoute: 'ProjectManager', delegateEmployeeId: '' },
   teamForm: { name: '', projectId: '', leadId: '' },
   excelUpload: { fileName: '', result: null },
   existingEmployeeUpload: { fileName: '', result: null },

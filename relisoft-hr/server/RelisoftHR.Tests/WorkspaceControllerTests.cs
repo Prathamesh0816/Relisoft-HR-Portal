@@ -1,3 +1,5 @@
+using System.Security.Claims;
+using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using RelisoftHR.Controllers;
@@ -52,6 +54,61 @@ public class WorkspaceControllerTests : IDisposable
             teamIds: [1, 2]));
 
         Assert.IsType<BadRequestObjectResult>(result.Result);
+    }
+
+    [Fact]
+    public async Task CreateProject_WithDelegateEmployee_CreatesProjectScopedDelegation()
+    {
+        var controller = CreateAdminController();
+
+        var result = await controller.CreateProject(new CreateProjectRequest(
+            "Delegated Project", 4, "Delegate", 6));
+
+        Assert.IsType<OkObjectResult>(result);
+        var project = await _db.Projects
+            .Include(p => p.ApprovalDelegate)
+            .SingleAsync(p => p.Name == "Delegated Project");
+        Assert.Equal(ProjectApprovalRoute.Delegate, project.ApprovalRoute);
+        Assert.NotNull(project.ApprovalDelegateId);
+        Assert.Equal(4, project.ApprovalDelegate!.ManagerId);
+        Assert.Equal(6, project.ApprovalDelegate.DelegateId);
+        Assert.Equal(project.Id, project.ApprovalDelegate.ProjectId);
+
+        var workspaceResult = await controller.GetWorkspace();
+        var workspace = Assert.IsType<WorkspaceResponse>(
+            Assert.IsType<OkObjectResult>(workspaceResult.Result).Value);
+        var projectDto = workspace.Projects.Single(p => p.Id == project.Id);
+        Assert.Equal(6, projectDto.ApprovalDelegateEmployeeId);
+        Assert.Equal("Dev Delegate", projectDto.ApprovalDelegateName);
+    }
+
+    [Fact]
+    public async Task CreateProject_RejectsManagerAsTheirOwnDelegate()
+    {
+        var controller = CreateAdminController();
+
+        var result = await controller.CreateProject(new CreateProjectRequest(
+            "Invalid Delegation", 4, "Delegate", 4));
+
+        Assert.IsType<BadRequestObjectResult>(result);
+        Assert.False(await _db.Projects.AnyAsync(p => p.Name == "Invalid Delegation"));
+    }
+
+    private WorkspaceController CreateAdminController()
+    {
+        var identity = new ClaimsIdentity(
+            [new Claim(ClaimTypes.NameIdentifier, "1"), new Claim(ClaimTypes.Role, "HRL2")],
+            "Test");
+        return new WorkspaceController(_db)
+        {
+            ControllerContext = new ControllerContext
+            {
+                HttpContext = new DefaultHttpContext
+                {
+                    User = new ClaimsPrincipal(identity)
+                }
+            }
+        };
     }
 
     private static CreateEmployeeRequest CreateRequest(

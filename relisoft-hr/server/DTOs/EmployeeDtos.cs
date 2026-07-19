@@ -38,7 +38,8 @@ public record EmployeeDto(
 
 public record EmployeeProjectDto(
     int Id, string Name, int? ManagerId, string? ManagerName,
-    string ApprovalRoute, int? ApprovalDelegateId, string? ApprovalDelegateName
+    string ApprovalRoute, int? ApprovalDelegateId,
+    int? ApprovalDelegateEmployeeId, string? ApprovalDelegateName
 );
 
 public record TeamDto(

@@ -229,18 +229,41 @@ public class WorkspaceController : ControllerBase
     {
         if (!CanAdministerProjects()) return Forbid();
         var validation = await ValidateProjectConfiguration(
-            req.ManagerId, req.ApprovalRoute, req.ApprovalDelegateId, null);
+            req.ManagerId, req.ApprovalRoute, req.DelegateEmployeeId);
         if (validation.Error != null) return BadRequest(new { message = validation.Error });
 
         var project = new Project
         {
             Name = req.Name.Trim(),
             ManagerId = req.ManagerId,
-            ApprovalRoute = validation.Route,
-            ApprovalDelegateId = validation.Delegate?.Id
+            ApprovalRoute = validation.Route == ProjectApprovalRoute.Delegate
+                ? ProjectApprovalRoute.ProjectManager
+                : validation.Route
         };
+
+        await using var transaction = _db.Database.IsRelational() && validation.Route == ProjectApprovalRoute.Delegate
+            ? await _db.Database.BeginTransactionAsync()
+            : null;
         _db.Projects.Add(project);
         await _db.SaveChangesAsync();
+
+        if (validation.DelegateEmployee != null)
+        {
+            var delegation = new ApprovalDelegate
+            {
+                ManagerId = req.ManagerId,
+                ProjectId = project.Id,
+                DelegateId = validation.DelegateEmployee.Id
+            };
+            _db.ApprovalDelegates.Add(delegation);
+            await _db.SaveChangesAsync();
+
+            project.ApprovalRoute = ProjectApprovalRoute.Delegate;
+            project.ApprovalDelegateId = delegation.Id;
+            await _db.SaveChangesAsync();
+        }
+
+        if (transaction != null) await transaction.CommitAsync();
         HttpConcurrency.SetETag(Response, project.RowVersion);
         return Ok(new { message = "Project created.", project.Id, project.RowVersion });
     }
@@ -253,21 +276,39 @@ public class WorkspaceController : ControllerBase
         if (!CanManageProject(project)) return Forbid();
         if (project.ManagerId != req.ManagerId && !CanAdministerProjects()) return Forbid();
         var validation = await ValidateProjectConfiguration(
-            req.ManagerId, req.ApprovalRoute, req.ApprovalDelegateId, project.Id);
+            req.ManagerId, req.ApprovalRoute, req.DelegateEmployeeId);
         if (validation.Error != null) return BadRequest(new { message = validation.Error });
         HttpConcurrency.RequireIfMatch(Request, _db, project);
-        if (project.ManagerId != req.ManagerId)
+
+        var projectDelegations = await _db.ApprovalDelegates
+            .Where(d => d.ProjectId == project.Id)
+            .ToListAsync();
+        ApprovalDelegate? selectedDelegation = null;
+        if (validation.DelegateEmployee != null)
         {
-            var obsoleteDelegations = await _db.ApprovalDelegates
-                .Where(d => d.ProjectId == project.Id && d.ManagerId == project.ManagerId)
-                .ToListAsync();
-            foreach (var delegation in obsoleteDelegations)
-                _db.SoftDelete(delegation, GetUserId());
+            selectedDelegation = projectDelegations.FirstOrDefault(d =>
+                d.ManagerId == req.ManagerId &&
+                d.DelegateId == validation.DelegateEmployee.Id);
+            if (selectedDelegation == null)
+            {
+                selectedDelegation = new ApprovalDelegate
+                {
+                    ManagerId = req.ManagerId,
+                    ProjectId = project.Id,
+                    DelegateId = validation.DelegateEmployee.Id
+                };
+                _db.ApprovalDelegates.Add(selectedDelegation);
+            }
         }
+
+        foreach (var delegation in projectDelegations.Where(d => d != selectedDelegation))
+            _db.SoftDelete(delegation, GetUserId());
+
         project.Name = req.Name.Trim();
         project.ManagerId = req.ManagerId;
         project.ApprovalRoute = validation.Route;
-        project.ApprovalDelegateId = validation.Delegate?.Id;
+        project.ApprovalDelegateId = null;
+        project.ApprovalDelegate = selectedDelegation;
         await _db.SaveChangesAsync();
         HttpConcurrency.SetETag(Response, project.RowVersion);
         return Ok(new { message = "Project updated.", project.RowVersion });
@@ -482,6 +523,7 @@ public class WorkspaceController : ControllerBase
     private static EmployeeProjectDto MapEmployeeProject(Project project) => new(
         project.Id, project.Name, project.ManagerId, project.Manager?.FullName,
         project.ApprovalRoute.ToString(), project.ApprovalDelegateId,
+        project.ApprovalDelegate?.DelegateId,
         project.ApprovalDelegate?.Delegate?.FullName);
 
     private static ProjectDto MapProject(Project p)
@@ -493,6 +535,7 @@ public class WorkspaceController : ControllerBase
             )).ToList(),
             p.RowVersion, p.ManagerId, p.Manager?.FullName,
             p.ApprovalRoute.ToString(), p.ApprovalDelegateId,
+            p.ApprovalDelegate?.DelegateId,
             p.ApprovalDelegate?.Delegate?.FullName
         );
     }
@@ -551,8 +594,8 @@ public class WorkspaceController : ControllerBase
             : "The primary team must belong to the employee's primary project.";
     }
 
-    private async Task<(ProjectApprovalRoute Route, ApprovalDelegate? Delegate, string? Error)>
-        ValidateProjectConfiguration(int managerId, string approvalRoute, int? approvalDelegateId, int? projectId)
+    private async Task<(ProjectApprovalRoute Route, Employee? DelegateEmployee, string? Error)>
+        ValidateProjectConfiguration(int managerId, string approvalRoute, int? delegateEmployeeId)
     {
         if (!await IsEligibleProjectManager(managerId))
             return (default, null, "Select an active manager for the project.");
@@ -561,23 +604,22 @@ public class WorkspaceController : ControllerBase
 
         if (route != ProjectApprovalRoute.Delegate)
         {
-            if (approvalDelegateId.HasValue)
+            if (delegateEmployeeId.HasValue)
                 return (route, null, "A delegate can only be selected for the Delegate approval route.");
             return (route, null, null);
         }
 
-        if (!approvalDelegateId.HasValue)
+        if (!delegateEmployeeId.HasValue)
             return (route, null, "Select a delegate for the Delegate approval route.");
+        if (delegateEmployeeId == managerId)
+            return (route, null, "A project manager cannot delegate approval to themselves.");
 
-        var approvalDelegate = await _db.ApprovalDelegates
-            .Include(d => d.Delegate)
-            .FirstOrDefaultAsync(d => d.Id == approvalDelegateId &&
-                d.ManagerId == managerId &&
-                (!d.ProjectId.HasValue || (projectId.HasValue && d.ProjectId == projectId)));
-        if (approvalDelegate?.Delegate == null || approvalDelegate.Delegate.Status is "Inactive" or "Separated")
-            return (route, null, "The selected delegate is not active for this project manager and project.");
+        var delegateEmployee = await _db.Employees.FirstOrDefaultAsync(e =>
+            e.Id == delegateEmployeeId && e.Status != "Inactive" && e.Status != "Separated");
+        if (delegateEmployee == null)
+            return (route, null, "Select an active employee as delegate.");
 
-        return (route, approvalDelegate, null);
+        return (route, delegateEmployee, null);
     }
 
     private async Task<(Project? Project, string? Error)> ValidateTeamConfiguration(int projectId, int leadId)

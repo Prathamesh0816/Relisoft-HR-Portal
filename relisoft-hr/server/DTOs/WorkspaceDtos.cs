@@ -12,7 +12,7 @@ public record ProjectDto(
     int Id, string Name, List<TeamDto> Teams, byte[]? RowVersion = null,
     int? ManagerId = null, string? ManagerName = null,
     string ApprovalRoute = "ProjectManager", int? ApprovalDelegateId = null,
-    string? ApprovalDelegateName = null
+    int? ApprovalDelegateEmployeeId = null, string? ApprovalDelegateName = null
 );
 
 public record LeaveTypeDto(int Id, string Name, decimal CarryForwardPct = 0, bool IsCompOff = false, bool IsFloaterHoliday = false, int MaxFloaterPerYear = 0, int CompOffValidityDays = 0);
@@ -23,12 +23,12 @@ public record HrPolicyDto(bool AllowHalfDayLeave, bool SandwichLeave, byte[]? Ro
 
 public record CreateProjectRequest(
     string Name, int ManagerId,
-    string ApprovalRoute = "ProjectManager", int? ApprovalDelegateId = null
+    string ApprovalRoute = "ProjectManager", int? DelegateEmployeeId = null
 );
 
 public record UpdateProjectRequest(
     string Name, int ManagerId,
-    string ApprovalRoute = "ProjectManager", int? ApprovalDelegateId = null
+    string ApprovalRoute = "ProjectManager", int? DelegateEmployeeId = null
 );
 
 public record CreateTeamRequest(string Name, int ProjectId, int LeadId);
