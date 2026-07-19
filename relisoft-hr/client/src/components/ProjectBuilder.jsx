@@ -1,4 +1,5 @@
-import { useCallback, useEffect, useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { ChevronDown, ChevronRight } from 'lucide-react'
 import useStore from '../store'
 import { createProject, updateProject, createTeam, updateTeam, loadWorkspace, getDelegates } from '../api'
 
@@ -7,6 +8,12 @@ const APPROVAL_ROUTES = [
   { value: 'TeamLead', label: 'Team lead' },
   { value: 'Delegate', label: 'Delegate' }
 ]
+
+function teamApprover(team) {
+  if (team.approvalRoute === 'TeamLead') return team.leadName || 'Team lead not assigned'
+  if (team.approvalRoute === 'Delegate') return team.approvalDelegateName || 'Delegate not assigned'
+  return team.projectManagerName || 'Project manager not assigned'
+}
 
 export default function ProjectBuilder() {
   const { currentUser, data, projectForm, teamForm, updateForm, resetForm, setData, setMessage } = useStore()
@@ -21,6 +28,8 @@ export default function ProjectBuilder() {
     ['Manager', 'ManagerL2', 'OrganizationHead'].includes(employee.role)), [data.employees])
 
   const [delegates, setDelegates] = useState([])
+  const [expandedProjectIds, setExpandedProjectIds] = useState([])
+  const initializedProjectTree = useRef(false)
   const [selectedProjectId, setSelectedProjectId] = useState('')
   const [updProjectName, setUpdProjectName] = useState('')
   const [updProjectManagerId, setUpdProjectManagerId] = useState('')
@@ -55,6 +64,13 @@ export default function ProjectBuilder() {
     Promise.all(managerIds.map((managerId) => getDelegates(managerId)))
       .then((groups) => setDelegates(groups.flat()))
       .catch(() => setDelegates([]))
+  }, [projects])
+
+  useEffect(() => {
+    if (projects[0] && !initializedProjectTree.current) {
+      initializedProjectTree.current = true
+      setExpandedProjectIds([projects[0].id])
+    }
   }, [projects])
 
   useEffect(() => {
@@ -145,6 +161,12 @@ export default function ProjectBuilder() {
     </>
   )
 
+  const toggleProject = (projectId) => {
+    setExpandedProjectIds((current) => current.includes(projectId)
+      ? current.filter((id) => id !== projectId)
+      : [...current, projectId])
+  }
+
   if (!projects.length && !canAdministerProjects) {
     return <div className="card-surface p-5 text-sm text-muted dark:text-white/60">No projects are assigned to you.</div>
   }
@@ -156,6 +178,73 @@ export default function ProjectBuilder() {
         <p className="text-muted dark:text-white/60 text-sm mt-1">Manage project ownership, team leads, and approval routing.</p>
       </div>
       <div className="px-5 pb-5 space-y-6">
+        <section aria-labelledby="existing-projects-heading">
+          <div className="flex items-center justify-between gap-4 pb-3">
+            <div>
+              <h3 id="existing-projects-heading" className="font-bold text-navy dark:text-white">Existing projects</h3>
+              <p className="text-sm text-muted dark:text-white/60 mt-1">Expand a project to view its teams and approval ownership.</p>
+            </div>
+            <span className="text-xs font-bold text-navy/50 dark:text-white/50">{projects.length} project{projects.length === 1 ? '' : 's'}</span>
+          </div>
+
+          <div className="border-y border-navy/10 dark:border-white/10 divide-y divide-navy/10 dark:divide-white/10">
+            {projects.length === 0 ? (
+              <p className="py-5 text-sm text-muted dark:text-white/60">No projects have been created.</p>
+            ) : projects.map((project) => {
+              const isExpanded = expandedProjectIds.includes(project.id)
+              return (
+                <div key={project.id}>
+                  <button
+                    type="button"
+                    onClick={() => toggleProject(project.id)}
+                    aria-expanded={isExpanded}
+                    className="w-full min-h-16 py-3 flex items-center gap-3 text-left text-navy dark:text-white hover:bg-navy/[0.03] dark:hover:bg-white/[0.03]"
+                  >
+                    {isExpanded ? <ChevronDown size={18} aria-hidden="true" /> : <ChevronRight size={18} aria-hidden="true" />}
+                    <span className="min-w-0 flex-1">
+                      <strong className="block text-sm break-words">{project.name}</strong>
+                      <span className="block text-xs text-navy/50 dark:text-white/50 mt-1 break-words">
+                        Manager: {project.managerName || 'Not assigned'}
+                      </span>
+                    </span>
+                    <span className="shrink-0 text-xs font-bold text-navy/50 dark:text-white/50">
+                      {project.teams.length} team{project.teams.length === 1 ? '' : 's'}
+                    </span>
+                  </button>
+
+                  {isExpanded && (
+                    <div className="pb-4 pl-8 sm:pl-10">
+                      {project.teams.length === 0 ? (
+                        <p className="py-3 text-sm text-muted dark:text-white/60">No teams in this project.</p>
+                      ) : (
+                        <div className="border-l-2 border-gold-1/50">
+                          {project.teams.map((team) => (
+                            <div key={team.id} className="grid gap-2 px-4 py-3 border-b border-navy/5 dark:border-white/5 last:border-b-0 sm:grid-cols-[minmax(0,1fr)_minmax(0,1fr)_minmax(0,1fr)]">
+                              <div className="min-w-0">
+                                <span className="block text-[10px] font-bold uppercase text-navy/50 dark:text-white/50">Team</span>
+                                <strong className="block text-sm text-navy dark:text-white break-words mt-1">{team.name}</strong>
+                              </div>
+                              <div className="min-w-0">
+                                <span className="block text-[10px] font-bold uppercase text-navy/50 dark:text-white/50">Team lead</span>
+                                <span className="block text-sm text-navy dark:text-white break-words mt-1">{team.leadName || 'Not assigned'}</span>
+                              </div>
+                              <div className="min-w-0">
+                                <span className="block text-[10px] font-bold uppercase text-navy/50 dark:text-white/50">Approver</span>
+                                <span className="block text-sm text-navy dark:text-white break-words mt-1">{teamApprover(team)}</span>
+                                <span className="block text-xs text-navy/50 dark:text-white/50 mt-1">{APPROVAL_ROUTES.find((route) => route.value === team.approvalRoute)?.label || 'Project manager'}</span>
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+                  )}
+                </div>
+              )
+            })}
+          </div>
+        </section>
+
         <div className={`grid gap-6 ${canAdministerProjects ? 'md:grid-cols-2' : ''}`}>
           {canAdministerProjects && (
             <form onSubmit={handleCreateProject} className="space-y-3">
