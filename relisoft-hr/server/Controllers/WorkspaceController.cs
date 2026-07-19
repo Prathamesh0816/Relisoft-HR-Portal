@@ -42,15 +42,16 @@ public class WorkspaceController : ControllerBase
             .Include(e => e.SalaryStructure)
             .Include(e => e.PrimaryTeam).ThenInclude(t => t!.Project)!.ThenInclude(p => p!.Manager)
             .Include(e => e.PrimaryTeam).ThenInclude(t => t!.Lead)
-            .Include(e => e.PrimaryTeam).ThenInclude(t => t!.ApprovalDelegate)!.ThenInclude(d => d!.Delegate)
-            .Include(e => e.EmployeeTeams).ThenInclude(et => et.Team).ThenInclude(t => t!.Project)
+            .Include(e => e.EmployeeProjects).ThenInclude(ep => ep.Project)!.ThenInclude(p => p!.Manager)
+            .Include(e => e.EmployeeProjects).ThenInclude(ep => ep.Project)!.ThenInclude(p => p!.ApprovalDelegate)!.ThenInclude(d => d!.Delegate)
+            .Include(e => e.EmployeeTeams).ThenInclude(et => et.Team).ThenInclude(t => t!.Project)!.ThenInclude(p => p!.Manager)
             .Include(e => e.LeaveBalances).ThenInclude(lb => lb.LeaveType)
             .ToListAsync();
 
         var projects = await _db.Projects
             .Include(p => p.Manager)
+            .Include(p => p.ApprovalDelegate)!.ThenInclude(d => d!.Delegate)
             .Include(p => p.Teams).ThenInclude(t => t.Lead)
-            .Include(p => p.Teams).ThenInclude(t => t.ApprovalDelegate)!.ThenInclude(d => d!.Delegate)
             .ToListAsync();
 
         var leaveTypes = await _db.LeaveTypes.Where(lt => lt.IsActive).OrderBy(lt => lt.SortOrder).ToListAsync();
@@ -67,10 +68,12 @@ public class WorkspaceController : ControllerBase
     }
 
     [HttpPost("employees")]
+    [Authorize(Roles = "HR,HRL2,OrganizationHead,Admin,SuperAdmin")]
     public async Task<ActionResult<CreateEmployeeResponse>> CreateEmployee(CreateEmployeeRequest req)
     {
-        var teamError = await ValidateEmployeeTeams(req.PrimaryTeamId, req.TeamIds);
-        if (teamError != null) return BadRequest(new { message = teamError });
+        var assignmentError = await ValidateEmployeeAssignments(
+            req.PrimaryProjectId, req.PrimaryTeamId, req.ProjectIds, req.TeamIds);
+        if (assignmentError != null) return BadRequest(new { message = assignmentError });
 
         var employee = new Employee
         {
@@ -88,13 +91,11 @@ public class WorkspaceController : ControllerBase
         };
 
         _db.Employees.Add(employee);
-        await _db.SaveChangesAsync();
 
         if (req.SalaryStructure != null)
         {
-            var ss = new SalaryStructure
+            employee.SalaryStructure = new SalaryStructure
             {
-                EmployeeId = employee.Id,
                 FixedPay = req.SalaryStructure.FixedPay,
                 VariablePay = req.SalaryStructure.VariablePay,
                 PF = req.SalaryStructure.PF,
@@ -102,23 +103,29 @@ public class WorkspaceController : ControllerBase
                 Insurance = req.SalaryStructure.Insurance,
                 OtherDeductions = req.SalaryStructure.OtherDeductions
             };
-            _db.SalaryStructures.Add(ss);
-            await _db.SaveChangesAsync();
+        }
+
+        foreach (var projectId in req.ProjectIds.Distinct())
+        {
+            employee.EmployeeProjects.Add(new EmployeeProject
+            {
+                ProjectId = projectId,
+                IsPrimary = projectId == req.PrimaryProjectId
+            });
         }
 
         foreach (var teamId in req.TeamIds.Distinct())
         {
-            _db.EmployeeTeams.Add(new EmployeeTeam { EmployeeId = employee.Id, TeamId = teamId });
+            employee.EmployeeTeams.Add(new EmployeeTeam { TeamId = teamId });
         }
 
         var username = req.Email.Split('@')[0];
         var tempPassword = "demo123";
-        _db.UserLogins.Add(new UserLogin
+        employee.UserLogin = new UserLogin
         {
-            EmployeeId = employee.Id,
             Username = username,
             PasswordHash = BCrypt.Net.BCrypt.HashPassword(tempPassword)
-        });
+        };
 
         await _db.SaveChangesAsync();
 
@@ -129,17 +136,23 @@ public class WorkspaceController : ControllerBase
     }
 
     [HttpPut("employees/{id}")]
+    [Authorize(Roles = "HR,HRL2,OrganizationHead,Admin,SuperAdmin")]
     public async Task<ActionResult> UpdateEmployee(int id, UpdateEmployeeRequest req)
     {
-        var teamError = await ValidateEmployeeTeams(req.PrimaryTeamId, req.TeamIds);
-        if (teamError != null) return BadRequest(new { message = teamError });
+        var assignmentError = await ValidateEmployeeAssignments(
+            req.PrimaryProjectId, req.PrimaryTeamId, req.ProjectIds, req.TeamIds);
+        if (assignmentError != null) return BadRequest(new { message = assignmentError });
 
         var employee = await _db.Employees
+            .Include(e => e.EmployeeProjects)
             .Include(e => e.EmployeeTeams)
             .Include(e => e.SalaryStructure)
             .FirstOrDefaultAsync(e => e.Id == id);
         if (employee == null) return NotFound(new { message = "Employee not found." });
         HttpConcurrency.RequireIfMatch(Request, _db, employee);
+        await using var transaction = _db.Database.IsRelational()
+            ? await _db.Database.BeginTransactionAsync()
+            : null;
 
         employee.EmployeeCode = req.EmployeeCode;
         employee.FullName = req.FullName;
@@ -170,13 +183,43 @@ public class WorkspaceController : ControllerBase
             ss.OtherDeductions = req.SalaryStructure.OtherDeductions;
         }
 
-        _db.EmployeeTeams.RemoveRange(employee.EmployeeTeams);
-        foreach (var teamId in req.TeamIds.Distinct())
+        var requestedProjectIds = req.ProjectIds.Distinct().ToHashSet();
+        var previousPrimary = employee.EmployeeProjects.FirstOrDefault(ep => ep.IsPrimary);
+        if (previousPrimary != null && previousPrimary.ProjectId != req.PrimaryProjectId)
         {
-            _db.EmployeeTeams.Add(new EmployeeTeam { EmployeeId = id, TeamId = teamId });
+            previousPrimary.IsPrimary = false;
+            await _db.SaveChangesAsync();
+        }
+
+        foreach (var membership in employee.EmployeeProjects.ToList())
+        {
+            if (!requestedProjectIds.Contains(membership.ProjectId))
+                _db.EmployeeProjects.Remove(membership);
+            else
+                membership.IsPrimary = membership.ProjectId == req.PrimaryProjectId;
+        }
+        foreach (var projectId in requestedProjectIds.Except(employee.EmployeeProjects.Select(ep => ep.ProjectId)))
+        {
+            employee.EmployeeProjects.Add(new EmployeeProject
+            {
+                ProjectId = projectId,
+                IsPrimary = projectId == req.PrimaryProjectId
+            });
+        }
+
+        var requestedTeamIds = req.TeamIds.Distinct().ToHashSet();
+        foreach (var membership in employee.EmployeeTeams.ToList())
+        {
+            if (!requestedTeamIds.Contains(membership.TeamId))
+                _db.EmployeeTeams.Remove(membership);
+        }
+        foreach (var teamId in requestedTeamIds.Except(employee.EmployeeTeams.Select(et => et.TeamId)))
+        {
+            employee.EmployeeTeams.Add(new EmployeeTeam { TeamId = teamId });
         }
 
         await _db.SaveChangesAsync();
+        if (transaction != null) await transaction.CommitAsync();
         HttpConcurrency.SetETag(Response, employee.RowVersion);
         return Ok(new { message = "Employee updated.", employee.RowVersion });
     }
@@ -185,10 +228,17 @@ public class WorkspaceController : ControllerBase
     public async Task<ActionResult> CreateProject(CreateProjectRequest req)
     {
         if (!CanAdministerProjects()) return Forbid();
-        if (!await IsEligibleProjectManager(req.ManagerId))
-            return BadRequest(new { message = "Select an active manager for the project." });
+        var validation = await ValidateProjectConfiguration(
+            req.ManagerId, req.ApprovalRoute, req.ApprovalDelegateId, null);
+        if (validation.Error != null) return BadRequest(new { message = validation.Error });
 
-        var project = new Project { Name = req.Name.Trim(), ManagerId = req.ManagerId };
+        var project = new Project
+        {
+            Name = req.Name.Trim(),
+            ManagerId = req.ManagerId,
+            ApprovalRoute = validation.Route,
+            ApprovalDelegateId = validation.Delegate?.Id
+        };
         _db.Projects.Add(project);
         await _db.SaveChangesAsync();
         HttpConcurrency.SetETag(Response, project.RowVersion);
@@ -201,12 +251,23 @@ public class WorkspaceController : ControllerBase
         var project = await _db.Projects.FindAsync(id);
         if (project == null) return NotFound(new { message = "Project not found." });
         if (!CanManageProject(project)) return Forbid();
-        if (!await IsEligibleProjectManager(req.ManagerId))
-            return BadRequest(new { message = "Select an active manager for the project." });
         if (project.ManagerId != req.ManagerId && !CanAdministerProjects()) return Forbid();
+        var validation = await ValidateProjectConfiguration(
+            req.ManagerId, req.ApprovalRoute, req.ApprovalDelegateId, project.Id);
+        if (validation.Error != null) return BadRequest(new { message = validation.Error });
         HttpConcurrency.RequireIfMatch(Request, _db, project);
+        if (project.ManagerId != req.ManagerId)
+        {
+            var obsoleteDelegations = await _db.ApprovalDelegates
+                .Where(d => d.ProjectId == project.Id && d.ManagerId == project.ManagerId)
+                .ToListAsync();
+            foreach (var delegation in obsoleteDelegations)
+                _db.SoftDelete(delegation, GetUserId());
+        }
         project.Name = req.Name.Trim();
         project.ManagerId = req.ManagerId;
+        project.ApprovalRoute = validation.Route;
+        project.ApprovalDelegateId = validation.Delegate?.Id;
         await _db.SaveChangesAsync();
         HttpConcurrency.SetETag(Response, project.RowVersion);
         return Ok(new { message = "Project updated.", project.RowVersion });
@@ -215,7 +276,7 @@ public class WorkspaceController : ControllerBase
     [HttpPost("teams")]
     public async Task<ActionResult> CreateTeam(CreateTeamRequest req)
     {
-        var validation = await ValidateTeamConfiguration(req.ProjectId, req.LeadId, req.ApprovalRoute, req.ApprovalDelegateId);
+        var validation = await ValidateTeamConfiguration(req.ProjectId, req.LeadId);
         if (validation.Error != null) return BadRequest(new { message = validation.Error });
         if (!CanManageProject(validation.Project!)) return Forbid();
 
@@ -223,11 +284,10 @@ public class WorkspaceController : ControllerBase
         {
             Name = req.Name.Trim(),
             ProjectId = req.ProjectId,
-            LeadId = req.LeadId,
-            ApprovalRoute = validation.Route,
-            ApprovalDelegateId = validation.Delegate?.Id
+            LeadId = req.LeadId
         };
         team.EmployeeTeams.Add(new EmployeeTeam { EmployeeId = team.LeadId });
+        await EnsureEmployeeProjectMembership(team.LeadId, team.ProjectId);
         _db.Teams.Add(team);
         await _db.SaveChangesAsync();
         HttpConcurrency.SetETag(Response, team.RowVersion);
@@ -237,23 +297,31 @@ public class WorkspaceController : ControllerBase
     [HttpPut("teams/{id}")]
     public async Task<ActionResult> UpdateTeam(int id, UpdateTeamRequest req)
     {
-        var team = await _db.Teams.FindAsync(id);
+        var team = await _db.Teams
+            .Include(t => t.EmployeeTeams)
+            .FirstOrDefaultAsync(t => t.Id == id);
         if (team == null) return NotFound(new { message = "Team not found." });
         var currentProject = await _db.Projects.FindAsync(team.ProjectId);
         if (currentProject == null || !CanManageProject(currentProject)) return Forbid();
 
-        var validation = await ValidateTeamConfiguration(req.ProjectId, req.LeadId, req.ApprovalRoute, req.ApprovalDelegateId);
+        var validation = await ValidateTeamConfiguration(req.ProjectId, req.LeadId);
         if (validation.Error != null) return BadRequest(new { message = validation.Error });
         if (!CanManageProject(validation.Project!)) return Forbid();
+
+        if (team.ProjectId != req.ProjectId &&
+            await _db.Employees.AnyAsync(e => e.PrimaryTeamId == team.Id))
+        {
+            return Conflict(new { message = "Change the primary team assignment for affected employees before moving this team to another project." });
+        }
 
         HttpConcurrency.RequireIfMatch(Request, _db, team);
         team.Name = req.Name.Trim();
         team.ProjectId = req.ProjectId;
         team.LeadId = req.LeadId;
-        team.ApprovalRoute = validation.Route;
-        team.ApprovalDelegateId = validation.Delegate?.Id;
         if (!await _db.EmployeeTeams.AnyAsync(et => et.TeamId == team.Id && et.EmployeeId == team.LeadId))
             _db.EmployeeTeams.Add(new EmployeeTeam { TeamId = team.Id, EmployeeId = team.LeadId });
+        foreach (var employeeId in team.EmployeeTeams.Select(et => et.EmployeeId).Append(team.LeadId).Distinct())
+            await EnsureEmployeeProjectMembership(employeeId, req.ProjectId);
         await _db.SaveChangesAsync();
         HttpConcurrency.SetETag(Response, team.RowVersion);
         return Ok(new { message = "Team updated.", team.RowVersion });
@@ -323,8 +391,8 @@ public class WorkspaceController : ControllerBase
         var d = await _db.ApprovalDelegates.FindAsync(id);
         if (d == null) return NotFound();
         if (!await CanManageDelegate(d.ManagerId)) return Forbid();
-        if (await _db.Teams.AnyAsync(t => t.ApprovalDelegateId == id))
-            return Conflict(new { message = "This delegate is assigned as a team approver. Change the team approval route before removing the delegate." });
+        if (await _db.Projects.AnyAsync(p => p.ApprovalDelegateId == id))
+            return Conflict(new { message = "This delegate is assigned as a project approver. Change the project approval route before removing the delegate." });
         HttpConcurrency.RequireIfMatch(Request, _db, d);
         _db.SoftDelete(d, GetUserId());
         await _db.SaveChangesAsync();
@@ -367,10 +435,14 @@ public class WorkspaceController : ControllerBase
             et.Team!.Id, et.Team.Name, et.Team.ProjectId,
             et.Team.Project?.Name ?? "", et.Team.LeadId,
             et.Team.Lead?.FullName ?? "", et.Team.RowVersion,
-            et.Team.ApprovalRoute.ToString(), et.Team.ApprovalDelegateId,
-            et.Team.ApprovalDelegate?.Delegate?.FullName,
             et.Team.Project?.ManagerId, et.Team.Project?.Manager?.FullName
         )).ToList();
+        var projectMemberships = e.EmployeeProjects
+            .Where(ep => ep.Project != null)
+            .OrderByDescending(ep => ep.IsPrimary)
+            .ThenBy(ep => ep.Project!.Name)
+            .ToList();
+        var primaryProjectMembership = projectMemberships.FirstOrDefault(ep => ep.IsPrimary);
 
         SalaryStructureDto? ss = null;
         if (e.SalaryStructure != null)
@@ -385,12 +457,15 @@ public class WorkspaceController : ControllerBase
             e.Designation, e.JobRole, e.EmploymentType, e.Status, e.Location,
             ss, e.JoinDate,
             e.Role?.Name ?? "", e.RoleId, e.Role?.Label,
+            primaryProjectMembership?.Project == null
+                ? null
+                : MapEmployeeProject(primaryProjectMembership.Project),
+            primaryProjectMembership?.ProjectId,
+            projectMemberships.Select(ep => MapEmployeeProject(ep.Project!)).ToList(),
             e.PrimaryTeam != null
                 ? new TeamDto(e.PrimaryTeam.Id, e.PrimaryTeam.Name,
                     e.PrimaryTeam.ProjectId, e.PrimaryTeam.Project?.Name ?? "",
                     e.PrimaryTeam.LeadId, e.PrimaryTeam.Lead?.FullName ?? "", e.PrimaryTeam.RowVersion,
-                    e.PrimaryTeam.ApprovalRoute.ToString(), e.PrimaryTeam.ApprovalDelegateId,
-                    e.PrimaryTeam.ApprovalDelegate?.Delegate?.FullName,
                     e.PrimaryTeam.Project?.ManagerId, e.PrimaryTeam.Project?.Manager?.FullName)
                 : null,
             e.PrimaryTeamId,
@@ -399,33 +474,38 @@ public class WorkspaceController : ControllerBase
                 lb.Id, lb.LeaveTypeId, lb.LeaveType?.Name ?? "",
                 lb.AllocatedLeaves, lb.UsedLeaves, lb.RemainingLeaves
             )).ToList(),
-            GetConfiguredApproverName(e.PrimaryTeam),
+            GetConfiguredApproverName(primaryProjectMembership?.Project, e.PrimaryTeam),
             e.RowVersion
         );
     }
+
+    private static EmployeeProjectDto MapEmployeeProject(Project project) => new(
+        project.Id, project.Name, project.ManagerId, project.Manager?.FullName,
+        project.ApprovalRoute.ToString(), project.ApprovalDelegateId,
+        project.ApprovalDelegate?.Delegate?.FullName);
 
     private static ProjectDto MapProject(Project p)
     {
         return new ProjectDto(p.Id, p.Name,
             p.Teams.Select(t => new TeamDto(
                 t.Id, t.Name, p.Id, p.Name, t.LeadId, t.Lead?.FullName ?? "", t.RowVersion,
-                t.ApprovalRoute.ToString(), t.ApprovalDelegateId,
-                t.ApprovalDelegate?.Delegate?.FullName,
                 p.ManagerId, p.Manager?.FullName
             )).ToList(),
-            p.RowVersion, p.ManagerId, p.Manager?.FullName
+            p.RowVersion, p.ManagerId, p.Manager?.FullName,
+            p.ApprovalRoute.ToString(), p.ApprovalDelegateId,
+            p.ApprovalDelegate?.Delegate?.FullName
         );
     }
 
-    private static string? GetConfiguredApproverName(Team? team)
+    private static string? GetConfiguredApproverName(Project? project, Team? primaryTeam)
     {
-        if (team == null) return null;
-        return team.ApprovalRoute switch
+        if (project == null) return null;
+        return project.ApprovalRoute switch
         {
-            TeamApprovalRoute.TeamLead => team.Lead?.FullName,
-            TeamApprovalRoute.Delegate => team.ApprovalDelegate?.Delegate?.FullName,
-            _ => team.Project?.Manager?.FullName
-        } ?? team.Project?.Manager?.FullName ?? team.Lead?.FullName;
+            ProjectApprovalRoute.TeamLead => primaryTeam?.Lead?.FullName,
+            ProjectApprovalRoute.Delegate => project.ApprovalDelegate?.Delegate?.FullName,
+            _ => project.Manager?.FullName
+        } ?? project.Manager?.FullName ?? primaryTeam?.Lead?.FullName;
     }
 
     private async Task<bool> IsEligibleProjectManager(int employeeId)
@@ -438,46 +518,90 @@ public class WorkspaceController : ControllerBase
                  e.Role.Name == "OrganizationHead"));
     }
 
-    private async Task<string?> ValidateEmployeeTeams(int primaryTeamId, IEnumerable<int> teamIds)
+    private async Task<string?> ValidateEmployeeAssignments(
+        int primaryProjectId,
+        int primaryTeamId,
+        IEnumerable<int> projectIds,
+        IEnumerable<int> teamIds)
     {
+        var distinctProjectIds = projectIds.Distinct().ToList();
         var distinctTeamIds = teamIds.Distinct().ToList();
+
+        if (!distinctProjectIds.Contains(primaryProjectId))
+            return "The primary project must also be included in the employee's project memberships.";
         if (!distinctTeamIds.Contains(primaryTeamId))
             return "The primary team must also be included in the employee's team memberships.";
 
-        var existingCount = await _db.Teams.CountAsync(team => distinctTeamIds.Contains(team.Id));
-        return existingCount == distinctTeamIds.Count ? null : "One or more selected teams do not exist.";
+        var existingProjectCount = await _db.Projects.CountAsync(project => distinctProjectIds.Contains(project.Id));
+        if (existingProjectCount != distinctProjectIds.Count)
+            return "One or more selected projects do not exist.";
+
+        var selectedTeams = await _db.Teams
+            .Where(team => distinctTeamIds.Contains(team.Id))
+            .Select(team => new { team.Id, team.ProjectId })
+            .ToListAsync();
+        if (selectedTeams.Count != distinctTeamIds.Count)
+            return "One or more selected teams do not exist.";
+        if (selectedTeams.Any(team => !distinctProjectIds.Contains(team.ProjectId)))
+            return "Every selected team must belong to one of the employee's selected projects.";
+
+        var primaryTeam = selectedTeams.First(team => team.Id == primaryTeamId);
+        return primaryTeam.ProjectId == primaryProjectId
+            ? null
+            : "The primary team must belong to the employee's primary project.";
     }
 
-    private async Task<(Project? Project, TeamApprovalRoute Route, ApprovalDelegate? Delegate, string? Error)>
-        ValidateTeamConfiguration(int projectId, int leadId, string approvalRoute, int? approvalDelegateId)
+    private async Task<(ProjectApprovalRoute Route, ApprovalDelegate? Delegate, string? Error)>
+        ValidateProjectConfiguration(int managerId, string approvalRoute, int? approvalDelegateId, int? projectId)
     {
-        var project = await _db.Projects.FindAsync(projectId);
-        if (project == null) return (null, default, null, "Project not found.");
-        if (!project.ManagerId.HasValue) return (project, default, null, "Assign a project manager before creating teams.");
-        if (!await _db.Employees.AnyAsync(e => e.Id == leadId && e.Status != "Inactive" && e.Status != "Separated"))
-            return (project, default, null, "Select an active employee as team lead.");
-        if (!Enum.TryParse<TeamApprovalRoute>(approvalRoute, true, out var route))
-            return (project, default, null, "Approval route must be ProjectManager, TeamLead, or Delegate.");
+        if (!await IsEligibleProjectManager(managerId))
+            return (default, null, "Select an active manager for the project.");
+        if (!Enum.TryParse<ProjectApprovalRoute>(approvalRoute, true, out var route))
+            return (default, null, "Approval route must be ProjectManager, TeamLead, or Delegate.");
 
-        if (route != TeamApprovalRoute.Delegate)
+        if (route != ProjectApprovalRoute.Delegate)
         {
             if (approvalDelegateId.HasValue)
-                return (project, route, null, "A delegate can only be selected for the Delegate approval route.");
-            return (project, route, null, null);
+                return (route, null, "A delegate can only be selected for the Delegate approval route.");
+            return (route, null, null);
         }
 
         if (!approvalDelegateId.HasValue)
-            return (project, route, null, "Select a delegate for the Delegate approval route.");
+            return (route, null, "Select a delegate for the Delegate approval route.");
 
         var approvalDelegate = await _db.ApprovalDelegates
             .Include(d => d.Delegate)
             .FirstOrDefaultAsync(d => d.Id == approvalDelegateId &&
-                d.ManagerId == project.ManagerId &&
-                (!d.ProjectId.HasValue || d.ProjectId == projectId));
+                d.ManagerId == managerId &&
+                (!d.ProjectId.HasValue || (projectId.HasValue && d.ProjectId == projectId)));
         if (approvalDelegate?.Delegate == null || approvalDelegate.Delegate.Status is "Inactive" or "Separated")
-            return (project, route, null, "The selected delegate is not active for this project manager.");
+            return (route, null, "The selected delegate is not active for this project manager and project.");
 
-        return (project, route, approvalDelegate, null);
+        return (route, approvalDelegate, null);
+    }
+
+    private async Task<(Project? Project, string? Error)> ValidateTeamConfiguration(int projectId, int leadId)
+    {
+        var project = await _db.Projects.FindAsync(projectId);
+        if (project == null) return (null, "Project not found.");
+        if (!project.ManagerId.HasValue) return (project, "Assign a project manager before creating teams.");
+        if (!await _db.Employees.AnyAsync(e => e.Id == leadId && e.Status != "Inactive" && e.Status != "Separated"))
+            return (project, "Select an active employee as team lead.");
+        return (project, null);
+    }
+
+    private async Task EnsureEmployeeProjectMembership(int employeeId, int projectId)
+    {
+        if (await _db.EmployeeProjects.AnyAsync(ep => ep.EmployeeId == employeeId && ep.ProjectId == projectId))
+            return;
+
+        var hasPrimaryProject = await _db.EmployeeProjects.AnyAsync(ep => ep.EmployeeId == employeeId && ep.IsPrimary);
+        _db.EmployeeProjects.Add(new EmployeeProject
+        {
+            EmployeeId = employeeId,
+            ProjectId = projectId,
+            IsPrimary = !hasPrimaryProject
+        });
     }
 
 }

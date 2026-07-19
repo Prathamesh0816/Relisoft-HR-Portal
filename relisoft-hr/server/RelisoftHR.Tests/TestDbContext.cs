@@ -39,8 +39,12 @@ public static class TestDbContext
             new Employee { Id = 6, EmployeeCode = "EMP-006", FullName = "Dev Delegate", Email = "dev.delegate@relisofttechnologies.com", Department = "Engineering", Designation = "Senior Engineer", RoleId = 1, CreatedOn = utc }
         );
 
-        db.Projects.Add(new Project { Id = 1, Name = "Test Project", ManagerId = 4, CreatedOn = utc });
-        db.Teams.Add(new Team { Id = 1, Name = "Test Team", ProjectId = 1, LeadId = 5, ApprovalRoute = TeamApprovalRoute.ProjectManager, CreatedOn = utc });
+        db.Projects.Add(new Project { Id = 1, Name = "Test Project", ManagerId = 4, ApprovalRoute = ProjectApprovalRoute.ProjectManager, CreatedOn = utc });
+        db.Teams.Add(new Team { Id = 1, Name = "Test Team", ProjectId = 1, LeadId = 5, CreatedOn = utc });
+        db.EmployeeProjects.AddRange(
+            new EmployeeProject { Id = 1, EmployeeId = 3, ProjectId = 1, IsPrimary = true, AssignedOn = utc },
+            new EmployeeProject { Id = 2, EmployeeId = 5, ProjectId = 1, IsPrimary = true, AssignedOn = utc }
+        );
         db.EmployeeTeams.AddRange(
             new EmployeeTeam { Id = 1, EmployeeId = 3, TeamId = 1 },
             new EmployeeTeam { Id = 2, EmployeeId = 5, TeamId = 1 }

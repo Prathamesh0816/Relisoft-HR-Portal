@@ -47,6 +47,14 @@ public class ModelIntegrityTests
         AssertUniqueIndex<TimesheetPeriod>(db, nameof(TimesheetPeriod.EmployeeId), nameof(TimesheetPeriod.WeekStart));
         AssertUniqueIndex<TrainingRegistration>(db, nameof(TrainingRegistration.CourseId), nameof(TrainingRegistration.EmployeeId));
         AssertUniqueIndex<InternalJobApplication>(db, nameof(InternalJobApplication.JobPostingId), nameof(InternalJobApplication.EmployeeId));
+        AssertUniqueIndex<EmployeeProject>(db, nameof(EmployeeProject.EmployeeId), nameof(EmployeeProject.ProjectId));
+
+        var primaryProjectIndex = db.Model.FindEntityType(typeof(EmployeeProject))!
+            .GetIndexes()
+            .Single(index => index.Properties.Select(property => property.Name)
+                .SequenceEqual([nameof(EmployeeProject.EmployeeId)]));
+        Assert.True(primaryProjectIndex.IsUnique);
+        Assert.Equal("[IsPrimary] = 1", primaryProjectIndex.GetFilter());
     }
 
     [Fact]

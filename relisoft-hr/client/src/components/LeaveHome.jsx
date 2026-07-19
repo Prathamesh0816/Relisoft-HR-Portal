@@ -163,7 +163,9 @@ export default function LeaveHome() {
     if (emp.role === 'OrganizationHead') return data.employees.find((e) => e.role === 'HR' || e.role === 'HRL2')?.fullName || 'No active HR found'
     if (emp.role === 'HR' || emp.role === 'HRL2') return data.employees.find((e) => e.role === 'OrganizationHead')?.fullName || 'No organization head found'
     if (emp.role === 'Manager' || emp.role === 'ManagerL2') return data.employees.find((e) => e.role === 'HR' || e.role === 'HRL2')?.fullName || 'No HR found'
-    return emp.primaryTeam?.leadName || 'Manager / Project lead'
+    if (emp.primaryProject?.approvalRoute === 'TeamLead') return emp.primaryTeam?.leadName || emp.primaryProject.managerName || 'No primary team lead assigned'
+    if (emp.primaryProject?.approvalRoute === 'Delegate') return emp.primaryProject.approvalDelegateName || emp.primaryProject.managerName || 'No delegate assigned'
+    return emp.primaryProject?.managerName || emp.primaryTeam?.projectManagerName || 'No project manager assigned'
   }
 
   const selectedLeaveType = data.leaveTypes.find((l) => String(l.id) === String(leaveForm.leaveTypeId))
@@ -183,6 +185,7 @@ export default function LeaveHome() {
               <div className="flex flex-wrap gap-2 mt-2">
                 {employee && <span className="px-3 py-1 rounded-full bg-amber-50 dark:bg-amber-900/30 text-amber-800 text-xs font-bold">{employee.employeeCode}</span>}
                 {employee && <span className="px-3 py-1 rounded-full bg-amber-50 dark:bg-amber-900/30 text-amber-800 text-xs font-bold">{data.roles.find((r) => r.id === employee.roleId)?.label || employee.role}</span>}
+                {employee?.primaryProject && <span className="px-3 py-1 rounded-full bg-amber-50 dark:bg-amber-900/30 text-amber-800 text-xs font-bold">{employee.primaryProject.name}</span>}
                 {employee?.primaryTeam && <span className="px-3 py-1 rounded-full bg-amber-50 dark:bg-amber-900/30 text-amber-800 text-xs font-bold">{employee.primaryTeam.name}</span>}
               </div>
             </div>

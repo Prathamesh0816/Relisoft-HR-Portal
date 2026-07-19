@@ -9,10 +9,10 @@ const APPROVAL_ROUTES = [
   { value: 'Delegate', label: 'Delegate' }
 ]
 
-function teamApprover(team) {
-  if (team.approvalRoute === 'TeamLead') return team.leadName || 'Team lead not assigned'
-  if (team.approvalRoute === 'Delegate') return team.approvalDelegateName || 'Delegate not assigned'
-  return team.projectManagerName || 'Project manager not assigned'
+function projectApprover(project) {
+  if (project.approvalRoute === 'TeamLead') return 'Employee primary team lead'
+  if (project.approvalRoute === 'Delegate') return project.approvalDelegateName || 'Delegate not assigned'
+  return project.managerName || 'Project manager not assigned'
 }
 
 export default function ProjectBuilder() {
@@ -34,12 +34,12 @@ export default function ProjectBuilder() {
   const [selectedProjectId, setSelectedProjectId] = useState('')
   const [updProjectName, setUpdProjectName] = useState('')
   const [updProjectManagerId, setUpdProjectManagerId] = useState('')
+  const [updApprovalRoute, setUpdApprovalRoute] = useState('ProjectManager')
+  const [updApprovalDelegateId, setUpdApprovalDelegateId] = useState('')
   const [selectedTeamId, setSelectedTeamId] = useState('')
   const [updTeamName, setUpdTeamName] = useState('')
   const [updTeamProjectId, setUpdTeamProjectId] = useState('')
   const [updTeamLeadId, setUpdTeamLeadId] = useState('')
-  const [updApprovalRoute, setUpdApprovalRoute] = useState('ProjectManager')
-  const [updApprovalDelegateId, setUpdApprovalDelegateId] = useState('')
 
   const selProject = projects.find((project) => String(project.id) === String(selectedProjectId))
   const selTeam = teams.find((team) => String(team.id) === String(selectedTeamId))
@@ -48,6 +48,8 @@ export default function ProjectBuilder() {
     setSelectedProjectId(String(project.id))
     setUpdProjectName(project.name)
     setUpdProjectManagerId(project.managerId ? String(project.managerId) : '')
+    setUpdApprovalRoute(project.approvalRoute || 'ProjectManager')
+    setUpdApprovalDelegateId(project.approvalDelegateId ? String(project.approvalDelegateId) : '')
   }, [])
 
   const selectTeam = useCallback((team) => {
@@ -55,23 +57,24 @@ export default function ProjectBuilder() {
     setUpdTeamName(team.name)
     setUpdTeamProjectId(String(team.projectId))
     setUpdTeamLeadId(String(team.leadId))
-    setUpdApprovalRoute(team.approvalRoute || 'ProjectManager')
-    setUpdApprovalDelegateId(team.approvalDelegateId ? String(team.approvalDelegateId) : '')
   }, [])
 
-  const delegatesForProject = (projectId) => {
+  const delegatesForProject = (projectId, managerId) => {
     const project = projects.find((item) => String(item.id) === String(projectId))
-    if (!project) return []
-    return delegates.filter((delegate) => delegate.managerId === project.managerId &&
-      (delegate.projectId == null || String(delegate.projectId) === String(project.id)))
+    const ownerId = managerId || project?.managerId
+    return delegates.filter((delegate) => String(delegate.managerId) === String(ownerId) &&
+      (delegate.projectId == null || (project && String(delegate.projectId) === String(project.id))))
   }
 
   useEffect(() => {
-    const managerIds = [...new Set(projects.map((project) => project.managerId).filter(Boolean))]
+    const managerIds = [...new Set([
+      ...projects.map((project) => project.managerId),
+      ...managerOptions.map((manager) => manager.id)
+    ].filter(Boolean))]
     Promise.all(managerIds.map((managerId) => getDelegates(managerId)))
       .then((groups) => setDelegates(groups.flat()))
       .catch(() => setDelegates([]))
-  }, [projects])
+  }, [managerOptions, projects])
 
   useEffect(() => {
     if (projects[0] && !initializedProjectTree.current) {
@@ -102,7 +105,12 @@ export default function ProjectBuilder() {
   const handleCreateProject = async (event) => {
     event.preventDefault()
     try {
-      const created = await createProject({ name: projectForm.name, managerId: Number(projectForm.managerId) })
+      const created = await createProject({
+        name: projectForm.name,
+        managerId: Number(projectForm.managerId),
+        approvalRoute: projectForm.approvalRoute,
+        approvalDelegateId: projectForm.approvalRoute === 'Delegate' ? Number(projectForm.approvalDelegateId) : null
+      })
       const refreshed = await loadWorkspace()
       setData(refreshed)
       const createdProject = refreshed.projects.find((project) => project.id === created.id)
@@ -110,7 +118,7 @@ export default function ProjectBuilder() {
         selectProject(createdProject)
         setExpandedProjectIds((current) => [...new Set([...current, createdProject.id])])
       }
-      resetForm('projectForm', { name: '', managerId: String(managerOptions[0]?.id || '') })
+      resetForm('projectForm', { name: '', managerId: String(managerOptions[0]?.id || ''), approvalRoute: 'ProjectManager', approvalDelegateId: '' })
       setMessage({ type: 'success', text: 'Project created.' })
     } catch (error) { setMessage({ type: 'error', text: error.response?.data?.message || 'Failed.' }) }
   }
@@ -119,12 +127,18 @@ export default function ProjectBuilder() {
     event.preventDefault()
     if (!selProject) return
     try {
-      await updateProject(selProject.id, { name: updProjectName, managerId: Number(updProjectManagerId) })
+      await updateProject(selProject.id, {
+        name: updProjectName,
+        managerId: Number(updProjectManagerId),
+        approvalRoute: updApprovalRoute,
+        approvalDelegateId: updApprovalRoute === 'Delegate' ? Number(updApprovalDelegateId) : null
+      })
       const managerName = managerOptions.find((manager) => String(manager.id) === String(updProjectManagerId))?.fullName
+      const approvalDelegateName = delegates.find((delegate) => String(delegate.id) === String(updApprovalDelegateId))?.delegateName
       setData({
         ...data,
         projects: data.projects.map((project) => project.id === selProject.id
-          ? { ...project, name: updProjectName, managerId: Number(updProjectManagerId), managerName }
+          ? { ...project, name: updProjectName, managerId: Number(updProjectManagerId), managerName, approvalRoute: updApprovalRoute, approvalDelegateId: updApprovalRoute === 'Delegate' ? Number(updApprovalDelegateId) : null, approvalDelegateName: updApprovalRoute === 'Delegate' ? approvalDelegateName : null }
           : project)
       })
       setExpandedProjectIds((current) => [...new Set([...current, selProject.id])])
@@ -143,9 +157,7 @@ export default function ProjectBuilder() {
       const created = await createTeam({
         name: teamForm.name,
         projectId: Number(teamForm.projectId),
-        leadId: Number(teamForm.leadId),
-        approvalRoute: teamForm.approvalRoute,
-        approvalDelegateId: teamForm.approvalRoute === 'Delegate' ? Number(teamForm.approvalDelegateId) : null
+        leadId: Number(teamForm.leadId)
       })
       const refreshed = await loadWorkspace()
       setData(refreshed)
@@ -157,8 +169,7 @@ export default function ProjectBuilder() {
         setExpandedProjectIds((current) => [...new Set([...current, createdTeam.projectId])])
       }
       resetForm('teamForm', {
-        name: '', projectId: String(projects[0]?.id || ''), leadId: String(data.employees[0]?.id || ''),
-        approvalRoute: 'ProjectManager', approvalDelegateId: ''
+        name: '', projectId: String(projects[0]?.id || ''), leadId: String(data.employees[0]?.id || '')
       })
       setMessage({ type: 'success', text: 'Team created.' })
     } catch (error) { setMessage({ type: 'error', text: error.response?.data?.message || 'Failed.' }) }
@@ -171,13 +182,10 @@ export default function ProjectBuilder() {
       await updateTeam(selTeam.id, {
         name: updTeamName,
         projectId: Number(updTeamProjectId),
-        leadId: Number(updTeamLeadId),
-        approvalRoute: updApprovalRoute,
-        approvalDelegateId: updApprovalRoute === 'Delegate' ? Number(updApprovalDelegateId) : null
+        leadId: Number(updTeamLeadId)
       })
       const destinationProject = data.projects.find((project) => String(project.id) === String(updTeamProjectId))
       const leadName = data.employees.find((employee) => String(employee.id) === String(updTeamLeadId))?.fullName
-      const approvalDelegateName = delegates.find((delegate) => String(delegate.id) === String(updApprovalDelegateId))?.delegateName
       const updatedTeam = {
         ...selTeam,
         name: updTeamName,
@@ -186,10 +194,7 @@ export default function ProjectBuilder() {
         projectManagerId: destinationProject?.managerId,
         projectManagerName: destinationProject?.managerName,
         leadId: Number(updTeamLeadId),
-        leadName,
-        approvalRoute: updApprovalRoute,
-        approvalDelegateId: updApprovalRoute === 'Delegate' ? Number(updApprovalDelegateId) : null,
-        approvalDelegateName: updApprovalRoute === 'Delegate' ? approvalDelegateName : null
+        leadName
       }
       setData({
         ...data,
@@ -212,7 +217,7 @@ export default function ProjectBuilder() {
     } catch (error) { setMessage({ type: 'error', text: error.response?.data?.message || 'Failed.' }) }
   }
 
-  const renderApprovalFields = (route, setRoute, delegateId, setDelegateId, projectId) => (
+  const renderApprovalFields = (route, setRoute, delegateId, setDelegateId, projectId, managerId) => (
     <>
       <div>
         <label className="text-xs font-bold text-navy/70 dark:text-white/70 uppercase">Approver</label>
@@ -225,7 +230,7 @@ export default function ProjectBuilder() {
           <label className="text-xs font-bold text-navy/70 dark:text-white/70 uppercase">Approval delegate</label>
           <select value={delegateId} onChange={(event) => setDelegateId(event.target.value)} required className="mt-1.5 w-full h-12 px-4 rounded-xl border border-navy/10 dark:border-white/10 bg-white dark:bg-[var(--bg-secondary)] text-navy dark:text-white">
             <option value="">Select delegate</option>
-            {delegatesForProject(projectId).map((delegate) => <option key={delegate.id} value={delegate.id}>{delegate.delegateName}</option>)}
+            {delegatesForProject(projectId, managerId).map((delegate) => <option key={delegate.id} value={delegate.id}>{delegate.delegateName}</option>)}
           </select>
         </div>
       )}
@@ -277,6 +282,9 @@ export default function ProjectBuilder() {
                       <span className="block text-xs text-navy/50 dark:text-white/50 mt-1 break-words">
                         Manager: {project.managerName || 'Not assigned'}
                       </span>
+                      <span className="block text-xs text-navy/50 dark:text-white/50 mt-1 break-words">
+                        Approver: {projectApprover(project)}
+                      </span>
                     </span>
                     <span className="shrink-0 text-xs font-bold text-navy/50 dark:text-white/50">
                       {project.teams.length} team{project.teams.length === 1 ? '' : 's'}
@@ -290,7 +298,7 @@ export default function ProjectBuilder() {
                       ) : (
                         <div className="border-l-2 border-gold-1/50">
                           {project.teams.map((team) => (
-                            <div key={team.id} className="grid gap-2 px-4 py-3 border-b border-navy/5 dark:border-white/5 last:border-b-0 sm:grid-cols-[minmax(0,1fr)_minmax(0,1fr)_minmax(0,1fr)]">
+                            <div key={team.id} className="grid gap-2 px-4 py-3 border-b border-navy/5 dark:border-white/5 last:border-b-0 sm:grid-cols-2">
                               <div className="min-w-0">
                                 <span className="block text-[10px] font-bold uppercase text-navy/50 dark:text-white/50">Team</span>
                                 <strong className="block text-sm text-navy dark:text-white break-words mt-1">{team.name}</strong>
@@ -298,11 +306,6 @@ export default function ProjectBuilder() {
                               <div className="min-w-0">
                                 <span className="block text-[10px] font-bold uppercase text-navy/50 dark:text-white/50">Team lead</span>
                                 <span className="block text-sm text-navy dark:text-white break-words mt-1">{team.leadName || 'Not assigned'}</span>
-                              </div>
-                              <div className="min-w-0">
-                                <span className="block text-[10px] font-bold uppercase text-navy/50 dark:text-white/50">Approver</span>
-                                <span className="block text-sm text-navy dark:text-white break-words mt-1">{teamApprover(team)}</span>
-                                <span className="block text-xs text-navy/50 dark:text-white/50 mt-1">{APPROVAL_ROUTES.find((route) => route.value === team.approvalRoute)?.label || 'Project manager'}</span>
                               </div>
                             </div>
                           ))}
@@ -343,10 +346,11 @@ export default function ProjectBuilder() {
                 </div>
                 <div>
                   <label className="text-xs font-bold text-navy/70 dark:text-white/70 uppercase">Project manager</label>
-                  <select value={projectForm.managerId} onChange={(event) => updateForm('projectForm', 'managerId', event.target.value)} required className="mt-1.5 w-full h-12 px-4 rounded-xl border border-navy/10 dark:border-white/10 bg-white dark:bg-[var(--bg-secondary)] text-navy dark:text-white">
+                  <select value={projectForm.managerId} onChange={(event) => { updateForm('projectForm', 'managerId', event.target.value); updateForm('projectForm', 'approvalDelegateId', '') }} required className="mt-1.5 w-full h-12 px-4 rounded-xl border border-navy/10 dark:border-white/10 bg-white dark:bg-[var(--bg-secondary)] text-navy dark:text-white">
                     {managerOptions.map((employee) => <option key={employee.id} value={employee.id}>{employee.fullName}</option>)}
                   </select>
                 </div>
+                {renderApprovalFields(projectForm.approvalRoute, (value) => updateForm('projectForm', 'approvalRoute', value), projectForm.approvalDelegateId, (value) => updateForm('projectForm', 'approvalDelegateId', value), null, projectForm.managerId)}
                 <button type="submit" className="px-5 py-2.5 rounded-xl border border-navy/10 dark:border-white/10 text-navy/70 dark:text-white/70 font-bold text-sm">Add project</button>
               </form>
 
@@ -368,10 +372,11 @@ export default function ProjectBuilder() {
                   </div>
                   <div>
                     <label className="text-xs font-bold text-navy/70 dark:text-white/70 uppercase">Project manager</label>
-                    <select value={updProjectManagerId} onChange={(event) => setUpdProjectManagerId(event.target.value)} required className="mt-1.5 w-full h-12 px-4 rounded-xl border border-navy/10 dark:border-white/10 bg-white dark:bg-[var(--bg-secondary)] text-navy dark:text-white">
+                    <select value={updProjectManagerId} onChange={(event) => { setUpdProjectManagerId(event.target.value); setUpdApprovalDelegateId('') }} required className="mt-1.5 w-full h-12 px-4 rounded-xl border border-navy/10 dark:border-white/10 bg-white dark:bg-[var(--bg-secondary)] text-navy dark:text-white">
                       {managerOptions.map((employee) => <option key={employee.id} value={employee.id}>{employee.fullName}</option>)}
                     </select>
                   </div>
+                  {renderApprovalFields(updApprovalRoute, setUpdApprovalRoute, updApprovalDelegateId, setUpdApprovalDelegateId, selProject.id, updProjectManagerId)}
                   <button type="submit" className="px-5 py-2.5 rounded-xl border border-navy/10 dark:border-white/10 text-navy/70 dark:text-white/70 font-bold text-sm">Save project</button>
                 </form>
               )}
@@ -387,7 +392,7 @@ export default function ProjectBuilder() {
                 </div>
                 <div>
                   <label className="text-xs font-bold text-navy/70 dark:text-white/70 uppercase">Project</label>
-                  <select value={teamForm.projectId} onChange={(event) => { updateForm('teamForm', 'projectId', event.target.value); updateForm('teamForm', 'approvalDelegateId', '') }} required className="mt-1.5 w-full h-12 px-4 rounded-xl border border-navy/10 dark:border-white/10 bg-white dark:bg-[var(--bg-secondary)] text-navy dark:text-white">
+                  <select value={teamForm.projectId} onChange={(event) => updateForm('teamForm', 'projectId', event.target.value)} required className="mt-1.5 w-full h-12 px-4 rounded-xl border border-navy/10 dark:border-white/10 bg-white dark:bg-[var(--bg-secondary)] text-navy dark:text-white">
                     {projects.map((project) => <option key={project.id} value={project.id}>{project.name}</option>)}
                   </select>
                 </div>
@@ -401,7 +406,6 @@ export default function ProjectBuilder() {
                     {data.employees.map((employee) => <option key={employee.id} value={employee.id}>{employee.fullName}</option>)}
                   </select>
                 </div>
-                {renderApprovalFields(teamForm.approvalRoute, (value) => updateForm('teamForm', 'approvalRoute', value), teamForm.approvalDelegateId, (value) => updateForm('teamForm', 'approvalDelegateId', value), teamForm.projectId)}
                 <button type="submit" className="px-5 py-2.5 rounded-xl border border-navy/10 dark:border-white/10 text-navy/70 dark:text-white/70 font-bold text-sm">Add team</button>
               </form>
 
@@ -419,7 +423,7 @@ export default function ProjectBuilder() {
                   </div>
                   <div>
                     <label className="text-xs font-bold text-navy/70 dark:text-white/70 uppercase">Parent project</label>
-                    <select value={updTeamProjectId} onChange={(event) => { setUpdTeamProjectId(event.target.value); setUpdApprovalDelegateId('') }} className="mt-1.5 w-full h-12 px-4 rounded-xl border border-navy/10 dark:border-white/10 bg-white dark:bg-[var(--bg-secondary)] text-navy dark:text-white">
+                    <select value={updTeamProjectId} onChange={(event) => setUpdTeamProjectId(event.target.value)} className="mt-1.5 w-full h-12 px-4 rounded-xl border border-navy/10 dark:border-white/10 bg-white dark:bg-[var(--bg-secondary)] text-navy dark:text-white">
                       {projects.map((project) => <option key={project.id} value={project.id}>{project.name}</option>)}
                     </select>
                   </div>
@@ -433,7 +437,6 @@ export default function ProjectBuilder() {
                       {data.employees.map((employee) => <option key={employee.id} value={employee.id}>{employee.fullName}</option>)}
                     </select>
                   </div>
-                  {renderApprovalFields(updApprovalRoute, setUpdApprovalRoute, updApprovalDelegateId, setUpdApprovalDelegateId, updTeamProjectId)}
                   <button type="submit" className="px-5 py-2.5 rounded-xl border border-navy/10 dark:border-white/10 text-navy/70 dark:text-white/70 font-bold text-sm">Save team</button>
                 </form>
               )}

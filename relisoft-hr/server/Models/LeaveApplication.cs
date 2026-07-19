@@ -21,7 +21,7 @@ public class LeaveApplication
     public int? ProjectManagerId { get; set; }
     public string? ApproverName { get; set; }
     [MaxLength(30)]
-    public string ApprovalRoute { get; set; } = TeamApprovalRoute.ProjectManager.ToString();
+    public string ApprovalRoute { get; set; } = ProjectApprovalRoute.ProjectManager.ToString();
     [MaxLength(500)]
     public string? ApprovalReason { get; set; }
     public DateTime AppliedOn { get; set; } = DateTime.UtcNow;

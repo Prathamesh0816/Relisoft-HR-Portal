@@ -28,7 +28,10 @@ public class ExcelController : ControllerBase
         ws.Cell(1, 7).Value = "EmploymentType";
         ws.Cell(1, 8).Value = "Location";
         ws.Cell(1, 9).Value = "JoinDate";
-        ws.Cell(1, 10).Value = "PrimaryTeamId";
+        ws.Cell(1, 10).Value = "PrimaryProjectId";
+        ws.Cell(1, 11).Value = "ProjectIds";
+        ws.Cell(1, 12).Value = "PrimaryTeamId";
+        ws.Cell(1, 13).Value = "TeamIds";
 
         var header = ws.Row(1);
         header.Style.Font.Bold = true;
@@ -76,6 +79,24 @@ public class ExcelController : ControllerBase
                     continue;
                 }
 
+                var primaryProjectId = row.Cell(10).GetValue<int>();
+                var projectIds = ParseIds(row.Cell(11).GetString());
+                var primaryTeamId = row.Cell(12).GetValue<int>();
+                var teamIds = ParseIds(row.Cell(13).GetString());
+                if (!projectIds.Contains(primaryProjectId) || !teamIds.Contains(primaryTeamId))
+                    throw new InvalidOperationException("Primary project/team must be included in the corresponding membership list.");
+
+                var existingProjectCount = await _db.Projects.CountAsync(project => projectIds.Contains(project.Id));
+                var selectedTeams = await _db.Teams
+                    .Where(team => teamIds.Contains(team.Id))
+                    .Select(team => new { team.Id, team.ProjectId })
+                    .ToListAsync();
+                if (existingProjectCount != projectIds.Count || selectedTeams.Count != teamIds.Count)
+                    throw new InvalidOperationException("One or more project or team IDs do not exist.");
+                if (selectedTeams.Any(team => !projectIds.Contains(team.ProjectId)) ||
+                    selectedTeams.Single(team => team.Id == primaryTeamId).ProjectId != primaryProjectId)
+                    throw new InvalidOperationException("Team memberships must belong to selected projects, including the primary team.");
+
                 var employee = new Employee
                 {
                     EmployeeCode = employeeCode,
@@ -87,10 +108,23 @@ public class ExcelController : ControllerBase
                     EmploymentType = row.Cell(7).GetString().Trim(),
                     Location = row.Cell(8).GetString().Trim(),
                     JoinDate = row.Cell(9).GetDateTime(),
-                    RoleId = 1
+                    RoleId = 1,
+                    PrimaryTeamId = primaryTeamId
                 };
 
                 _db.Employees.Add(employee);
+                foreach (var projectId in projectIds)
+                {
+                    employee.EmployeeProjects.Add(new EmployeeProject
+                    {
+                        ProjectId = projectId,
+                        IsPrimary = projectId == primaryProjectId
+                    });
+                }
+                foreach (var teamId in teamIds)
+                {
+                    employee.EmployeeTeams.Add(new EmployeeTeam { TeamId = teamId });
+                }
                 await _db.SaveChangesAsync();
 
                 processed++;
@@ -255,4 +289,11 @@ public class ExcelController : ControllerBase
             errors = errors.Take(20).ToList()
         });
     }
+
+    private static List<int> ParseIds(string value) => value
+        .Split([',', ';'], StringSplitOptions.TrimEntries | StringSplitOptions.RemoveEmptyEntries)
+        .Select(id => int.TryParse(id, out var parsed) ? parsed : 0)
+        .Where(id => id > 0)
+        .Distinct()
+        .ToList();
 }

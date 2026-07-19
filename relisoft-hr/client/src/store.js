@@ -18,7 +18,8 @@ const useStore = create((set, get) => ({
     employeeCode: '', fullName: '', email: '', department: '', designation: '',
     jobRole: '', employmentType: 'Full-time', location: '',
     salaryStructure: { fixedPay: '', variablePay: '', pf: '', gratuity: '', insurance: '', otherDeductions: '' },
-    joinDate: new Date().toISOString().slice(0, 10), role: 1, primaryTeamId: '', teamIds: [], submitting: false
+    joinDate: new Date().toISOString().slice(0, 10), role: 1,
+    primaryProjectId: '', projectIds: [], primaryTeamId: '', teamIds: [], submitting: false
   },
   leaveForm: {
     employeeId: '', leaveTypeId: '', startDate: '', endDate: '', isHalfDay: false, reason: '', submitting: false,
@@ -36,8 +37,8 @@ const useStore = create((set, get) => ({
   },
   employeeTickets: { employeeId: '', tickets: [], loading: false },
   hrTickets: { tickets: [], loading: false },
-  projectForm: { name: '', managerId: '' },
-  teamForm: { name: '', projectId: '', leadId: '', approvalRoute: 'ProjectManager', approvalDelegateId: '' },
+  projectForm: { name: '', managerId: '', approvalRoute: 'ProjectManager', approvalDelegateId: '' },
+  teamForm: { name: '', projectId: '', leadId: '' },
   excelUpload: { fileName: '', result: null },
   existingEmployeeUpload: { fileName: '', result: null },
   reviewer: { reviewerId: '', reviewerName: '', requests: [], recentDecisions: [], loading: false },
@@ -112,6 +113,17 @@ const useStore = create((set, get) => ({
       employeeForm: {
         ...s.employeeForm,
         teamIds: exists ? s.employeeForm.teamIds.filter(id => id !== teamId) : [...s.employeeForm.teamIds, teamId]
+      }
+    }
+  }),
+  toggleProjectMembership: (projectId) => set((s) => {
+    const exists = s.employeeForm.projectIds.includes(projectId)
+    return {
+      employeeForm: {
+        ...s.employeeForm,
+        projectIds: exists
+          ? s.employeeForm.projectIds.filter(id => id !== projectId)
+          : [...s.employeeForm.projectIds, projectId]
       }
     }
   }),

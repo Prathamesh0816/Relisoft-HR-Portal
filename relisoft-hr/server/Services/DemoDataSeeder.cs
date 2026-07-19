@@ -35,6 +35,11 @@ public static class DemoDataSeeder
             new EmployeeTeam { EmployeeId = 3, TeamId = team1.Id },
             new EmployeeTeam { EmployeeId = 3, TeamId = team2.Id }
         );
+        db.EmployeeProjects.AddRange(
+            new EmployeeProject { EmployeeId = 1, ProjectId = proj1.Id, IsPrimary = true, AssignedOn = utc },
+            new EmployeeProject { EmployeeId = 2, ProjectId = proj2.Id, IsPrimary = true, AssignedOn = utc },
+            new EmployeeProject { EmployeeId = 3, ProjectId = proj1.Id, IsPrimary = true, AssignedOn = utc }
+        );
         await db.SaveChangesAsync();
 
         // 4. Update employees with primary team

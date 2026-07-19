@@ -51,6 +51,7 @@ public class AppDbContext : DbContext
     public DbSet<LeaveType> LeaveTypes => Set<LeaveType>();
     public DbSet<LeaveApplication> LeaveApplications => Set<LeaveApplication>();
     public DbSet<EmployeeLeaveBalance> EmployeeLeaveBalances => Set<EmployeeLeaveBalance>();
+    public DbSet<EmployeeProject> EmployeeProjects => Set<EmployeeProject>();
     public DbSet<EmployeeTeam> EmployeeTeams => Set<EmployeeTeam>();
     public DbSet<EmployeeOnboardingProfile> EmployeeOnboardingProfiles => Set<EmployeeOnboardingProfile>();
     public DbSet<EmployeeOnboardingExperience> EmployeeOnboardingExperiences => Set<EmployeeOnboardingExperience>();
@@ -149,12 +150,29 @@ public class AppDbContext : DbContext
             .HasIndex(p => p.Name).IsUnique();
         modelBuilder.Entity<Project>()
             .HasIndex(p => p.ManagerId);
-        modelBuilder.Entity<Team>()
-            .HasIndex(t => new { t.ProjectId, t.Name }).IsUnique();
-        modelBuilder.Entity<Team>()
-            .Property(t => t.ApprovalRoute)
+        modelBuilder.Entity<Project>()
+            .Property(p => p.ApprovalRoute)
             .HasConversion<string>()
             .HasMaxLength(30);
+        modelBuilder.Entity<Team>()
+            .HasIndex(t => new { t.ProjectId, t.Name }).IsUnique();
+
+        modelBuilder.Entity<EmployeeProject>()
+            .HasIndex(ep => new { ep.EmployeeId, ep.ProjectId }).IsUnique();
+        modelBuilder.Entity<EmployeeProject>()
+            .HasIndex(ep => ep.EmployeeId)
+            .IsUnique()
+            .HasFilter("[IsPrimary] = 1");
+        modelBuilder.Entity<EmployeeProject>()
+            .HasOne(ep => ep.Employee)
+            .WithMany(e => e.EmployeeProjects)
+            .HasForeignKey(ep => ep.EmployeeId)
+            .OnDelete(DeleteBehavior.NoAction);
+        modelBuilder.Entity<EmployeeProject>()
+            .HasOne(ep => ep.Project)
+            .WithMany(p => p.EmployeeProjects)
+            .HasForeignKey(ep => ep.ProjectId)
+            .OnDelete(DeleteBehavior.NoAction);
 
         modelBuilder.Entity<EmployeeTeam>()
             .HasIndex(et => new { et.EmployeeId, et.TeamId }).IsUnique();
@@ -178,6 +196,11 @@ public class AppDbContext : DbContext
             .WithMany()
             .HasForeignKey(p => p.ManagerId)
             .OnDelete(DeleteBehavior.NoAction);
+        modelBuilder.Entity<Project>()
+            .HasOne(p => p.ApprovalDelegate)
+            .WithMany()
+            .HasForeignKey(p => p.ApprovalDelegateId)
+            .OnDelete(DeleteBehavior.NoAction);
         modelBuilder.Entity<Employee>()
             .HasOne(e => e.Role)
             .WithMany(r => r.Employees)
@@ -187,11 +210,6 @@ public class AppDbContext : DbContext
             .HasOne(t => t.Lead)
             .WithMany()
             .HasForeignKey(t => t.LeadId)
-            .OnDelete(DeleteBehavior.NoAction);
-        modelBuilder.Entity<Team>()
-            .HasOne(t => t.ApprovalDelegate)
-            .WithMany()
-            .HasForeignKey(t => t.ApprovalDelegateId)
             .OnDelete(DeleteBehavior.NoAction);
         modelBuilder.Entity<Employee>()
             .HasOne(e => e.PrimaryTeam)
@@ -835,10 +853,10 @@ public class AppDbContext : DbContext
             table.HasCheckConstraint("CK_LeaveApplications_TotalDays", "[TotalDays] > 0");
             table.HasCheckConstraint("CK_LeaveApplications_ApprovalRoute", "[ApprovalRoute] IN ('ProjectManager', 'TeamLead', 'Delegate', 'Legacy')");
         });
-        modelBuilder.Entity<Team>().ToTable(table =>
+        modelBuilder.Entity<Project>().ToTable(table =>
         {
-            table.HasCheckConstraint("CK_Teams_ApprovalRoute", "[ApprovalRoute] IN ('ProjectManager', 'TeamLead', 'Delegate')");
-            table.HasCheckConstraint("CK_Teams_ApprovalDelegate", "([ApprovalRoute] = 'Delegate' AND [ApprovalDelegateId] IS NOT NULL) OR ([ApprovalRoute] <> 'Delegate' AND [ApprovalDelegateId] IS NULL)");
+            table.HasCheckConstraint("CK_Projects_ApprovalRoute", "[ApprovalRoute] IN ('ProjectManager', 'TeamLead', 'Delegate')");
+            table.HasCheckConstraint("CK_Projects_ApprovalDelegate", "([ApprovalRoute] = 'Delegate' AND [ApprovalDelegateId] IS NOT NULL) OR ([ApprovalRoute] <> 'Delegate' AND [ApprovalDelegateId] IS NULL)");
         });
         modelBuilder.Entity<EmployeeLeaveBalance>().ToTable(table =>
             table.HasCheckConstraint("CK_EmployeeLeaveBalances_NonNegative", "[AllocatedLeaves] >= 0 AND [UsedLeaves] >= 0"));

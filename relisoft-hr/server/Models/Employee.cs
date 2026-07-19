@@ -34,6 +34,7 @@ public class Employee : IHasRowVersion
     public OrganizationRole? Role { get; set; }
     public Team? PrimaryTeam { get; set; }
     public SalaryStructure? SalaryStructure { get; set; }
+    public ICollection<EmployeeProject> EmployeeProjects { get; set; } = new List<EmployeeProject>();
     public ICollection<EmployeeTeam> EmployeeTeams { get; set; } = new List<EmployeeTeam>();
     public ICollection<EmployeeLeaveBalance> LeaveBalances { get; set; } = new List<EmployeeLeaveBalance>();
     public ICollection<LeaveApplication> LeaveApplications { get; set; } = new List<LeaveApplication>();

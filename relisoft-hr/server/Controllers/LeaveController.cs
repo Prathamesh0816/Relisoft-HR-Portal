@@ -599,36 +599,43 @@ public class LeaveController : ControllerBase
     private sealed record ApprovalAssignment(
         Employee Approver,
         Employee? ProjectManager,
-        TeamApprovalRoute Route
+        ProjectApprovalRoute Route
     );
 
     private async Task<ApprovalAssignment?> ResolveApprovalAssignment(Employee employee)
     {
-        var teamQuery = _db.Teams
-            .Include(t => t.Project)!.ThenInclude(p => p!.Manager)
-            .Include(t => t.Lead)
-            .Include(t => t.ApprovalDelegate)!.ThenInclude(d => d!.Delegate)
-            .AsQueryable();
+        var primaryMembership = await _db.EmployeeProjects
+            .Include(ep => ep.Project)!.ThenInclude(p => p!.Manager)
+            .Include(ep => ep.Project)!.ThenInclude(p => p!.ApprovalDelegate)!.ThenInclude(d => d!.Delegate)
+            .FirstOrDefaultAsync(ep => ep.EmployeeId == employee.Id && ep.IsPrimary);
 
-        Team? team = null;
-        if (employee.PrimaryTeamId.HasValue)
-            team = await teamQuery.FirstOrDefaultAsync(t => t.Id == employee.PrimaryTeamId);
-        team ??= await teamQuery.FirstOrDefaultAsync(t => t.EmployeeTeams.Any(et => et.EmployeeId == employee.Id));
-
-        if (team != null)
+        if (primaryMembership?.Project != null)
         {
-            var manager = team.Project?.Manager;
-            var selected = team.ApprovalRoute switch
+            var project = primaryMembership.Project;
+            Team? primaryTeam = null;
+            if (employee.PrimaryTeamId.HasValue)
             {
-                TeamApprovalRoute.TeamLead => team.Lead,
-                TeamApprovalRoute.Delegate => team.ApprovalDelegate?.Delegate,
+                primaryTeam = await _db.Teams
+                    .Include(t => t.Lead)
+                    .FirstOrDefaultAsync(t => t.Id == employee.PrimaryTeamId && t.ProjectId == project.Id);
+            }
+            primaryTeam ??= await _db.Teams
+                .Include(t => t.Lead)
+                .FirstOrDefaultAsync(t => t.ProjectId == project.Id &&
+                    t.EmployeeTeams.Any(et => et.EmployeeId == employee.Id));
+
+            var manager = project.Manager;
+            var selected = project.ApprovalRoute switch
+            {
+                ProjectApprovalRoute.TeamLead => primaryTeam?.Lead,
+                ProjectApprovalRoute.Delegate => project.ApprovalDelegate?.Delegate,
                 _ => manager
             };
 
             // A stale delegate or incomplete legacy row must never strand a request.
-            selected ??= manager ?? team.Lead;
+            selected ??= manager ?? primaryTeam?.Lead;
             if (selected != null)
-                return new ApprovalAssignment(selected, manager, team.ApprovalRoute);
+                return new ApprovalAssignment(selected, manager, project.ApprovalRoute);
         }
 
         var fallback = employee.Role?.Name switch
@@ -644,7 +651,7 @@ public class LeaveController : ControllerBase
 
         return fallback == null
             ? null
-            : new ApprovalAssignment(fallback, fallback, TeamApprovalRoute.ProjectManager);
+            : new ApprovalAssignment(fallback, fallback, ProjectApprovalRoute.ProjectManager);
     }
 
     private async Task<bool> CanReview(LeaveApplication application, Employee reviewer)
@@ -678,47 +685,28 @@ public class LeaveController : ControllerBase
             .Distinct()
             .ToListAsync();
 
-        var myProjects = await _db.Projects
-            .Include(p => p.Teams)
+        var managedProjectIds = await _db.Projects
             .Where(p => p.ManagerId == reviewer.Id)
+            .Select(p => p.Id)
             .ToListAsync();
-
-        var projectTeamIds = myProjects.SelectMany(p => p.Teams).Select(t => t.Id).ToList();
-        var projectEmployeeIds = projectTeamIds.Any()
-            ? await _db.EmployeeTeams.Where(et => projectTeamIds.Contains(et.TeamId)).Select(et => et.EmployeeId).Distinct().ToListAsync()
-            : new();
+        var projectEmployeeIds = await _db.EmployeeProjects
+            .Where(ep => managedProjectIds.Contains(ep.ProjectId))
+            .Select(ep => ep.EmployeeId)
+            .Distinct()
+            .ToListAsync();
 
         var ownIds = directIds.Concat(projectEmployeeIds).Distinct().ToList();
 
-        var delegatedFromIds = await _db.ApprovalDelegates
-            .Where(d => d.DelegateId == reviewer.Id)
-            .Select(d => d.ManagerId)
+        var delegatedProjectIds = await _db.Projects
+            .Where(p => p.ApprovalRoute == ProjectApprovalRoute.Delegate &&
+                p.ApprovalDelegate!.DelegateId == reviewer.Id)
+            .Select(p => p.Id)
             .ToListAsync();
-
-        var delegatedIds = new List<int>();
-        if (delegatedFromIds.Any())
-        {
-            foreach (var managerId in delegatedFromIds)
-            {
-                var mgrTeam = await _db.Teams.Include(t => t.EmployeeTeams)
-                    .FirstOrDefaultAsync(t => t.LeadId == managerId);
-                if (mgrTeam != null)
-                    delegatedIds.AddRange(mgrTeam.EmployeeTeams.Select(et => et.EmployeeId));
-
-                var mgrProjects = await _db.Projects
-                    .Include(p => p.Teams)
-                    .Where(p => p.ManagerId == managerId)
-                    .ToListAsync();
-                var mgrTeamIds = mgrProjects.SelectMany(p => p.Teams).Select(t => t.Id).ToList();
-                if (mgrTeamIds.Any())
-                {
-                    var mgrEmpIds = await _db.EmployeeTeams
-                        .Where(et => mgrTeamIds.Contains(et.TeamId))
-                        .Select(et => et.EmployeeId).Distinct().ToListAsync();
-                    delegatedIds.AddRange(mgrEmpIds);
-                }
-            }
-        }
+        var delegatedIds = await _db.EmployeeProjects
+            .Where(ep => delegatedProjectIds.Contains(ep.ProjectId))
+            .Select(ep => ep.EmployeeId)
+            .Distinct()
+            .ToListAsync();
 
         var employeeIds = ownIds.Concat(delegatedIds).Distinct().ToList();
 

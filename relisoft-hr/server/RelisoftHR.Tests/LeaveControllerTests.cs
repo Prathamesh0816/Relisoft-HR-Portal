@@ -120,15 +120,15 @@ public class LeaveControllerTests : IDisposable
         Assert.NotNull(leave);
         Assert.Equal(4, leave.ApproverId);
         Assert.Equal(4, leave.ProjectManagerId);
-        Assert.Equal(TeamApprovalRoute.ProjectManager.ToString(), leave.ApprovalRoute);
+        Assert.Equal(ProjectApprovalRoute.ProjectManager.ToString(), leave.ApprovalRoute);
     }
 
     [Fact]
     public async Task ApplyLeave_TeamLeadRoute_AssignsLeadAndNotifiesManager()
     {
-        var team = await _db.Teams.FindAsync(1);
-        Assert.NotNull(team);
-        team.ApprovalRoute = TeamApprovalRoute.TeamLead;
+        var project = await _db.Projects.FindAsync(1);
+        Assert.NotNull(project);
+        project.ApprovalRoute = ProjectApprovalRoute.TeamLead;
         await _db.SaveChangesAsync();
 
         await _controller.ApplyLeave(new ApplyLeaveRequest(
@@ -147,10 +147,10 @@ public class LeaveControllerTests : IDisposable
     {
         var approvalDelegate = new ApprovalDelegate { Id = 1, ManagerId = 4, DelegateId = 6, ProjectId = 1 };
         _db.ApprovalDelegates.Add(approvalDelegate);
-        var team = await _db.Teams.FindAsync(1);
-        Assert.NotNull(team);
-        team.ApprovalRoute = TeamApprovalRoute.Delegate;
-        team.ApprovalDelegateId = approvalDelegate.Id;
+        var project = await _db.Projects.FindAsync(1);
+        Assert.NotNull(project);
+        project.ApprovalRoute = ProjectApprovalRoute.Delegate;
+        project.ApprovalDelegateId = approvalDelegate.Id;
         await _db.SaveChangesAsync();
 
         await _controller.ApplyLeave(new ApplyLeaveRequest(
@@ -159,7 +159,7 @@ public class LeaveControllerTests : IDisposable
         var leave = await _db.LeaveApplications.FindAsync(1);
         Assert.NotNull(leave);
         Assert.Equal(6, leave.ApproverId);
-        Assert.Equal(TeamApprovalRoute.Delegate.ToString(), leave.ApprovalRoute);
+        Assert.Equal(ProjectApprovalRoute.Delegate.ToString(), leave.ApprovalRoute);
         Assert.Contains(_db.Notifications, notification => notification.EmployeeId == 4);
     }
 

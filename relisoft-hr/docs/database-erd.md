@@ -10,7 +10,7 @@ The implemented backend is EF Core with SQL Server tables. `specs/database/schem
 - Business identifiers, one-per-owner records, and repeated membership/application records use unique indexes.
 - Historical employee records use restrictive foreign keys, while selected user-facing records use standardized soft deletion.
 - Shared mutable aggregates use SQL Server row-version concurrency tokens.
-- Project ownership and team approval routing are explicit: project manager by default, with team-lead and validated-delegate alternatives.
+- Project memberships and approval routing are explicit: every assigned employee has one primary project, with project-manager, primary-team-lead, and validated-delegate approval alternatives.
 
 ## Relationship Review
 
@@ -18,7 +18,7 @@ The implemented backend is EF Core with SQL Server tables. `specs/database/schem
 
 - Workforce resilience tables are intentionally denormalized reporting data; their ID-like fields are not transactional foreign keys.
 - Desk and room overlap prevention remains application-level because ordinary SQL check constraints cannot compare a row with other reservations.
-- Employee writes enforce that `PrimaryTeamId` is included in `EmployeeTeam`, and team writes guarantee that the selected lead is a member.
+- Employee writes enforce that exactly one `EmployeeProject` membership is primary, that `PrimaryTeamId` belongs to the primary project, and that every selected team belongs to a selected project. Team writes guarantee that the selected lead is both a team and project member.
 - `specs/database/schema.md` describes a legacy MongoDB design and should not be treated as the implemented SQL Server schema.
 
 ## Core Organization
@@ -30,7 +30,9 @@ erDiagram
     Project ||--o{ Team : ProjectId
     Employee ||--o{ Project : ManagerId_nullable
     Employee ||--o{ Team : LeadId
-    ApprovalDelegate ||--o{ Team : ApprovalDelegateId_nullable
+    ApprovalDelegate ||--o{ Project : ApprovalDelegateId_nullable
+    Employee ||--o{ EmployeeProject : EmployeeId
+    Project ||--o{ EmployeeProject : ProjectId
     Employee ||--o{ EmployeeTeam : EmployeeId
     Team ||--o{ EmployeeTeam : TeamId
     Employee ||--|| UserLogin : EmployeeId
@@ -56,13 +58,19 @@ erDiagram
         int Id PK
         string Name
         int ManagerId FK
+        string ApprovalRoute
+        int ApprovalDelegateId FK
     }
     Team {
         int Id PK
         int ProjectId FK
         int LeadId FK
-        string ApprovalRoute
-        int ApprovalDelegateId FK
+    }
+    EmployeeProject {
+        int Id PK
+        int EmployeeId FK
+        int ProjectId FK
+        bool IsPrimary
     }
     EmployeeTeam {
         int Id PK
@@ -420,7 +428,7 @@ erDiagram
 
 ### Core
 
-`Employees`, `UserLogins`, `OrganizationRoles`, `Projects`, `Teams`, `EmployeeTeams`, `ApprovalDelegates`, `SalaryStructures`
+`Employees`, `UserLogins`, `OrganizationRoles`, `Projects`, `Teams`, `EmployeeProjects`, `EmployeeTeams`, `ApprovalDelegates`, `SalaryStructures`
 
 ### Leave, Attendance, and Tickets
 
@@ -445,6 +453,7 @@ erDiagram
 ## Indexes Worth Keeping
 
 - `EmployeeTeams`: unique `(EmployeeId, TeamId)`
+- `EmployeeProjects`: unique `(EmployeeId, ProjectId)` and filtered unique `EmployeeId` where `IsPrimary = 1`
 - `EmployeeLeaveBalances`: unique `(EmployeeId, LeaveTypeId)`
 - `UserLogins`: unique `EmployeeId`, unique `Username`
 - `SalaryStructures`: unique `EmployeeId`
