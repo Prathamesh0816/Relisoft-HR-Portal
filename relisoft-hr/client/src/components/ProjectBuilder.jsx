@@ -28,6 +28,7 @@ export default function ProjectBuilder() {
     ['Manager', 'ManagerL2', 'OrganizationHead'].includes(employee.role)), [data.employees])
 
   const [delegates, setDelegates] = useState([])
+  const [managementView, setManagementView] = useState(canAdministerProjects ? 'projects' : 'teams')
   const [expandedProjectIds, setExpandedProjectIds] = useState([])
   const initializedProjectTree = useRef(false)
   const [selectedProjectId, setSelectedProjectId] = useState('')
@@ -315,94 +316,130 @@ export default function ProjectBuilder() {
           </div>
         </section>
 
-        <div className={`grid gap-6 ${canAdministerProjects ? 'md:grid-cols-2' : ''}`}>
-          {canAdministerProjects && (
-            <form onSubmit={handleCreateProject} className="space-y-3">
-              <div>
-                <label className="text-xs font-bold text-navy/70 dark:text-white/70 uppercase">New project</label>
-                <input value={projectForm.name} onChange={(event) => updateForm('projectForm', 'name', event.target.value)} required className="mt-1.5 w-full h-12 px-4 rounded-xl border border-navy/10 dark:border-white/10 bg-white dark:bg-[var(--bg-secondary)] text-navy dark:text-white" />
+        <section className="pt-2" aria-labelledby="management-heading">
+          <div className="flex flex-col gap-3 pb-5 border-b border-navy/10 dark:border-white/10 sm:flex-row sm:items-center sm:justify-between">
+            <div>
+              <h3 id="management-heading" className="font-bold text-navy dark:text-white">Manage structure</h3>
+              <p className="text-sm text-muted dark:text-white/60 mt-1">Choose one area and complete its changes without mixing workflows.</p>
+            </div>
+            {canAdministerProjects && (
+              <div role="tablist" aria-label="Structure management" className="inline-flex self-start border border-navy/10 dark:border-white/10 rounded-lg p-1 bg-navy/[0.02] dark:bg-white/[0.03]">
+                <button type="button" role="tab" aria-selected={managementView === 'projects'} onClick={() => setManagementView('projects')} className={`h-9 px-4 rounded-md text-sm font-bold ${managementView === 'projects' ? 'bg-white dark:bg-[var(--bg-secondary)] text-navy dark:text-white shadow-sm' : 'text-navy/50 dark:text-white/50'}`}>Projects</button>
+                <button type="button" role="tab" aria-selected={managementView === 'teams'} onClick={() => setManagementView('teams')} className={`h-9 px-4 rounded-md text-sm font-bold ${managementView === 'teams' ? 'bg-white dark:bg-[var(--bg-secondary)] text-navy dark:text-white shadow-sm' : 'text-navy/50 dark:text-white/50'}`}>Teams</button>
               </div>
-              <div>
-                <label className="text-xs font-bold text-navy/70 dark:text-white/70 uppercase">Project manager</label>
-                <select value={projectForm.managerId} onChange={(event) => updateForm('projectForm', 'managerId', event.target.value)} required className="mt-1.5 w-full h-12 px-4 rounded-xl border border-navy/10 dark:border-white/10 bg-white dark:bg-[var(--bg-secondary)] text-navy dark:text-white">
-                  {managerOptions.map((employee) => <option key={employee.id} value={employee.id}>{employee.fullName}</option>)}
-                </select>
-              </div>
-              <button type="submit" className="px-5 py-2.5 rounded-xl border border-navy/10 dark:border-white/10 text-navy/70 dark:text-white/70 font-bold text-sm">Add project</button>
-            </form>
+            )}
+          </div>
+
+          {managementView === 'projects' && canAdministerProjects && (
+            <div role="tabpanel" className="space-y-8 pt-5">
+              <form onSubmit={handleCreateProject} className="max-w-2xl space-y-4">
+                <div>
+                  <h4 className="font-bold text-navy dark:text-white">Create project</h4>
+                  <p className="text-sm text-muted dark:text-white/60 mt-1">Set the project name and its responsible manager.</p>
+                </div>
+                <div>
+                  <label className="text-xs font-bold text-navy/70 dark:text-white/70 uppercase">Project name</label>
+                  <input value={projectForm.name} onChange={(event) => updateForm('projectForm', 'name', event.target.value)} required className="mt-1.5 w-full h-12 px-4 rounded-xl border border-navy/10 dark:border-white/10 bg-white dark:bg-[var(--bg-secondary)] text-navy dark:text-white" />
+                </div>
+                <div>
+                  <label className="text-xs font-bold text-navy/70 dark:text-white/70 uppercase">Project manager</label>
+                  <select value={projectForm.managerId} onChange={(event) => updateForm('projectForm', 'managerId', event.target.value)} required className="mt-1.5 w-full h-12 px-4 rounded-xl border border-navy/10 dark:border-white/10 bg-white dark:bg-[var(--bg-secondary)] text-navy dark:text-white">
+                    {managerOptions.map((employee) => <option key={employee.id} value={employee.id}>{employee.fullName}</option>)}
+                  </select>
+                </div>
+                <button type="submit" className="px-5 py-2.5 rounded-xl border border-navy/10 dark:border-white/10 text-navy/70 dark:text-white/70 font-bold text-sm">Add project</button>
+              </form>
+
+              {selProject && (
+                <form onSubmit={handleUpdateProject} className="max-w-2xl pt-6 border-t border-navy/10 dark:border-white/10 space-y-4">
+                  <div>
+                    <h4 className="font-bold text-navy dark:text-white">Update project</h4>
+                    <p className="text-sm text-muted dark:text-white/60 mt-1">Select an existing project, then edit its saved values.</p>
+                  </div>
+                  <div>
+                    <label className="text-xs font-bold text-navy/70 dark:text-white/70 uppercase">Existing project</label>
+                    <select value={selectedProjectId} onChange={(event) => { const project = projects.find((item) => String(item.id) === event.target.value); if (project) selectProject(project) }} className="mt-1.5 w-full h-12 px-4 rounded-xl border border-navy/10 dark:border-white/10 bg-white dark:bg-[var(--bg-secondary)] text-navy dark:text-white">
+                      {projects.map((project) => <option key={project.id} value={project.id}>{project.name}</option>)}
+                    </select>
+                  </div>
+                  <div>
+                    <label className="text-xs font-bold text-navy/70 dark:text-white/70 uppercase">Project name</label>
+                    <input value={updProjectName} onChange={(event) => setUpdProjectName(event.target.value)} required className="mt-1.5 w-full h-12 px-4 rounded-xl border border-navy/10 dark:border-white/10 bg-white dark:bg-[var(--bg-secondary)] text-navy dark:text-white" />
+                  </div>
+                  <div>
+                    <label className="text-xs font-bold text-navy/70 dark:text-white/70 uppercase">Project manager</label>
+                    <select value={updProjectManagerId} onChange={(event) => setUpdProjectManagerId(event.target.value)} required className="mt-1.5 w-full h-12 px-4 rounded-xl border border-navy/10 dark:border-white/10 bg-white dark:bg-[var(--bg-secondary)] text-navy dark:text-white">
+                      {managerOptions.map((employee) => <option key={employee.id} value={employee.id}>{employee.fullName}</option>)}
+                    </select>
+                  </div>
+                  <button type="submit" className="px-5 py-2.5 rounded-xl border border-navy/10 dark:border-white/10 text-navy/70 dark:text-white/70 font-bold text-sm">Save project</button>
+                </form>
+              )}
+            </div>
           )}
 
-          <form onSubmit={handleCreateTeam} className="space-y-3">
-            <div className="grid md:grid-cols-2 gap-3">
-              <div>
-                <label className="text-xs font-bold text-navy/70 dark:text-white/70 uppercase">Team name</label>
-                <input value={teamForm.name} onChange={(event) => updateForm('teamForm', 'name', event.target.value)} required className="mt-1.5 w-full h-12 px-4 rounded-xl border border-navy/10 dark:border-white/10 bg-white dark:bg-[var(--bg-secondary)] text-navy dark:text-white" />
-              </div>
-              <div>
-                <label className="text-xs font-bold text-navy/70 dark:text-white/70 uppercase">Project</label>
-                <select value={teamForm.projectId} onChange={(event) => { updateForm('teamForm', 'projectId', event.target.value); updateForm('teamForm', 'approvalDelegateId', '') }} required className="mt-1.5 w-full h-12 px-4 rounded-xl border border-navy/10 dark:border-white/10 bg-white dark:bg-[var(--bg-secondary)] text-navy dark:text-white">
-                  {projects.map((project) => <option key={project.id} value={project.id}>{project.name}</option>)}
-                </select>
-              </div>
-              <div>
-                <label className="text-xs font-bold text-navy/70 dark:text-white/70 uppercase">Team lead</label>
-                <select value={teamForm.leadId} onChange={(event) => updateForm('teamForm', 'leadId', event.target.value)} required className="mt-1.5 w-full h-12 px-4 rounded-xl border border-navy/10 dark:border-white/10 bg-white dark:bg-[var(--bg-secondary)] text-navy dark:text-white">
-                  {data.employees.map((employee) => <option key={employee.id} value={employee.id}>{employee.fullName}</option>)}
-                </select>
-              </div>
-              {renderApprovalFields(teamForm.approvalRoute, (value) => updateForm('teamForm', 'approvalRoute', value), teamForm.approvalDelegateId, (value) => updateForm('teamForm', 'approvalDelegateId', value), teamForm.projectId)}
-            </div>
-            <button type="submit" className="px-5 py-2.5 rounded-xl border border-navy/10 dark:border-white/10 text-navy/70 dark:text-white/70 font-bold text-sm">Add team</button>
-          </form>
-        </div>
+          {managementView === 'teams' && (
+            <div role="tabpanel" className="space-y-8 pt-5">
+              <form onSubmit={handleCreateTeam} className="max-w-2xl space-y-4">
+                <div>
+                  <h4 className="font-bold text-navy dark:text-white">Create team</h4>
+                  <p className="text-sm text-muted dark:text-white/60 mt-1">Choose the parent project before assigning leadership and approval ownership.</p>
+                </div>
+                <div>
+                  <label className="text-xs font-bold text-navy/70 dark:text-white/70 uppercase">Project</label>
+                  <select value={teamForm.projectId} onChange={(event) => { updateForm('teamForm', 'projectId', event.target.value); updateForm('teamForm', 'approvalDelegateId', '') }} required className="mt-1.5 w-full h-12 px-4 rounded-xl border border-navy/10 dark:border-white/10 bg-white dark:bg-[var(--bg-secondary)] text-navy dark:text-white">
+                    {projects.map((project) => <option key={project.id} value={project.id}>{project.name}</option>)}
+                  </select>
+                </div>
+                <div>
+                  <label className="text-xs font-bold text-navy/70 dark:text-white/70 uppercase">Team name</label>
+                  <input value={teamForm.name} onChange={(event) => updateForm('teamForm', 'name', event.target.value)} required className="mt-1.5 w-full h-12 px-4 rounded-xl border border-navy/10 dark:border-white/10 bg-white dark:bg-[var(--bg-secondary)] text-navy dark:text-white" />
+                </div>
+                <div>
+                  <label className="text-xs font-bold text-navy/70 dark:text-white/70 uppercase">Team lead</label>
+                  <select value={teamForm.leadId} onChange={(event) => updateForm('teamForm', 'leadId', event.target.value)} required className="mt-1.5 w-full h-12 px-4 rounded-xl border border-navy/10 dark:border-white/10 bg-white dark:bg-[var(--bg-secondary)] text-navy dark:text-white">
+                    {data.employees.map((employee) => <option key={employee.id} value={employee.id}>{employee.fullName}</option>)}
+                  </select>
+                </div>
+                {renderApprovalFields(teamForm.approvalRoute, (value) => updateForm('teamForm', 'approvalRoute', value), teamForm.approvalDelegateId, (value) => updateForm('teamForm', 'approvalDelegateId', value), teamForm.projectId)}
+                <button type="submit" className="px-5 py-2.5 rounded-xl border border-navy/10 dark:border-white/10 text-navy/70 dark:text-white/70 font-bold text-sm">Add team</button>
+              </form>
 
-        {canAdministerProjects && selProject && (
-          <form onSubmit={handleUpdateProject} className="pt-5 border-t border-navy/10 dark:border-white/10 space-y-3">
-            <h3 className="font-bold text-navy dark:text-white">Update project</h3>
-            <div className="grid md:grid-cols-3 gap-3">
-              <select value={selectedProjectId} onChange={(event) => { const project = projects.find((item) => String(item.id) === event.target.value); setSelectedProjectId(event.target.value); setUpdProjectName(project?.name || ''); setUpdProjectManagerId(String(project?.managerId || '')) }} className="h-12 px-4 rounded-xl border border-navy/10 dark:border-white/10 bg-white dark:bg-[var(--bg-secondary)] text-navy dark:text-white">
-                {projects.map((project) => <option key={project.id} value={project.id}>{project.name}</option>)}
-              </select>
-              <input value={updProjectName} onChange={(event) => setUpdProjectName(event.target.value)} required className="h-12 px-4 rounded-xl border border-navy/10 dark:border-white/10 bg-white dark:bg-[var(--bg-secondary)] text-navy dark:text-white" />
-              <select value={updProjectManagerId} onChange={(event) => setUpdProjectManagerId(event.target.value)} required className="h-12 px-4 rounded-xl border border-navy/10 dark:border-white/10 bg-white dark:bg-[var(--bg-secondary)] text-navy dark:text-white">
-                {managerOptions.map((employee) => <option key={employee.id} value={employee.id}>{employee.fullName}</option>)}
-              </select>
+              {selTeam && (
+                <form onSubmit={handleUpdateTeam} className="max-w-2xl pt-6 border-t border-navy/10 dark:border-white/10 space-y-4">
+                  <div>
+                    <h4 className="font-bold text-navy dark:text-white">Update team</h4>
+                    <p className="text-sm text-muted dark:text-white/60 mt-1">Select an existing team, then edit its saved values.</p>
+                  </div>
+                  <div>
+                    <label className="text-xs font-bold text-navy/70 dark:text-white/70 uppercase">Existing team</label>
+                    <select value={selectedTeamId} onChange={(event) => { const team = teams.find((item) => String(item.id) === event.target.value); if (team) selectTeam(team) }} className="mt-1.5 w-full h-12 px-4 rounded-xl border border-navy/10 dark:border-white/10 bg-white dark:bg-[var(--bg-secondary)] text-navy dark:text-white">
+                      {teams.map((team) => <option key={team.id} value={team.id}>{team.name} - {team.projectName}</option>)}
+                    </select>
+                  </div>
+                  <div>
+                    <label className="text-xs font-bold text-navy/70 dark:text-white/70 uppercase">Parent project</label>
+                    <select value={updTeamProjectId} onChange={(event) => { setUpdTeamProjectId(event.target.value); setUpdApprovalDelegateId('') }} className="mt-1.5 w-full h-12 px-4 rounded-xl border border-navy/10 dark:border-white/10 bg-white dark:bg-[var(--bg-secondary)] text-navy dark:text-white">
+                      {projects.map((project) => <option key={project.id} value={project.id}>{project.name}</option>)}
+                    </select>
+                  </div>
+                  <div>
+                    <label className="text-xs font-bold text-navy/70 dark:text-white/70 uppercase">Team name</label>
+                    <input value={updTeamName} onChange={(event) => setUpdTeamName(event.target.value)} required className="mt-1.5 w-full h-12 px-4 rounded-xl border border-navy/10 dark:border-white/10 bg-white dark:bg-[var(--bg-secondary)] text-navy dark:text-white" />
+                  </div>
+                  <div>
+                    <label className="text-xs font-bold text-navy/70 dark:text-white/70 uppercase">Team lead</label>
+                    <select value={updTeamLeadId} onChange={(event) => setUpdTeamLeadId(event.target.value)} className="mt-1.5 w-full h-12 px-4 rounded-xl border border-navy/10 dark:border-white/10 bg-white dark:bg-[var(--bg-secondary)] text-navy dark:text-white">
+                      {data.employees.map((employee) => <option key={employee.id} value={employee.id}>{employee.fullName}</option>)}
+                    </select>
+                  </div>
+                  {renderApprovalFields(updApprovalRoute, setUpdApprovalRoute, updApprovalDelegateId, setUpdApprovalDelegateId, updTeamProjectId)}
+                  <button type="submit" className="px-5 py-2.5 rounded-xl border border-navy/10 dark:border-white/10 text-navy/70 dark:text-white/70 font-bold text-sm">Save team</button>
+                </form>
+              )}
             </div>
-            <button type="submit" className="px-5 py-2.5 rounded-xl border border-navy/10 dark:border-white/10 text-navy/70 dark:text-white/70 font-bold text-sm">Save project</button>
-          </form>
-        )}
-
-        {selTeam && (
-          <form onSubmit={handleUpdateTeam} className="pt-5 border-t border-navy/10 dark:border-white/10 space-y-3">
-            <h3 className="font-bold text-navy dark:text-white">Update team</h3>
-            <div className="grid md:grid-cols-2 gap-3">
-              <div>
-                <label className="text-xs font-bold text-navy/70 dark:text-white/70 uppercase">Team</label>
-                <select value={selectedTeamId} onChange={(event) => { const team = teams.find((item) => String(item.id) === event.target.value); if (team) selectTeam(team) }} className="mt-1.5 w-full h-12 px-4 rounded-xl border border-navy/10 dark:border-white/10 bg-white dark:bg-[var(--bg-secondary)] text-navy dark:text-white">
-                  {teams.map((team) => <option key={team.id} value={team.id}>{team.name} - {team.projectName}</option>)}
-                </select>
-              </div>
-              <div>
-                <label className="text-xs font-bold text-navy/70 dark:text-white/70 uppercase">Team name</label>
-                <input value={updTeamName} onChange={(event) => setUpdTeamName(event.target.value)} required className="mt-1.5 w-full h-12 px-4 rounded-xl border border-navy/10 dark:border-white/10 bg-white dark:bg-[var(--bg-secondary)] text-navy dark:text-white" />
-              </div>
-              <div>
-                <label className="text-xs font-bold text-navy/70 dark:text-white/70 uppercase">Project</label>
-                <select value={updTeamProjectId} onChange={(event) => { setUpdTeamProjectId(event.target.value); setUpdApprovalDelegateId('') }} className="mt-1.5 w-full h-12 px-4 rounded-xl border border-navy/10 dark:border-white/10 bg-white dark:bg-[var(--bg-secondary)] text-navy dark:text-white">
-                  {projects.map((project) => <option key={project.id} value={project.id}>{project.name}</option>)}
-                </select>
-              </div>
-              <div>
-                <label className="text-xs font-bold text-navy/70 dark:text-white/70 uppercase">Team lead</label>
-                <select value={updTeamLeadId} onChange={(event) => setUpdTeamLeadId(event.target.value)} className="mt-1.5 w-full h-12 px-4 rounded-xl border border-navy/10 dark:border-white/10 bg-white dark:bg-[var(--bg-secondary)] text-navy dark:text-white">
-                  {data.employees.map((employee) => <option key={employee.id} value={employee.id}>{employee.fullName}</option>)}
-                </select>
-              </div>
-              {renderApprovalFields(updApprovalRoute, setUpdApprovalRoute, updApprovalDelegateId, setUpdApprovalDelegateId, updTeamProjectId)}
-            </div>
-            <button type="submit" className="px-5 py-2.5 rounded-xl border border-navy/10 dark:border-white/10 text-navy/70 dark:text-white/70 font-bold text-sm">Save team</button>
-          </form>
-        )}
+          )}
+        </section>
       </div>
     </div>
   )
