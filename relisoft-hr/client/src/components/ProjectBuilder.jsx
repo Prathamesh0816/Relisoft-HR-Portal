@@ -43,6 +43,12 @@ export default function ProjectBuilder() {
   const selProject = projects.find((project) => String(project.id) === String(selectedProjectId))
   const selTeam = teams.find((team) => String(team.id) === String(selectedTeamId))
 
+  const selectProject = useCallback((project) => {
+    setSelectedProjectId(String(project.id))
+    setUpdProjectName(project.name)
+    setUpdProjectManagerId(project.managerId ? String(project.managerId) : '')
+  }, [])
+
   const selectTeam = useCallback((team) => {
     setSelectedTeamId(String(team.id))
     setUpdTeamName(team.name)
@@ -79,20 +85,32 @@ export default function ProjectBuilder() {
     if (!teamForm.leadId && data.employees[0]) updateForm('teamForm', 'leadId', String(data.employees[0].id))
 
     if (!selectedProjectId && projects[0]) {
-      setSelectedProjectId(String(projects[0].id))
-      setUpdProjectName(projects[0].name)
-      setUpdProjectManagerId(String(projects[0].managerId || ''))
+      selectProject(projects[0])
     }
     if (!selectedTeamId && teams[0]) selectTeam(teams[0])
-  }, [data.employees, managerOptions, projectForm.managerId, projects, selectTeam, selectedProjectId, selectedTeamId, teamForm.leadId, teamForm.projectId, teams, updateForm])
+  }, [data.employees, managerOptions, projectForm.managerId, projects, selectProject, selectTeam, selectedProjectId, selectedTeamId, teamForm.leadId, teamForm.projectId, teams, updateForm])
+
+  useEffect(() => {
+    if (selProject) selectProject(selProject)
+  }, [selProject, selectProject])
+
+  useEffect(() => {
+    if (selTeam) selectTeam(selTeam)
+  }, [selTeam, selectTeam])
 
   const handleCreateProject = async (event) => {
     event.preventDefault()
     try {
-      await createProject({ name: projectForm.name, managerId: Number(projectForm.managerId) })
+      const created = await createProject({ name: projectForm.name, managerId: Number(projectForm.managerId) })
+      const refreshed = await loadWorkspace()
+      setData(refreshed)
+      const createdProject = refreshed.projects.find((project) => project.id === created.id)
+      if (createdProject) {
+        selectProject(createdProject)
+        setExpandedProjectIds((current) => [...new Set([...current, createdProject.id])])
+      }
       resetForm('projectForm', { name: '', managerId: String(managerOptions[0]?.id || '') })
       setMessage({ type: 'success', text: 'Project created.' })
-      setData(await loadWorkspace())
     } catch (error) { setMessage({ type: 'error', text: error.response?.data?.message || 'Failed.' }) }
   }
 
@@ -101,27 +119,47 @@ export default function ProjectBuilder() {
     if (!selProject) return
     try {
       await updateProject(selProject.id, { name: updProjectName, managerId: Number(updProjectManagerId) })
+      const managerName = managerOptions.find((manager) => String(manager.id) === String(updProjectManagerId))?.fullName
+      setData({
+        ...data,
+        projects: data.projects.map((project) => project.id === selProject.id
+          ? { ...project, name: updProjectName, managerId: Number(updProjectManagerId), managerName }
+          : project)
+      })
+      setExpandedProjectIds((current) => [...new Set([...current, selProject.id])])
+
+      const refreshed = await loadWorkspace()
+      setData(refreshed)
+      const updatedProject = refreshed.projects.find((project) => project.id === selProject.id)
+      if (updatedProject) selectProject(updatedProject)
       setMessage({ type: 'success', text: 'Project updated.' })
-      setData(await loadWorkspace())
     } catch (error) { setMessage({ type: 'error', text: error.response?.data?.message || 'Failed.' }) }
   }
 
   const handleCreateTeam = async (event) => {
     event.preventDefault()
     try {
-      await createTeam({
+      const created = await createTeam({
         name: teamForm.name,
         projectId: Number(teamForm.projectId),
         leadId: Number(teamForm.leadId),
         approvalRoute: teamForm.approvalRoute,
         approvalDelegateId: teamForm.approvalRoute === 'Delegate' ? Number(teamForm.approvalDelegateId) : null
       })
+      const refreshed = await loadWorkspace()
+      setData(refreshed)
+      const createdTeam = refreshed.projects
+        .flatMap((project) => project.teams)
+        .find((team) => team.id === created.id)
+      if (createdTeam) {
+        selectTeam(createdTeam)
+        setExpandedProjectIds((current) => [...new Set([...current, createdTeam.projectId])])
+      }
       resetForm('teamForm', {
         name: '', projectId: String(projects[0]?.id || ''), leadId: String(data.employees[0]?.id || ''),
         approvalRoute: 'ProjectManager', approvalDelegateId: ''
       })
       setMessage({ type: 'success', text: 'Team created.' })
-      setData(await loadWorkspace())
     } catch (error) { setMessage({ type: 'error', text: error.response?.data?.message || 'Failed.' }) }
   }
 
@@ -136,8 +174,40 @@ export default function ProjectBuilder() {
         approvalRoute: updApprovalRoute,
         approvalDelegateId: updApprovalRoute === 'Delegate' ? Number(updApprovalDelegateId) : null
       })
+      const destinationProject = data.projects.find((project) => String(project.id) === String(updTeamProjectId))
+      const leadName = data.employees.find((employee) => String(employee.id) === String(updTeamLeadId))?.fullName
+      const approvalDelegateName = delegates.find((delegate) => String(delegate.id) === String(updApprovalDelegateId))?.delegateName
+      const updatedTeam = {
+        ...selTeam,
+        name: updTeamName,
+        projectId: Number(updTeamProjectId),
+        projectName: destinationProject?.name || selTeam.projectName,
+        projectManagerId: destinationProject?.managerId,
+        projectManagerName: destinationProject?.managerName,
+        leadId: Number(updTeamLeadId),
+        leadName,
+        approvalRoute: updApprovalRoute,
+        approvalDelegateId: updApprovalRoute === 'Delegate' ? Number(updApprovalDelegateId) : null,
+        approvalDelegateName: updApprovalRoute === 'Delegate' ? approvalDelegateName : null
+      }
+      setData({
+        ...data,
+        projects: data.projects.map((project) => {
+          const remainingTeams = project.teams.filter((team) => team.id !== selTeam.id)
+          return project.id === updatedTeam.projectId
+            ? { ...project, teams: [...remainingTeams, updatedTeam] }
+            : { ...project, teams: remainingTeams }
+        })
+      })
+      setExpandedProjectIds((current) => [...new Set([...current, updatedTeam.projectId])])
+
+      const refreshed = await loadWorkspace()
+      setData(refreshed)
+      const refreshedTeam = refreshed.projects
+        .flatMap((project) => project.teams)
+        .find((team) => team.id === selTeam.id)
+      if (refreshedTeam) selectTeam(refreshedTeam)
       setMessage({ type: 'success', text: 'Team updated.' })
-      setData(await loadWorkspace())
     } catch (error) { setMessage({ type: 'error', text: error.response?.data?.message || 'Failed.' }) }
   }
 
