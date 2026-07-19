@@ -10,7 +10,7 @@ public class AuthControllerTests
     private readonly AuthController _controller;
     private readonly Dictionary<string, string?> _configValues = new()
     {
-        ["Jwt:Key"] = "ReliSoft-HR-SecretKey-2026-Must-Be-32-Chars!",
+        ["Jwt:Key"] = "CHANGE_ME_DEVELOPMENT_JWT_KEY_32_CHARS_MINIMUM",
         ["Jwt:Issuer"] = "RelisoftHR",
         ["Jwt:Audience"] = "RelisoftHR"
     };

@@ -3,7 +3,7 @@ using System.ComponentModel.DataAnnotations.Schema;
 
 namespace RelisoftHR.Models;
 
-public class ApprovalDelegate
+public class ApprovalDelegate : ISoftDeletable, IHasRowVersion
 {
     [Key]
     public int Id { get; set; }
@@ -11,6 +11,10 @@ public class ApprovalDelegate
     public int DelegateId { get; set; }
     public int? ProjectId { get; set; }
     public DateTime CreatedOn { get; set; } = DateTime.UtcNow;
+    public bool IsDeleted { get; set; }
+    public DateTime? DeletedOn { get; set; }
+    public int? DeletedById { get; set; }
+    public byte[]? RowVersion { get; set; }
 
     [ForeignKey(nameof(ManagerId))]
     public Employee? Manager { get; set; }

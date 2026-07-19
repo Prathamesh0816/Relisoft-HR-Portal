@@ -2,7 +2,9 @@ using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using RelisoftHR.Data;
+using RelisoftHR.DTOs;
 using RelisoftHR.Models;
+using System.Data;
 
 namespace RelisoftHR.Controllers;
 
@@ -30,11 +32,12 @@ public class BookingController : ControllerBase
     }
 
     [HttpPost("desks")]
-    public async Task<ActionResult> CreateDesk([FromBody] Desk req)
+    public async Task<ActionResult> CreateDesk([FromBody] DeskRequest req)
     {
-        _db.Desks.Add(req);
+        var desk = new Desk { Name = req.Name, Floor = req.Floor, Building = req.Building };
+        _db.Desks.Add(desk);
         await _db.SaveChangesAsync();
-        return Ok(req);
+        return Ok(desk);
     }
 
     [HttpGet("rooms")]
@@ -46,43 +49,72 @@ public class BookingController : ControllerBase
     }
 
     [HttpPost("rooms")]
-    public async Task<ActionResult> CreateRoom([FromBody] MeetingRoom req)
+    public async Task<ActionResult> CreateRoom([FromBody] MeetingRoomRequest req)
     {
-        _db.MeetingRooms.Add(req);
+        var room = new MeetingRoom
+        {
+            Name = req.Name, Capacity = req.Capacity, Floor = req.Floor, Building = req.Building,
+            HasProjector = req.HasProjector, HasMonitor = req.HasMonitor
+        };
+        _db.MeetingRooms.Add(room);
         await _db.SaveChangesAsync();
-        return Ok(req);
+        return Ok(room);
     }
 
     [HttpPost("desk-book")]
-    public async Task<ActionResult> BookDesk([FromBody] DeskBooking req)
+    public async Task<ActionResult> BookDesk([FromBody] DeskBookingRequest req)
     {
         var empId = GetUserId();
+        if (req.EndTime <= req.StartTime)
+            return BadRequest(new { message = "End time must be after start time" });
+        if (!await _db.Desks.AnyAsync(d => d.Id == req.DeskId && d.IsActive))
+            return NotFound(new { message = "Active desk not found" });
+        await using var transaction = _db.Database.IsRelational()
+            ? await _db.Database.BeginTransactionAsync(IsolationLevel.Serializable)
+            : null;
         var conflict = await _db.DeskBookings
             .AnyAsync(b => b.DeskId == req.DeskId && b.Date == req.Date
                 && b.StartTime < req.EndTime && b.EndTime > req.StartTime
                 && b.Status == "Confirmed");
         if (conflict)
             return Conflict(new { message = "Desk already booked for this time" });
-        req.EmployeeId = empId;
-        _db.DeskBookings.Add(req);
+        var booking = new DeskBooking
+        {
+            DeskId = req.DeskId, EmployeeId = empId, Date = req.Date,
+            StartTime = req.StartTime, EndTime = req.EndTime, Status = "Confirmed"
+        };
+        _db.DeskBookings.Add(booking);
         await _db.SaveChangesAsync();
-        return Ok(new { req.Id, message = "Desk booked" });
+        if (transaction != null) await transaction.CommitAsync();
+        return Ok(new { booking.Id, message = "Desk booked" });
     }
 
     [HttpPost("room-book")]
-    public async Task<ActionResult> BookRoom([FromBody] RoomBooking req)
+    public async Task<ActionResult> BookRoom([FromBody] RoomBookingRequest req)
     {
         var empId = GetUserId();
+        if (req.EndTime <= req.StartTime)
+            return BadRequest(new { message = "End time must be after start time" });
+        if (!await _db.MeetingRooms.AnyAsync(r => r.Id == req.RoomId && r.IsActive))
+            return NotFound(new { message = "Active room not found" });
+        await using var transaction = _db.Database.IsRelational()
+            ? await _db.Database.BeginTransactionAsync(IsolationLevel.Serializable)
+            : null;
         var conflict = await _db.RoomBookings
             .AnyAsync(b => b.RoomId == req.RoomId && b.Date == req.Date
                 && b.StartTime < req.EndTime && b.EndTime > req.StartTime
                 && b.Status == "Confirmed");
         if (conflict)
             return Conflict(new { message = "Room already booked for this time" });
-        req.EmployeeId = empId;
-        _db.RoomBookings.Add(req);
+        var booking = new RoomBooking
+        {
+            RoomId = req.RoomId, EmployeeId = empId, Date = req.Date,
+            StartTime = req.StartTime, EndTime = req.EndTime, Title = req.Title, Status = "Confirmed"
+        };
+        _db.RoomBookings.Add(booking);
         await _db.SaveChangesAsync();
-        return Ok(new { req.Id, message = "Room booked" });
+        if (transaction != null) await transaction.CommitAsync();
+        return Ok(new { booking.Id, message = "Room booked" });
     }
 
     [HttpGet("my-bookings")]
@@ -105,6 +137,7 @@ public class BookingController : ControllerBase
     {
         var booking = await _db.DeskBookings.FindAsync(id);
         if (booking == null) return NotFound();
+        if (booking.EmployeeId != GetUserId()) return Forbid();
         booking.Status = "Cancelled";
         await _db.SaveChangesAsync();
         return Ok(new { message = "Cancelled" });
@@ -115,6 +148,7 @@ public class BookingController : ControllerBase
     {
         var booking = await _db.RoomBookings.FindAsync(id);
         if (booking == null) return NotFound();
+        if (booking.EmployeeId != GetUserId()) return Forbid();
         booking.Status = "Cancelled";
         await _db.SaveChangesAsync();
         return Ok(new { message = "Cancelled" });

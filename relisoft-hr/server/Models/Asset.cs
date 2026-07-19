@@ -3,7 +3,7 @@ using System.ComponentModel.DataAnnotations.Schema;
 
 namespace RelisoftHR.Models;
 
-public class Asset
+public class Asset : IHasRowVersion
 {
     [Key]
     public int Id { get; set; }
@@ -19,6 +19,7 @@ public class Asset
     public string Status { get; set; } = "Available"; // Available, Assigned, Damaged, Retired
     public DateTime CreatedOn { get; set; } = DateTime.UtcNow;
     public DateTime? UpdatedOn { get; set; }
+    public byte[]? RowVersion { get; set; }
 }
 
 public class EmployeeAsset

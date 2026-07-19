@@ -2,7 +2,9 @@ using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using RelisoftHR.Data;
+using RelisoftHR.DTOs;
 using RelisoftHR.Models;
+using RelisoftHR.Services;
 
 namespace RelisoftHR.Controllers;
 
@@ -32,7 +34,7 @@ public class SkillsController : ControllerBase
     }
 
     [HttpPost]
-    public async Task<ActionResult> AddSkill([FromBody] EmployeeSkill req)
+    public async Task<ActionResult> AddSkill([FromBody] EmployeeSkillRequest req)
     {
         var empId = GetUserId();
         var existing = await _db.EmployeeSkills
@@ -55,8 +57,12 @@ public class SkillsController : ControllerBase
     {
         var skill = await _db.EmployeeSkills.FindAsync(id);
         if (skill == null) return NotFound();
-        _db.EmployeeSkills.Remove(skill);
+        var employeeId = GetUserId();
+        if (skill.EmployeeId != employeeId) return Forbid();
+        HttpConcurrency.RequireIfMatch(Request, _db, skill);
+        _db.SoftDelete(skill, employeeId);
         await _db.SaveChangesAsync();
+        HttpConcurrency.SetETag(Response, skill.RowVersion);
         return Ok(new { message = "Removed" });
     }
 
@@ -74,7 +80,7 @@ public class SkillsController : ControllerBase
         var list = await query.OrderBy(sk => sk.SkillName).ToListAsync();
         return Ok(list.Select(s => new
         {
-            s.Id, s.SkillName, s.Category, s.EndorsementCount,
+            s.Id, s.SkillName, s.Category, s.EndorsementCount, s.RowVersion,
             EmployeeName = s.Employee?.FullName,
             EmployeeId = s.EmployeeId
         }));
@@ -123,19 +129,20 @@ public class BragBoardController : ControllerBase
             .ToListAsync();
         return Ok(posts.Select(p => new
         {
-            p.Id, p.Message, p.LikeCount, p.CreatedOn,
+            p.Id, p.Message, p.LikeCount, p.CreatedOn, p.RowVersion,
             EmployeeName = p.Employee?.FullName,
             EmployeeId = p.EmployeeId
         }));
     }
 
     [HttpPost]
-    public async Task<ActionResult> CreatePost([FromBody] BragPost req)
+    public async Task<ActionResult> CreatePost([FromBody] BragPostRequest req)
     {
         var post = new BragPost
         {
             EmployeeId = GetUserId(),
-            Message = req.Message
+            Message = req.Message,
+            IsActive = true
         };
         _db.BragPosts.Add(post);
         await _db.SaveChangesAsync();
@@ -162,8 +169,17 @@ public class BragBoardController : ControllerBase
     {
         var post = await _db.BragPosts.FindAsync(id);
         if (post == null) return NotFound();
+        var employeeId = GetUserId();
+        if (post.EmployeeId != employeeId &&
+            !User.IsInRole("HR") &&
+            !User.IsInRole("HRL2") &&
+            !User.IsInRole("OrganizationHead"))
+            return Forbid();
+        HttpConcurrency.RequireIfMatch(Request, _db, post);
         post.IsActive = false;
+        _db.SoftDelete(post, employeeId);
         await _db.SaveChangesAsync();
+        HttpConcurrency.SetETag(Response, post.RowVersion);
         return Ok(new { message = "Deleted" });
     }
 }

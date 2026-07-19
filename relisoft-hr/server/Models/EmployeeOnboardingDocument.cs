@@ -20,4 +20,5 @@ public class EmployeeOnboardingDocument
 
     [ForeignKey(nameof(OnboardingProfileId))]
     public EmployeeOnboardingProfile? Profile { get; set; }
+    public EmployeeOnboardingExperience? Experience { get; set; }
 }

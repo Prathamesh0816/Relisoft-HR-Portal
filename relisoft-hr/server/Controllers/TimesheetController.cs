@@ -2,6 +2,7 @@ using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using RelisoftHR.Data;
+using RelisoftHR.DTOs;
 using RelisoftHR.Models;
 using RelisoftHR.Services;
 
@@ -41,28 +42,33 @@ public class TimesheetController : ControllerBase
     }
 
     [HttpPost]
-    public async Task<ActionResult> CreateEntry([FromBody] TimesheetEntry req)
+    public async Task<ActionResult> CreateEntry([FromBody] TimesheetEntryRequest req)
     {
-        req.EmployeeId = GetUserId();
-        req.Status = "Pending";
-        req.CreatedOn = DateTime.UtcNow;
-        _db.TimesheetEntries.Add(req);
+        var entry = new TimesheetEntry
+        {
+            EmployeeId = GetUserId(), ProjectId = req.ProjectId, Date = req.Date,
+            Hours = req.Hours, Description = req.Description, Category = req.Category,
+            Status = "Pending", CreatedOn = DateTime.UtcNow
+        };
+        _db.TimesheetEntries.Add(entry);
         await _db.SaveChangesAsync();
-        return Ok(req);
+        return Ok(entry);
     }
 
     [HttpPut("{id}")]
-    public async Task<ActionResult> UpdateEntry(int id, [FromBody] TimesheetEntry req)
+    public async Task<ActionResult> UpdateEntry(int id, [FromBody] TimesheetEntryRequest req)
     {
         var entry = await _db.TimesheetEntries.FindAsync(id);
         if (entry == null) return NotFound();
         if (entry.EmployeeId != GetUserId()) return Forbid();
+        HttpConcurrency.RequireIfMatch(Request, _db, entry);
         entry.Date = req.Date;
         entry.Hours = req.Hours;
         entry.Description = req.Description;
         entry.Category = req.Category;
         entry.ProjectId = req.ProjectId;
         await _db.SaveChangesAsync();
+        HttpConcurrency.SetETag(Response, entry.RowVersion);
         return Ok(entry);
     }
 
@@ -71,9 +77,14 @@ public class TimesheetController : ControllerBase
     {
         var entry = await _db.TimesheetEntries.FindAsync(id);
         if (entry == null) return NotFound();
-        if (entry.EmployeeId != GetUserId()) return Forbid();
-        _db.TimesheetEntries.Remove(entry);
+        var employeeId = GetUserId();
+        if (entry.EmployeeId != employeeId) return Forbid();
+        if (entry.Status != "Pending")
+            return Conflict(new { message = "Only pending timesheet entries can be deleted" });
+        HttpConcurrency.RequireIfMatch(Request, _db, entry);
+        _db.SoftDelete(entry, employeeId);
         await _db.SaveChangesAsync();
+        HttpConcurrency.SetETag(Response, entry.RowVersion);
         return Ok(new { message = "Deleted" });
     }
 
@@ -89,15 +100,23 @@ public class TimesheetController : ControllerBase
     }
 
     [HttpPost("periods/submit")]
-    public async Task<ActionResult> SubmitPeriod([FromBody] TimesheetPeriod req)
+    public async Task<ActionResult> SubmitPeriod([FromBody] TimesheetPeriodRequest req)
     {
-        req.EmployeeId = GetUserId();
-        req.Status = "Submitted";
-        req.CreatedOn = DateTime.UtcNow;
-        _db.TimesheetPeriods.Add(req);
+        var employeeId = GetUserId();
+        if (req.WeekEnd < req.WeekStart)
+            return BadRequest(new { message = "Week end cannot be before week start" });
+        if (await _db.TimesheetPeriods.AnyAsync(p =>
+            p.EmployeeId == employeeId && p.WeekStart == req.WeekStart))
+            return Conflict(new { message = "This timesheet period has already been submitted" });
+        var period = new TimesheetPeriod
+        {
+            EmployeeId = employeeId, WeekStart = req.WeekStart, WeekEnd = req.WeekEnd,
+            TotalHours = req.TotalHours, Status = "Submitted", CreatedOn = DateTime.UtcNow
+        };
+        _db.TimesheetPeriods.Add(period);
         await _db.SaveChangesAsync();
 
-        var emp = await _db.Employees.FindAsync(req.EmployeeId);
+        var emp = await _db.Employees.FindAsync(employeeId);
         if (emp != null)
         {
             var periodStr = $"{req.WeekStart:dd-MMM-yyyy} - {req.WeekEnd:dd-MMM-yyyy}";
@@ -107,7 +126,7 @@ public class TimesheetController : ControllerBase
                 link: "/timesheets");
         }
 
-        return Ok(req);
+        return Ok(period);
     }
 
     [HttpGet("approvals")]
@@ -130,6 +149,8 @@ public class TimesheetController : ControllerBase
     {
         var entry = await _db.TimesheetEntries.FindAsync(id);
         if (entry == null) return NotFound();
+        if (entry.Status != "Pending")
+            return Conflict(new { message = "Only pending entries can be approved" });
         entry.Status = "Approved";
         entry.ApprovedById = GetUserId();
         entry.ApprovedOn = DateTime.UtcNow;
@@ -153,6 +174,8 @@ public class TimesheetController : ControllerBase
     {
         var entry = await _db.TimesheetEntries.FindAsync(id);
         if (entry == null) return NotFound();
+        if (entry.Status != "Pending")
+            return Conflict(new { message = "Only pending entries can be rejected" });
         entry.Status = "Rejected";
         entry.ApprovedById = GetUserId();
         entry.ApprovedOn = DateTime.UtcNow;

@@ -3,7 +3,7 @@ using System.ComponentModel.DataAnnotations.Schema;
 
 namespace RelisoftHR.Models;
 
-public class BragPost
+public class BragPost : ISoftDeletable, IHasRowVersion
 {
     [Key]
     public int Id { get; set; }
@@ -13,6 +13,10 @@ public class BragPost
     public int LikeCount { get; set; }
     public bool IsActive { get; set; } = true;
     public DateTime CreatedOn { get; set; } = DateTime.UtcNow;
+    public bool IsDeleted { get; set; }
+    public DateTime? DeletedOn { get; set; }
+    public int? DeletedById { get; set; }
+    public byte[]? RowVersion { get; set; }
 
     [ForeignKey(nameof(EmployeeId))]
     public Employee? Employee { get; set; }

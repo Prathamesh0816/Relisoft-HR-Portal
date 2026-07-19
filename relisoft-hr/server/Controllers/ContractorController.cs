@@ -2,6 +2,7 @@ using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using RelisoftHR.Data;
+using RelisoftHR.DTOs;
 using RelisoftHR.Models;
 using RelisoftHR.Services;
  
@@ -34,9 +35,15 @@ public class ContractorController : ControllerBase
     }
 
     [HttpPost]
-    public async Task<ActionResult> CreateContractor([FromBody] Contractor req)
+    public async Task<ActionResult> CreateContractor([FromBody] ContractorRequest req)
     {
-        _db.Contractors.Add(req);
+        var contractor = new Contractor
+        {
+            CompanyName = req.CompanyName, ContactPerson = req.ContactPerson, Email = req.Email,
+            Phone = req.Phone, Services = req.Services, ContractStart = req.ContractStart,
+            ContractEnd = req.ContractEnd, Status = req.Status, IsActive = true
+        };
+        _db.Contractors.Add(contractor);
         await _db.SaveChangesAsync();
 
         var emp = await _db.Employees.FindAsync(GetUserId());
@@ -48,14 +55,15 @@ public class ContractorController : ControllerBase
                 link: "/contractors");
         }
 
-        return Ok(req);
+        return Ok(contractor);
     }
 
     [HttpPut("{id}")]
-    public async Task<ActionResult> UpdateContractor(int id, [FromBody] Contractor req)
+    public async Task<ActionResult> UpdateContractor(int id, [FromBody] ContractorRequest req)
     {
         var c = await _db.Contractors.FindAsync(id);
         if (c == null) return NotFound();
+        HttpConcurrency.RequireIfMatch(Request, _db, c);
         c.CompanyName = req.CompanyName;
         c.ContactPerson = req.ContactPerson;
         c.Email = req.Email;
@@ -65,6 +73,7 @@ public class ContractorController : ControllerBase
         c.ContractEnd = req.ContractEnd;
         c.Status = req.Status;
         await _db.SaveChangesAsync();
+        HttpConcurrency.SetETag(Response, c.RowVersion);
         return Ok(c);
     }
 
@@ -79,19 +88,25 @@ public class ContractorController : ControllerBase
     }
 
     [HttpPost("{id}/employees")]
-    public async Task<ActionResult> AddEmployee(int id, [FromBody] ContractorEmployee req)
+    public async Task<ActionResult> AddEmployee(int id, [FromBody] ContractorEmployeeRequest req)
     {
-        req.ContractorId = id;
-        _db.ContractorEmployees.Add(req);
+        if (!await _db.Contractors.AnyAsync(c => c.Id == id && c.IsActive)) return NotFound();
+        var employee = new ContractorEmployee
+        {
+            ContractorId = id, FullName = req.FullName, Email = req.Email, Phone = req.Phone,
+            Designation = req.Designation, StartDate = req.StartDate, EndDate = req.EndDate, IsActive = true
+        };
+        _db.ContractorEmployees.Add(employee);
         await _db.SaveChangesAsync();
-        return Ok(req);
+        return Ok(employee);
     }
 
     [HttpPut("employees/{employeeId}")]
-    public async Task<ActionResult> UpdateEmployee(int employeeId, [FromBody] ContractorEmployee req)
+    public async Task<ActionResult> UpdateEmployee(int employeeId, [FromBody] ContractorEmployeeRequest req)
     {
         var e = await _db.ContractorEmployees.FindAsync(employeeId);
         if (e == null) return NotFound();
+        HttpConcurrency.RequireIfMatch(Request, _db, e);
         e.FullName = req.FullName;
         e.Email = req.Email;
         e.Phone = req.Phone;
@@ -99,6 +114,7 @@ public class ContractorController : ControllerBase
         e.StartDate = req.StartDate;
         e.EndDate = req.EndDate;
         await _db.SaveChangesAsync();
+        HttpConcurrency.SetETag(Response, e.RowVersion);
         return Ok(e);
     }
 

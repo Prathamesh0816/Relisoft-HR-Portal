@@ -3,7 +3,7 @@ using System.ComponentModel.DataAnnotations.Schema;
 
 namespace RelisoftHR.Models;
 
-public class ComplianceRequirement
+public class ComplianceRequirement : IHasRowVersion
 {
     [Key] public int Id { get; set; }
     [Required, MaxLength(200)] public string Name { get; set; } = "";
@@ -15,6 +15,7 @@ public class ComplianceRequirement
     public int RecurrenceDays { get; set; }
     public bool IsActive { get; set; } = true;
     public DateTime CreatedOn { get; set; } = DateTime.UtcNow;
+    public byte[]? RowVersion { get; set; }
 }
 
 public class ComplianceRecord

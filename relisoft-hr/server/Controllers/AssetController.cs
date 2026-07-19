@@ -24,7 +24,7 @@ public class AssetController : ControllerBase
     public async Task<ActionResult<List<AssetDto>>> GetAssets()
     {
         var assets = await _db.Assets.OrderBy(a => a.Name).ToListAsync();
-        return Ok(assets.Select(a => new AssetDto(a.Id, a.Name, a.AssetTag, a.Category, a.SerialNumber, a.Status)).ToList());
+        return Ok(assets.Select(a => new AssetDto(a.Id, a.Name, a.AssetTag, a.Category, a.SerialNumber, a.Status, a.RowVersion)).ToList());
     }
 
     [HttpPost]
@@ -48,6 +48,7 @@ public class AssetController : ControllerBase
     {
         var asset = await _db.Assets.FindAsync(id);
         if (asset == null) return NotFound();
+        HttpConcurrency.RequireIfMatch(Request, _db, asset);
         asset.Name = req.Name;
         asset.AssetTag = req.AssetTag;
         asset.Category = req.Category;
@@ -55,7 +56,8 @@ public class AssetController : ControllerBase
         asset.Status = req.Status;
         asset.UpdatedOn = DateTime.UtcNow;
         await _db.SaveChangesAsync();
-        return Ok(new { message = "Asset updated." });
+        HttpConcurrency.SetETag(Response, asset.RowVersion);
+        return Ok(new { message = "Asset updated.", asset.RowVersion });
     }
 
     [HttpGet("employee/{employeeId}")]
@@ -84,7 +86,14 @@ public class AssetController : ControllerBase
             AssignedOn = DateTime.UtcNow
         });
         asset.Status = "Assigned";
-        await _db.SaveChangesAsync();
+        try
+        {
+            await _db.SaveChangesAsync();
+        }
+        catch (DbUpdateException)
+        {
+            return Conflict(new { message = "Asset was assigned by another request" });
+        }
 
         if (emp != null)
         {
@@ -102,6 +111,8 @@ public class AssetController : ControllerBase
     {
         var empAsset = await _db.EmployeeAssets.Include(ea => ea.Asset).FirstOrDefaultAsync(ea => ea.Id == id);
         if (empAsset == null) return NotFound();
+        if (empAsset.ReturnedOn != null)
+            return BadRequest(new { message = "Asset has already been returned" });
         empAsset.ReturnedOn = DateTime.UtcNow;
         empAsset.Status = "Returned";
         if (empAsset.Asset != null) empAsset.Asset.Status = "Available";

@@ -2,6 +2,7 @@ using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using RelisoftHR.Data;
+using RelisoftHR.DTOs;
 using RelisoftHR.Models;
 using RelisoftHR.Services;
  
@@ -39,10 +40,17 @@ public class VisitorController : ControllerBase
     }
 
     [HttpPost]
-    public async Task<ActionResult> CreateVisitor([FromBody] Visitor req)
+    public async Task<ActionResult> CreateVisitor([FromBody] VisitorRequest req)
     {
-        req.CreatedOn = DateTime.UtcNow;
-        _db.Visitors.Add(req);
+        var visitor = new Visitor
+        {
+            FullName = req.FullName, Email = req.Email, Phone = req.Phone, Company = req.Company,
+            VisitingEmployee = req.VisitingEmployee, Purpose = req.Purpose,
+            ExpectedDate = req.ExpectedDate, ExpectedTime = req.ExpectedTime, Notes = req.Notes,
+            HasIdCard = req.HasIdCard, HostEmployeeId = req.HostEmployeeId,
+            Status = "Expected", CreatedOn = DateTime.UtcNow
+        };
+        _db.Visitors.Add(visitor);
         await _db.SaveChangesAsync();
 
         if (req.HostEmployeeId.HasValue)
@@ -57,11 +65,11 @@ public class VisitorController : ControllerBase
             }
         }
 
-        return Ok(req);
+        return Ok(visitor);
     }
 
     [HttpPut("{id}")]
-    public async Task<ActionResult> UpdateVisitor(int id, [FromBody] Visitor req)
+    public async Task<ActionResult> UpdateVisitor(int id, [FromBody] VisitorRequest req)
     {
         var v = await _db.Visitors.FindAsync(id);
         if (v == null) return NotFound();
@@ -84,9 +92,13 @@ public class VisitorController : ControllerBase
     {
         var v = await _db.Visitors.FindAsync(id);
         if (v == null) return NotFound();
+        HttpConcurrency.RequireIfMatch(Request, _db, v);
+        if (v.Status != "Expected")
+            return Conflict(new { message = "Only expected visitors can check in" });
         v.CheckInTime = DateTime.UtcNow;
         v.Status = "CheckedIn";
         await _db.SaveChangesAsync();
+        HttpConcurrency.SetETag(Response, v.RowVersion);
         return Ok(v);
     }
 
@@ -95,6 +107,8 @@ public class VisitorController : ControllerBase
     {
         var v = await _db.Visitors.FindAsync(id);
         if (v == null) return NotFound();
+        if (v.Status != "CheckedIn")
+            return Conflict(new { message = "Only checked-in visitors can check out" });
         v.CheckOutTime = DateTime.UtcNow;
         v.Status = "CheckedOut";
         await _db.SaveChangesAsync();

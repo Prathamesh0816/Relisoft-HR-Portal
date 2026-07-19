@@ -2,12 +2,16 @@ import { describe, it, expect, vi, beforeEach } from 'vitest'
 
 const mockPost = vi.fn()
 const mockGet = vi.fn()
+const mockPut = vi.fn()
+const mockDelete = vi.fn()
 
 vi.mock('axios', () => ({
   default: {
     create: () => ({
       post: mockPost,
       get: mockGet,
+      put: mockPut,
+      delete: mockDelete,
       interceptors: {
         request: { use: vi.fn() },
         response: { use: vi.fn() },
@@ -31,6 +35,8 @@ describe('API layer', () => {
   beforeEach(() => {
     mockPost.mockReset()
     mockGet.mockReset()
+    mockPut.mockReset()
+    mockDelete.mockReset()
   })
 
   it('login calls POST /api/auth/login', async () => {
@@ -45,6 +51,35 @@ describe('API layer', () => {
     const result = await api.loadWorkspace()
     expect(mockGet).toHaveBeenCalledWith('/api/workspace')
     expect(result.employees).toEqual([])
+  })
+
+  it('update requests send the cached rowVersion as If-Match', async () => {
+    mockGet.mockResolvedValue({
+      data: { employees: [{ id: 3, rowVersion: 'AQIDBAUGBwg=' }], projects: [] },
+    })
+    mockPut.mockResolvedValue({ data: { rowVersion: 'CAcGBQQDAgE=' } })
+    await api.loadWorkspace()
+
+    await api.updateEmployee(3, { fullName: 'Updated' })
+
+    expect(mockPut).toHaveBeenCalledWith(
+      '/api/workspace/employees/3',
+      { fullName: 'Updated' },
+      { headers: { 'If-Match': '"AQIDBAUGBwg="' } },
+    )
+  })
+
+  it('delete requests send the cached rowVersion as If-Match', async () => {
+    mockGet.mockResolvedValue({ data: [{ id: 4, rowVersion: 'AQIDBAUGBwg=' }] })
+    mockDelete.mockResolvedValue({ data: { message: 'Deleted' } })
+    await api.getAnnouncements()
+
+    await api.deleteAnnouncement(4)
+
+    expect(mockDelete).toHaveBeenCalledWith(
+      '/api/hr-features/announcements/4',
+      { headers: { 'If-Match': '"AQIDBAUGBwg="' } },
+    )
   })
 
   it('applyLeave calls POST /api/leave/apply-leave', async () => {

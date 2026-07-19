@@ -2,6 +2,7 @@ using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using RelisoftHR.Data;
+using RelisoftHR.DTOs;
 using RelisoftHR.Models;
 using RelisoftHR.Services;
  
@@ -46,18 +47,24 @@ public class RewardsController : ControllerBase
     }
 
     [HttpPost("catalog")]
-    public async Task<ActionResult> AddCatalogItem([FromBody] RewardCatalogItem req)
+    public async Task<ActionResult> AddCatalogItem([FromBody] RewardCatalogItemRequest req)
     {
-        _db.RewardCatalogItems.Add(req);
+        var item = new RewardCatalogItem
+        {
+            Name = req.Name, Description = req.Description, PointsCost = req.PointsCost,
+            ImageUrl = req.ImageUrl, Category = req.Category, Quantity = req.Quantity, IsActive = req.IsActive
+        };
+        _db.RewardCatalogItems.Add(item);
         await _db.SaveChangesAsync();
-        return Ok(req);
+        return Ok(item);
     }
 
     [HttpPut("catalog/{id}")]
-    public async Task<ActionResult> UpdateCatalogItem(int id, [FromBody] RewardCatalogItem req)
+    public async Task<ActionResult> UpdateCatalogItem(int id, [FromBody] RewardCatalogItemRequest req)
     {
         var item = await _db.RewardCatalogItems.FindAsync(id);
         if (item == null) return NotFound();
+        HttpConcurrency.RequireIfMatch(Request, _db, item);
         item.Name = req.Name;
         item.Description = req.Description;
         item.PointsCost = req.PointsCost;
@@ -66,11 +73,12 @@ public class RewardsController : ControllerBase
         item.Quantity = req.Quantity;
         item.IsActive = req.IsActive;
         await _db.SaveChangesAsync();
+        HttpConcurrency.SetETag(Response, item.RowVersion);
         return Ok(item);
     }
 
     [HttpPost("redeem/{itemId}")]
-    public async Task<ActionResult> RedeemItem(int itemId, [FromBody] RewardRedemption? req)
+    public async Task<ActionResult> RedeemItem(int itemId, [FromBody] RewardRedemptionRequest? req)
     {
         var empId = GetUserId();
         var item = await _db.RewardCatalogItems.FindAsync(itemId);
@@ -160,6 +168,8 @@ public class RewardsController : ControllerBase
     {
         var redemption = await _db.RewardRedemptions.FindAsync(id);
         if (redemption == null) return NotFound();
+        if (redemption.Status != "Pending")
+            return Conflict(new { message = "Only pending redemptions can be fulfilled" });
         redemption.Status = "Fulfilled";
         redemption.FulfilledOn = DateTime.UtcNow;
         await _db.SaveChangesAsync();
@@ -171,6 +181,8 @@ public class RewardsController : ControllerBase
     {
         var redemption = await _db.RewardRedemptions.FindAsync(id);
         if (redemption == null) return NotFound();
+        if (redemption.Status != "Pending")
+            return Conflict(new { message = "Only pending redemptions can be rejected" });
         var account = await _db.RewardPointsAccounts
             .FirstOrDefaultAsync(a => a.EmployeeId == redemption.EmployeeId);
         if (account != null)

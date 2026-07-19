@@ -2,7 +2,9 @@ using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using RelisoftHR.Data;
+using RelisoftHR.DTOs;
 using RelisoftHR.Models;
+using RelisoftHR.Services;
 
 namespace RelisoftHR.Controllers;
 
@@ -29,12 +31,15 @@ public class CarpoolController : ControllerBase
     }
 
     [HttpPost("routes")]
-    public async Task<ActionResult> SaveRoute([FromBody] CommuteRoute req)
+    public async Task<ActionResult> SaveRoute([FromBody] CommuteRouteRequest req)
     {
         var empId = GetUserId();
         var existing = await _db.CommuteRoutes.FirstOrDefaultAsync(r => r.EmployeeId == empId && r.IsActive);
+        CommuteRoute route;
         if (existing != null)
         {
+            HttpConcurrency.RequireIfMatch(Request, _db, existing);
+            route = existing;
             existing.SourceArea = req.SourceArea;
             existing.DestinationArea = req.DestinationArea;
             existing.CommuteDays = req.CommuteDays;
@@ -44,11 +49,17 @@ public class CarpoolController : ControllerBase
         }
         else
         {
-            req.EmployeeId = empId;
-            _db.CommuteRoutes.Add(req);
+            route = new CommuteRoute
+            {
+                EmployeeId = empId, SourceArea = req.SourceArea, DestinationArea = req.DestinationArea,
+                CommuteDays = req.CommuteDays, PreferredTime = req.PreferredTime,
+                IsDriver = req.IsDriver, Capacity = req.Capacity, IsActive = true
+            };
+            _db.CommuteRoutes.Add(route);
         }
         await _db.SaveChangesAsync();
-        return Ok(new { message = "Route saved" });
+        HttpConcurrency.SetETag(Response, route.RowVersion);
+        return Ok(new { message = "Route saved", route.RowVersion });
     }
 
     [HttpDelete("routes")]
@@ -57,8 +68,11 @@ public class CarpoolController : ControllerBase
         var empId = GetUserId();
         var route = await _db.CommuteRoutes.FirstOrDefaultAsync(r => r.EmployeeId == empId && r.IsActive);
         if (route == null) return NotFound();
+        HttpConcurrency.RequireIfMatch(Request, _db, route);
         route.IsActive = false;
+        _db.SoftDelete(route, empId);
         await _db.SaveChangesAsync();
+        HttpConcurrency.SetETag(Response, route.RowVersion);
         return Ok(new { message = "Route removed" });
     }
 
@@ -103,13 +117,14 @@ public class CarpoolController : ControllerBase
     }
 
     [HttpPost("groups")]
-    public async Task<ActionResult> CreateGroup([FromBody] CarpoolGroup req)
+    public async Task<ActionResult> CreateGroup([FromBody] CarpoolGroupRequest req)
     {
         var empId = GetUserId();
-        req.Members.Add(new CarpoolMember { EmployeeId = empId, IsDriver = true });
-        _db.CarpoolGroups.Add(req);
+        var group = new CarpoolGroup { Name = req.Name };
+        group.Members.Add(new CarpoolMember { EmployeeId = empId, IsDriver = true });
+        _db.CarpoolGroups.Add(group);
         await _db.SaveChangesAsync();
-        return Ok(new { req.Id, req.Name });
+        return Ok(new { group.Id, group.Name });
     }
 
     [HttpPost("groups/{groupId}/join")]
@@ -132,7 +147,7 @@ public class CarpoolController : ControllerBase
         var member = await _db.CarpoolMembers
             .FirstOrDefaultAsync(m => m.GroupId == groupId && m.EmployeeId == empId);
         if (member == null) return NotFound();
-        _db.CarpoolMembers.Remove(member);
+        _db.SoftDelete(member, empId);
         await _db.SaveChangesAsync();
         return Ok(new { message = "Left" });
     }

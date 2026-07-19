@@ -1,11 +1,47 @@
 using Microsoft.EntityFrameworkCore;
 using RelisoftHR.Models;
+using System.Reflection;
 
 namespace RelisoftHR.Data;
 
 public class AppDbContext : DbContext
 {
     public AppDbContext(DbContextOptions<AppDbContext> options) : base(options) { }
+
+    public void SoftDelete<TEntity>(TEntity entity, int? deletedById)
+        where TEntity : class, ISoftDeletable
+    {
+        if (entity.IsDeleted)
+            return;
+
+        if (Entry(entity).State == EntityState.Detached)
+            Attach(entity);
+
+        entity.IsDeleted = true;
+        entity.DeletedOn = DateTime.UtcNow;
+        entity.DeletedById = deletedById;
+    }
+
+    public void SoftDeleteRange<TEntity>(IEnumerable<TEntity> entities, int? deletedById)
+        where TEntity : class, ISoftDeletable
+    {
+        foreach (var entity in entities)
+            SoftDelete(entity, deletedById);
+    }
+
+    public override int SaveChanges(bool acceptAllChangesOnSuccess)
+    {
+        ConvertPhysicalDeletesToSoftDeletes();
+        return base.SaveChanges(acceptAllChangesOnSuccess);
+    }
+
+    public override Task<int> SaveChangesAsync(
+        bool acceptAllChangesOnSuccess,
+        CancellationToken cancellationToken = default)
+    {
+        ConvertPhysicalDeletesToSoftDeletes();
+        return base.SaveChangesAsync(acceptAllChangesOnSuccess, cancellationToken);
+    }
 
     public DbSet<Employee> Employees => Set<Employee>();
     public DbSet<UserLogin> UserLogins => Set<UserLogin>();
@@ -98,6 +134,22 @@ public class AppDbContext : DbContext
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
+        ConfigureDecimalPrecision(modelBuilder);
+        ConfigureCheckConstraints(modelBuilder);
+        ConfigureOptimisticConcurrency(modelBuilder);
+        ConfigureSoftDeletion(modelBuilder);
+
+        modelBuilder.Entity<Employee>()
+            .HasIndex(e => e.EmployeeCode).IsUnique();
+        modelBuilder.Entity<Employee>()
+            .HasIndex(e => e.Email).IsUnique();
+        modelBuilder.Entity<OrganizationRole>()
+            .HasIndex(r => r.Name).IsUnique();
+        modelBuilder.Entity<Project>()
+            .HasIndex(p => p.Name).IsUnique();
+        modelBuilder.Entity<Team>()
+            .HasIndex(t => new { t.ProjectId, t.Name }).IsUnique();
+
         modelBuilder.Entity<EmployeeTeam>()
             .HasIndex(et => new { et.EmployeeId, et.TeamId }).IsUnique();
         modelBuilder.Entity<EmployeeTeam>()
@@ -111,6 +163,16 @@ public class AppDbContext : DbContext
             .HasForeignKey(et => et.TeamId)
             .OnDelete(DeleteBehavior.NoAction);
         modelBuilder.Entity<Team>()
+            .HasOne(t => t.Project)
+            .WithMany(p => p.Teams)
+            .HasForeignKey(t => t.ProjectId)
+            .OnDelete(DeleteBehavior.Cascade);
+        modelBuilder.Entity<Employee>()
+            .HasOne(e => e.Role)
+            .WithMany(r => r.Employees)
+            .HasForeignKey(e => e.RoleId)
+            .OnDelete(DeleteBehavior.NoAction);
+        modelBuilder.Entity<Team>()
             .HasOne(t => t.Lead)
             .WithMany()
             .HasForeignKey(t => t.LeadId)
@@ -120,19 +182,80 @@ public class AppDbContext : DbContext
             .WithMany()
             .HasForeignKey(e => e.PrimaryTeamId)
             .OnDelete(DeleteBehavior.NoAction);
-        modelBuilder.Entity<Employee>()
-            .HasOne(e => e.SalaryStructure)
-            .WithMany()
-            .HasForeignKey(e => e.SalaryStructureId)
-            .OnDelete(DeleteBehavior.NoAction);
         modelBuilder.Entity<SalaryStructure>()
             .HasOne(ss => ss.Employee)
-            .WithMany()
-            .HasForeignKey(ss => ss.EmployeeId)
+            .WithOne(e => e.SalaryStructure)
+            .HasForeignKey<SalaryStructure>(ss => ss.EmployeeId)
             .OnDelete(DeleteBehavior.NoAction);
 
         modelBuilder.Entity<EmployeeLeaveBalance>()
             .HasIndex(elb => new { elb.EmployeeId, elb.LeaveTypeId }).IsUnique();
+        modelBuilder.Entity<LeaveType>()
+            .HasIndex(lt => lt.Name).IsUnique();
+        modelBuilder.Entity<EmployeeLeaveBalance>()
+            .HasOne(elb => elb.Employee)
+            .WithMany(e => e.LeaveBalances)
+            .HasForeignKey(elb => elb.EmployeeId)
+            .OnDelete(DeleteBehavior.NoAction);
+        modelBuilder.Entity<EmployeeLeaveBalance>()
+            .HasOne(elb => elb.LeaveType)
+            .WithMany()
+            .HasForeignKey(elb => elb.LeaveTypeId)
+            .OnDelete(DeleteBehavior.NoAction);
+
+        modelBuilder.Entity<LeaveApplication>()
+            .HasOne(l => l.Employee)
+            .WithMany(e => e.LeaveApplications)
+            .HasForeignKey(l => l.EmployeeId)
+            .OnDelete(DeleteBehavior.NoAction);
+        modelBuilder.Entity<LeaveApplication>()
+            .HasOne(l => l.LeaveType)
+            .WithMany()
+            .HasForeignKey(l => l.LeaveTypeId)
+            .OnDelete(DeleteBehavior.NoAction);
+        modelBuilder.Entity<LeaveApplication>()
+            .HasOne<Employee>()
+            .WithMany()
+            .HasForeignKey(l => l.ApproverId)
+            .OnDelete(DeleteBehavior.NoAction);
+        modelBuilder.Entity<LeaveApplication>()
+            .HasOne<Employee>()
+            .WithMany()
+            .HasForeignKey(l => l.CancellationActionedById)
+            .OnDelete(DeleteBehavior.NoAction);
+
+        modelBuilder.Entity<LeaveAccrualLog>()
+            .HasOne(l => l.Employee)
+            .WithMany()
+            .HasForeignKey(l => l.EmployeeId)
+            .OnDelete(DeleteBehavior.NoAction);
+        modelBuilder.Entity<LeaveAccrualLog>()
+            .HasOne(l => l.LeaveType)
+            .WithMany()
+            .HasForeignKey(l => l.LeaveTypeId)
+            .OnDelete(DeleteBehavior.NoAction);
+
+        modelBuilder.Entity<CompOffTransfer>()
+            .HasOne(t => t.FromEmployee)
+            .WithMany()
+            .HasForeignKey(t => t.FromEmployeeId)
+            .OnDelete(DeleteBehavior.NoAction);
+        modelBuilder.Entity<CompOffTransfer>()
+            .HasOne(t => t.ToEmployee)
+            .WithMany()
+            .HasForeignKey(t => t.ToEmployeeId)
+            .OnDelete(DeleteBehavior.NoAction);
+
+        modelBuilder.Entity<EmployeeTicket>()
+            .HasOne(t => t.Employee)
+            .WithMany()
+            .HasForeignKey(t => t.EmployeeId)
+            .OnDelete(DeleteBehavior.NoAction);
+        modelBuilder.Entity<EmployeeTicket>()
+            .HasOne<Employee>()
+            .WithMany()
+            .HasForeignKey(t => t.AssignedHrId)
+            .OnDelete(DeleteBehavior.NoAction);
 
         modelBuilder.Entity<UserLogin>()
             .HasIndex(ul => ul.Username).IsUnique();
@@ -145,16 +268,54 @@ public class AppDbContext : DbContext
             .WithOne(e => e.Onboarding)
             .HasForeignKey<EmployeeOnboarding>(o => o.EmployeeId)
             .OnDelete(DeleteBehavior.Cascade);
+        modelBuilder.Entity<EmployeeOnboardingProfile>()
+            .HasIndex(p => p.EmployeeId).IsUnique();
+        modelBuilder.Entity<EmployeeOnboardingProfile>()
+            .HasOne(p => p.Employee)
+            .WithOne()
+            .HasForeignKey<EmployeeOnboardingProfile>(p => p.EmployeeId)
+            .OnDelete(DeleteBehavior.NoAction);
+        modelBuilder.Entity<EmployeeOnboardingExperience>()
+            .HasAlternateKey(e => new { e.OnboardingProfileId, e.Id });
+        modelBuilder.Entity<EmployeeOnboardingExperience>()
+            .HasOne(e => e.Profile)
+            .WithMany(p => p.Experiences)
+            .HasForeignKey(e => e.OnboardingProfileId)
+            .OnDelete(DeleteBehavior.Cascade);
+        modelBuilder.Entity<EmployeeOnboardingDocument>()
+            .HasOne(d => d.Profile)
+            .WithMany(p => p.Documents)
+            .HasForeignKey(d => d.OnboardingProfileId)
+            .OnDelete(DeleteBehavior.Cascade);
+        modelBuilder.Entity<EmployeeOnboardingDocument>()
+            .HasOne(d => d.Experience)
+            .WithMany()
+            .HasForeignKey(d => new { d.OnboardingProfileId, d.ExperienceId })
+            .HasPrincipalKey(e => new { e.OnboardingProfileId, e.Id })
+            .OnDelete(DeleteBehavior.NoAction);
+        modelBuilder.Entity<EmployeeOnboardingStep>()
+            .HasIndex(s => new { s.OnboardingId, s.ChecklistItemId }).IsUnique();
         modelBuilder.Entity<EmployeeOnboardingStep>()
             .HasOne(s => s.Onboarding)
             .WithMany(o => o.Steps)
             .HasForeignKey(s => s.OnboardingId)
             .OnDelete(DeleteBehavior.Cascade);
+        modelBuilder.Entity<EmployeeOnboardingStep>()
+            .HasOne(s => s.ChecklistItem)
+            .WithMany()
+            .HasForeignKey(s => s.ChecklistItemId)
+            .OnDelete(DeleteBehavior.NoAction);
+        modelBuilder.Entity<OnboardingChecklistItem>()
+            .HasIndex(i => i.Name).IsUnique();
         modelBuilder.Entity<EmployeeOffboarding>()
             .HasOne(o => o.Employee)
             .WithOne(e => e.Offboarding)
             .HasForeignKey<EmployeeOffboarding>(o => o.EmployeeId)
             .OnDelete(DeleteBehavior.Cascade);
+        modelBuilder.Entity<EmployeeAsset>()
+            .HasIndex(ea => ea.AssetId)
+            .IsUnique()
+            .HasFilter("[ReturnedOn] IS NULL");
         modelBuilder.Entity<EmployeeAsset>()
             .HasOne(ea => ea.Employee)
             .WithMany(e => e.Assets)
@@ -165,12 +326,22 @@ public class AppDbContext : DbContext
             .WithMany()
             .HasForeignKey(ea => ea.AssetId)
             .OnDelete(DeleteBehavior.NoAction);
+        modelBuilder.Entity<Asset>()
+            .HasIndex(a => a.AssetTag)
+            .IsUnique()
+            .HasFilter("[AssetTag] <> ''");
+        modelBuilder.Entity<Asset>()
+            .HasIndex(a => a.SerialNumber)
+            .IsUnique()
+            .HasFilter("[SerialNumber] IS NOT NULL AND [SerialNumber] <> ''");
 
         modelBuilder.Entity<EmployeeProbation>()
             .HasOne(p => p.Employee)
             .WithOne(e => e.Probation)
             .HasForeignKey<EmployeeProbation>(p => p.EmployeeId)
             .OnDelete(DeleteBehavior.Cascade);
+        modelBuilder.Entity<EmployeeAppraisal>()
+            .HasIndex(a => new { a.EmployeeId, a.CycleId }).IsUnique();
         modelBuilder.Entity<EmployeeAppraisal>()
             .HasOne(a => a.Employee)
             .WithMany(e => e.Appraisals)
@@ -186,6 +357,8 @@ public class AppDbContext : DbContext
             .WithMany()
             .HasForeignKey(a => a.ReviewerId)
             .OnDelete(DeleteBehavior.NoAction);
+        modelBuilder.Entity<AppraisalCycle>()
+            .HasIndex(c => c.Name).IsUnique();
         modelBuilder.Entity<EmployeeAppraisalGoal>()
             .HasOne(g => g.Appraisal)
             .WithMany(a => a.Goals)
@@ -211,12 +384,16 @@ public class AppDbContext : DbContext
             .WithMany(e => e.Documents)
             .HasForeignKey(d => d.EmployeeId)
             .OnDelete(DeleteBehavior.Cascade);
+        modelBuilder.Entity<DocumentTemplate>()
+            .HasIndex(t => t.Name).IsUnique();
 
         modelBuilder.Entity<Announcement>()
             .HasOne(a => a.CreatedBy)
             .WithMany()
             .HasForeignKey(a => a.CreatedById)
             .OnDelete(DeleteBehavior.NoAction);
+        modelBuilder.Entity<AttendanceRecord>()
+            .HasIndex(a => new { a.EmployeeId, a.Date }).IsUnique();
         modelBuilder.Entity<AttendanceRecord>()
             .HasOne(a => a.Employee)
             .WithMany()
@@ -237,7 +414,9 @@ public class AppDbContext : DbContext
             .OnDelete(DeleteBehavior.NoAction);
 
         modelBuilder.Entity<EmployeeSkill>()
-            .HasIndex(es => new { es.EmployeeId, es.SkillName }).IsUnique();
+            .HasIndex(es => new { es.EmployeeId, es.SkillName })
+            .IsUnique()
+            .HasFilter("[IsDeleted] = 0");
         modelBuilder.Entity<EmployeeSkill>()
             .HasOne(es => es.Employee)
             .WithMany()
@@ -249,7 +428,9 @@ public class AppDbContext : DbContext
             .HasOne(se => se.EmployeeSkill)
             .WithMany()
             .HasForeignKey(se => se.EmployeeSkillId)
-            .OnDelete(DeleteBehavior.Cascade);
+            .OnDelete(DeleteBehavior.NoAction);
+        modelBuilder.Entity<SkillEndorsement>()
+            .HasQueryFilter(se => !se.EmployeeSkill!.IsDeleted);
         modelBuilder.Entity<SkillEndorsement>()
             .HasOne(se => se.EndorsedBy)
             .WithMany()
@@ -267,7 +448,9 @@ public class AppDbContext : DbContext
             .HasOne(bl => bl.BragPost)
             .WithMany(b => b.Likes)
             .HasForeignKey(bl => bl.BragPostId)
-            .OnDelete(DeleteBehavior.Cascade);
+            .OnDelete(DeleteBehavior.NoAction);
+        modelBuilder.Entity<BragLike>()
+            .HasQueryFilter(bl => !bl.BragPost!.IsDeleted);
         modelBuilder.Entity<BragLike>()
             .HasOne(bl => bl.Employee)
             .WithMany()
@@ -275,12 +458,18 @@ public class AppDbContext : DbContext
             .OnDelete(DeleteBehavior.NoAction);
 
         modelBuilder.Entity<CommuteRoute>()
+            .HasIndex(c => c.EmployeeId)
+            .IsUnique()
+            .HasFilter("[IsActive] = 1 AND [IsDeleted] = 0");
+        modelBuilder.Entity<CommuteRoute>()
             .HasOne(c => c.Employee)
             .WithMany()
             .HasForeignKey(c => c.EmployeeId)
             .OnDelete(DeleteBehavior.NoAction);
         modelBuilder.Entity<CarpoolMember>()
-            .HasIndex(cm => new { cm.GroupId, cm.EmployeeId }).IsUnique();
+            .HasIndex(cm => new { cm.GroupId, cm.EmployeeId })
+            .IsUnique()
+            .HasFilter("[IsDeleted] = 0");
         modelBuilder.Entity<CarpoolMember>()
             .HasOne(cm => cm.Group)
             .WithMany(g => g.Members)
@@ -316,6 +505,10 @@ public class AppDbContext : DbContext
             .WithMany()
             .HasForeignKey(rb => rb.EmployeeId)
             .OnDelete(DeleteBehavior.NoAction);
+        modelBuilder.Entity<Desk>()
+            .HasIndex(d => new { d.Building, d.Floor, d.Name }).IsUnique();
+        modelBuilder.Entity<MeetingRoom>()
+            .HasIndex(r => new { r.Building, r.Floor, r.Name }).IsUnique();
 
         modelBuilder.Entity<MentorshipProfile>()
             .HasIndex(mp => mp.EmployeeId).IsUnique();
@@ -324,6 +517,10 @@ public class AppDbContext : DbContext
             .WithMany()
             .HasForeignKey(mp => mp.EmployeeId)
             .OnDelete(DeleteBehavior.NoAction);
+        modelBuilder.Entity<MentorshipMatch>()
+            .HasIndex(mm => new { mm.MentorId, mm.MenteeId })
+            .IsUnique()
+            .HasFilter("[Status] IN ('Pending', 'Active')");
         modelBuilder.Entity<MentorshipMatch>()
             .HasOne(mm => mm.Mentor)
             .WithMany()
@@ -347,6 +544,11 @@ public class AppDbContext : DbContext
             .WithMany()
             .HasForeignKey(rpa => rpa.EmployeeId)
             .OnDelete(DeleteBehavior.NoAction);
+        modelBuilder.Entity<RewardTransaction>()
+            .HasOne(rt => rt.Employee)
+            .WithMany()
+            .HasForeignKey(rt => rt.EmployeeId)
+            .OnDelete(DeleteBehavior.NoAction);
         modelBuilder.Entity<RewardRedemption>()
             .HasOne(rr => rr.Employee)
             .WithMany()
@@ -364,6 +566,8 @@ public class AppDbContext : DbContext
             .HasOne(e => e.Category).WithMany().HasForeignKey(e => e.CategoryId).OnDelete(DeleteBehavior.NoAction);
         modelBuilder.Entity<ExpenseClaim>()
             .HasOne(e => e.ApprovedBy).WithMany().HasForeignKey(e => e.ApprovedById).OnDelete(DeleteBehavior.NoAction);
+        modelBuilder.Entity<ExpenseCategory>()
+            .HasIndex(c => c.Name).IsUnique();
 
         modelBuilder.Entity<TimesheetEntry>()
             .HasOne(t => t.Employee).WithMany().HasForeignKey(t => t.EmployeeId).OnDelete(DeleteBehavior.NoAction);
@@ -371,7 +575,15 @@ public class AppDbContext : DbContext
             .HasOne(t => t.Project).WithMany().HasForeignKey(t => t.ProjectId).OnDelete(DeleteBehavior.NoAction);
         modelBuilder.Entity<TimesheetEntry>()
             .HasOne(t => t.ApprovedBy).WithMany().HasForeignKey(t => t.ApprovedById).OnDelete(DeleteBehavior.NoAction);
+        modelBuilder.Entity<TimesheetPeriod>()
+            .HasIndex(t => new { t.EmployeeId, t.WeekStart }).IsUnique();
+        modelBuilder.Entity<TimesheetPeriod>()
+            .HasOne(t => t.Employee).WithMany().HasForeignKey(t => t.EmployeeId).OnDelete(DeleteBehavior.NoAction);
+        modelBuilder.Entity<TimesheetPeriod>()
+            .HasOne(t => t.ApprovedBy).WithMany().HasForeignKey(t => t.ApprovedById).OnDelete(DeleteBehavior.NoAction);
 
+        modelBuilder.Entity<TrainingRegistration>()
+            .HasIndex(t => new { t.CourseId, t.EmployeeId }).IsUnique();
         modelBuilder.Entity<TrainingRegistration>()
             .HasOne(t => t.Course).WithMany().HasForeignKey(t => t.CourseId).OnDelete(DeleteBehavior.Cascade);
         modelBuilder.Entity<TrainingRegistration>()
@@ -383,6 +595,10 @@ public class AppDbContext : DbContext
             .HasOne(l => l.LoanType).WithMany().HasForeignKey(l => l.LoanTypeId).OnDelete(DeleteBehavior.NoAction);
         modelBuilder.Entity<EmployeeLoan>()
             .HasOne(l => l.ApprovedBy).WithMany().HasForeignKey(l => l.ApprovedById).OnDelete(DeleteBehavior.NoAction);
+        modelBuilder.Entity<LoanType>()
+            .HasIndex(t => t.Name).IsUnique();
+        modelBuilder.Entity<LoanRepayment>()
+            .HasIndex(r => new { r.LoanId, r.InstallmentNumber }).IsUnique();
         modelBuilder.Entity<LoanRepayment>()
             .HasOne(r => r.Loan).WithMany().HasForeignKey(r => r.LoanId).OnDelete(DeleteBehavior.Cascade);
 
@@ -390,6 +606,8 @@ public class AppDbContext : DbContext
             .HasOne(s => s.Employee).WithMany().HasForeignKey(s => s.EmployeeId).OnDelete(DeleteBehavior.NoAction);
         modelBuilder.Entity<ShiftAssignment>()
             .HasOne(s => s.ShiftTemplate).WithMany().HasForeignKey(s => s.ShiftTemplateId).OnDelete(DeleteBehavior.NoAction);
+        modelBuilder.Entity<ShiftTemplate>()
+            .HasIndex(s => s.Name).IsUnique();
         modelBuilder.Entity<ShiftSwap>()
             .HasOne(s => s.RequestedBy).WithMany().HasForeignKey(s => s.RequestedById).OnDelete(DeleteBehavior.NoAction);
         modelBuilder.Entity<ShiftSwap>()
@@ -399,26 +617,48 @@ public class AppDbContext : DbContext
             .HasOne(v => v.HostEmployee).WithMany().HasForeignKey(v => v.HostEmployeeId).OnDelete(DeleteBehavior.NoAction);
 
         modelBuilder.Entity<SurveyQuestion>()
-            .HasOne(q => q.Survey).WithMany().HasForeignKey(q => q.SurveyId).OnDelete(DeleteBehavior.Cascade);
+            .HasAlternateKey(q => new { q.SurveyId, q.Id });
+        modelBuilder.Entity<SurveyQuestion>()
+            .HasOne(q => q.Survey).WithMany(s => s.Questions).HasForeignKey(q => q.SurveyId).OnDelete(DeleteBehavior.Cascade);
+        modelBuilder.Entity<Survey>()
+            .HasOne(s => s.CreatedBy).WithMany().HasForeignKey(s => s.CreatedById).OnDelete(DeleteBehavior.NoAction);
         modelBuilder.Entity<SurveyResponse>()
             .HasOne(r => r.Survey).WithMany().HasForeignKey(r => r.SurveyId).OnDelete(DeleteBehavior.Cascade);
         modelBuilder.Entity<SurveyResponse>()
-            .HasOne(r => r.Question).WithMany().HasForeignKey(r => r.QuestionId).OnDelete(DeleteBehavior.NoAction);
+            .HasIndex(r => new { r.SurveyId, r.QuestionId, r.EmployeeId }).IsUnique();
+        modelBuilder.Entity<SurveyResponse>()
+            .HasOne(r => r.Question)
+            .WithMany()
+            .HasForeignKey(r => new { r.SurveyId, r.QuestionId })
+            .HasPrincipalKey(q => new { q.SurveyId, q.Id })
+            .OnDelete(DeleteBehavior.NoAction);
         modelBuilder.Entity<SurveyResponse>()
             .HasOne(r => r.Employee).WithMany().HasForeignKey(r => r.EmployeeId).OnDelete(DeleteBehavior.NoAction);
 
         modelBuilder.Entity<BenefitEnrollment>()
+            .HasIndex(e => new { e.EmployeeId, e.BenefitPlanId })
+            .IsUnique()
+            .HasFilter("[Status] = 'Active'");
+        modelBuilder.Entity<BenefitEnrollment>()
             .HasOne(e => e.Employee).WithMany().HasForeignKey(e => e.EmployeeId).OnDelete(DeleteBehavior.NoAction);
         modelBuilder.Entity<BenefitEnrollment>()
             .HasOne(e => e.BenefitPlan).WithMany().HasForeignKey(e => e.BenefitPlanId).OnDelete(DeleteBehavior.NoAction);
+        modelBuilder.Entity<BenefitPlan>()
+            .HasIndex(p => p.Name).IsUnique();
 
         modelBuilder.Entity<Notification>()
-            .HasOne(n => n.Employee).WithMany().HasForeignKey(n => n.EmployeeId).OnDelete(DeleteBehavior.Cascade);
+            .HasOne(n => n.Employee).WithMany().HasForeignKey(n => n.EmployeeId).OnDelete(DeleteBehavior.NoAction);
+        modelBuilder.Entity<NotificationTemplate>()
+            .HasIndex(t => t.EventType).IsUnique();
 
+        modelBuilder.Entity<InternalJobApplication>()
+            .HasIndex(a => new { a.JobPostingId, a.EmployeeId }).IsUnique();
         modelBuilder.Entity<InternalJobApplication>()
             .HasOne(a => a.JobPosting).WithMany().HasForeignKey(a => a.JobPostingId).OnDelete(DeleteBehavior.Cascade);
         modelBuilder.Entity<InternalJobApplication>()
             .HasOne(a => a.Employee).WithMany().HasForeignKey(a => a.EmployeeId).OnDelete(DeleteBehavior.NoAction);
+        modelBuilder.Entity<InternalJobPosting>()
+            .HasOne(p => p.CreatedBy).WithMany().HasForeignKey(p => p.CreatedById).OnDelete(DeleteBehavior.NoAction);
 
         modelBuilder.Entity<ComplianceRecord>()
             .HasOne(r => r.Requirement).WithMany().HasForeignKey(r => r.RequirementId).OnDelete(DeleteBehavior.Cascade);
@@ -429,7 +669,9 @@ public class AppDbContext : DbContext
             .HasOne(e => e.Contractor).WithMany().HasForeignKey(e => e.ContractorId).OnDelete(DeleteBehavior.Cascade);
 
         modelBuilder.Entity<ApprovalDelegate>()
-            .HasIndex(ad => new { ad.ManagerId, ad.ProjectId, ad.DelegateId }).IsUnique();
+            .HasIndex(ad => new { ad.ManagerId, ad.ProjectId, ad.DelegateId })
+            .IsUnique()
+            .HasFilter("[IsDeleted] = 0");
         modelBuilder.Entity<ApprovalDelegate>()
             .HasOne(ad => ad.Manager)
             .WithMany()
@@ -439,6 +681,11 @@ public class AppDbContext : DbContext
             .HasOne(ad => ad.Delegate)
             .WithMany()
             .HasForeignKey(ad => ad.DelegateId)
+            .OnDelete(DeleteBehavior.NoAction);
+        modelBuilder.Entity<ApprovalDelegate>()
+            .HasOne(ad => ad.Project)
+            .WithMany()
+            .HasForeignKey(ad => ad.ProjectId)
             .OnDelete(DeleteBehavior.NoAction);
 
         modelBuilder.Entity<OrganizationRole>().HasData(
@@ -503,5 +750,149 @@ public class AppDbContext : DbContext
             new UserLogin { Id = 8, EmployeeId = 8, Username = "hr", PasswordHash = "$2a$11$1OmqZ7Lg1.9.5dC2qwF3He4EDiSghkDr94W1CrHjxUML9COevlnhy", CreatedOn = new DateTime(2026, 1, 1, 0, 0, 0, DateTimeKind.Utc) },
             new UserLogin { Id = 9, EmployeeId = 9, Username = "unnati", PasswordHash = "$2a$11$1OmqZ7Lg1.9.5dC2qwF3He4EDiSghkDr94W1CrHjxUML9COevlnhy", CreatedOn = new DateTime(2026, 1, 1, 0, 0, 0, DateTimeKind.Utc) }
         );
+    }
+
+    private void ConvertPhysicalDeletesToSoftDeletes()
+    {
+        var utcNow = DateTime.UtcNow;
+        var deletedEntries = ChangeTracker.Entries<ISoftDeletable>()
+            .Where(entry => entry.State == EntityState.Deleted)
+            .ToList();
+
+        foreach (var entry in deletedEntries)
+        {
+            entry.State = EntityState.Modified;
+            entry.Entity.IsDeleted = true;
+            entry.Entity.DeletedOn ??= utcNow;
+        }
+    }
+
+    private static void ConfigureSoftDeletion(ModelBuilder modelBuilder)
+    {
+        var configureMethod = typeof(AppDbContext).GetMethod(
+            nameof(ConfigureSoftDeleteEntity),
+            BindingFlags.NonPublic | BindingFlags.Static)!;
+
+        var softDeletableTypes = modelBuilder.Model.GetEntityTypes()
+            .Select(entityType => entityType.ClrType)
+            .Where(entityType => typeof(ISoftDeletable).IsAssignableFrom(entityType))
+            .Distinct()
+            .ToList();
+
+        foreach (var entityType in softDeletableTypes)
+            configureMethod.MakeGenericMethod(entityType).Invoke(null, [modelBuilder]);
+    }
+
+    private static void ConfigureSoftDeleteEntity<TEntity>(ModelBuilder modelBuilder)
+        where TEntity : class, ISoftDeletable
+    {
+        modelBuilder.Entity<TEntity>().HasQueryFilter(entity => !entity.IsDeleted);
+    }
+
+    private static void ConfigureDecimalPrecision(ModelBuilder modelBuilder)
+    {
+        foreach (var entityType in modelBuilder.Model.GetEntityTypes())
+        {
+            var decimalProperties = entityType.ClrType.GetProperties()
+                .Where(property => property.CanWrite &&
+                    (property.PropertyType == typeof(decimal) || property.PropertyType == typeof(decimal?)));
+
+            foreach (var property in decimalProperties)
+            {
+                modelBuilder.Entity(entityType.ClrType)
+                    .Property(property.Name)
+                    .HasPrecision(18, 2);
+            }
+        }
+    }
+
+    private static void ConfigureCheckConstraints(ModelBuilder modelBuilder)
+    {
+        modelBuilder.Entity<LeaveApplication>().ToTable(table =>
+        {
+            table.HasCheckConstraint("CK_LeaveApplications_DateRange", "[ToDate] >= [FromDate]");
+            table.HasCheckConstraint("CK_LeaveApplications_TotalDays", "[TotalDays] > 0");
+        });
+        modelBuilder.Entity<EmployeeLeaveBalance>().ToTable(table =>
+            table.HasCheckConstraint("CK_EmployeeLeaveBalances_NonNegative", "[AllocatedLeaves] >= 0 AND [UsedLeaves] >= 0"));
+        modelBuilder.Entity<CompOffTransfer>().ToTable(table =>
+        {
+            table.HasCheckConstraint("CK_CompOffTransfers_Days", "[Days] > 0");
+            table.HasCheckConstraint("CK_CompOffTransfers_DifferentEmployees", "[FromEmployeeId] <> [ToEmployeeId]");
+        });
+        modelBuilder.Entity<SalaryStructure>().ToTable(table =>
+            table.HasCheckConstraint("CK_SalaryStructures_NonNegative", "[FixedPay] >= 0 AND [VariablePay] >= 0 AND [PF] >= 0 AND [Gratuity] >= 0 AND [Insurance] >= 0 AND [OtherDeductions] >= 0"));
+        modelBuilder.Entity<EmployeeAppraisal>().ToTable(table =>
+            table.HasCheckConstraint("CK_EmployeeAppraisals_Ratings", "([SelfRating] IS NULL OR [SelfRating] BETWEEN 1 AND 5) AND ([ManagerRating] IS NULL OR [ManagerRating] BETWEEN 1 AND 5) AND ([FinalRating] IS NULL OR [FinalRating] BETWEEN 1 AND 5)"));
+        modelBuilder.Entity<MoodEntry>().ToTable(table =>
+            table.HasCheckConstraint("CK_MoodEntries_Score", "[Score] BETWEEN 1 AND 5"));
+        modelBuilder.Entity<DeskBooking>().ToTable(table =>
+            table.HasCheckConstraint("CK_DeskBookings_TimeRange", "[EndTime] > [StartTime]"));
+        modelBuilder.Entity<RoomBooking>().ToTable(table =>
+            table.HasCheckConstraint("CK_RoomBookings_TimeRange", "[EndTime] > [StartTime]"));
+        modelBuilder.Entity<TimesheetEntry>().ToTable(table =>
+            table.HasCheckConstraint("CK_TimesheetEntries_Hours", "[Hours] > 0 AND [Hours] <= 24"));
+        modelBuilder.Entity<TimesheetPeriod>().ToTable(table =>
+            table.HasCheckConstraint("CK_TimesheetPeriods_DateRange", "[WeekEnd] >= [WeekStart]"));
+        modelBuilder.Entity<TrainingCourse>().ToTable(table =>
+            table.HasCheckConstraint("CK_TrainingCourses_DateRange", "[EndDate] IS NULL OR [EndDate] >= [StartDate]"));
+        modelBuilder.Entity<LoanType>().ToTable(table =>
+            table.HasCheckConstraint("CK_LoanTypes_Amounts", "[MinAmount] >= 0 AND [MaxAmount] >= [MinAmount] AND [InterestRate] >= 0 AND [MaxInstallments] > 0"));
+        modelBuilder.Entity<EmployeeLoan>().ToTable(table =>
+            table.HasCheckConstraint("CK_EmployeeLoans_Amounts", "[Amount] > 0 AND [Installments] > 0 AND [InterestRate] >= 0 AND [EmiAmount] >= 0 AND [OutstandingBalance] >= 0"));
+        modelBuilder.Entity<ShiftAssignment>().ToTable(table =>
+            table.HasCheckConstraint("CK_ShiftAssignments_DateRange", "[EndDate] IS NULL OR [EndDate] >= [StartDate]"));
+        modelBuilder.Entity<ShiftSwap>().ToTable(table =>
+            table.HasCheckConstraint("CK_ShiftSwaps_DifferentEmployees", "[RequestedById] <> [TargetEmployeeId]"));
+        modelBuilder.Entity<Survey>().ToTable(table =>
+            table.HasCheckConstraint("CK_Surveys_DateRange", "[EndDate] >= [StartDate]"));
+        modelBuilder.Entity<BenefitPlan>().ToTable(table =>
+            table.HasCheckConstraint("CK_BenefitPlans_NonNegativeCosts", "[EmployeeCost] >= 0 AND [EmployerCost] >= 0"));
+        modelBuilder.Entity<BenefitEnrollment>().ToTable(table =>
+            table.HasCheckConstraint("CK_BenefitEnrollments_DateRange", "[TerminationDate] IS NULL OR [TerminationDate] >= [EnrollmentDate]"));
+        modelBuilder.Entity<InternalJobPosting>().ToTable(table =>
+            table.HasCheckConstraint("CK_InternalJobPostings_DateRange", "[ClosingDate] >= [PostingDate]"));
+        modelBuilder.Entity<Contractor>().ToTable(table =>
+            table.HasCheckConstraint("CK_Contractors_DateRange", "[ContractEnd] >= [ContractStart]"));
+    }
+
+    private static void ConfigureOptimisticConcurrency(ModelBuilder modelBuilder)
+    {
+        var existingAggregateTypes = new[]
+        {
+            typeof(Asset),
+            typeof(EmployeeAsset),
+            typeof(BenefitEnrollment),
+            typeof(EmployeeAppraisal),
+            typeof(EmployeeLeaveBalance),
+            typeof(EmployeeLoan),
+            typeof(EmployeeOnboarding),
+            typeof(EmployeeOffboarding),
+            typeof(EmployeeTicket),
+            typeof(ExpenseClaim),
+            typeof(LeaveApplication),
+            typeof(RewardCatalogItem),
+            typeof(RewardPointsAccount),
+            typeof(RewardRedemption),
+            typeof(ShiftAssignment),
+            typeof(ShiftSwap),
+            typeof(TimesheetEntry),
+            typeof(TrainingCourse),
+            typeof(TrainingRegistration),
+            typeof(Visitor)
+        };
+
+        var aggregateTypes = existingAggregateTypes
+            .Concat(modelBuilder.Model.GetEntityTypes()
+                .Select(entityType => entityType.ClrType)
+                .Where(entityType => typeof(IHasRowVersion).IsAssignableFrom(entityType)))
+            .Distinct();
+
+        foreach (var aggregateType in aggregateTypes)
+        {
+            modelBuilder.Entity(aggregateType)
+                .Property<byte[]>("RowVersion")
+                .IsRowVersion();
+        }
     }
 }

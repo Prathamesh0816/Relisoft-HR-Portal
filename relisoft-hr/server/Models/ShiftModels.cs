@@ -3,7 +3,7 @@ using System.ComponentModel.DataAnnotations.Schema;
 
 namespace RelisoftHR.Models;
 
-public class ShiftTemplate
+public class ShiftTemplate : IHasRowVersion
 {
     [Key] public int Id { get; set; }
     [Required, MaxLength(100)] public string Name { get; set; } = "";
@@ -14,9 +14,10 @@ public class ShiftTemplate
     [MaxLength(500)] public string Description { get; set; } = "";
     public bool IsActive { get; set; } = true;
     public DateTime CreatedOn { get; set; } = DateTime.UtcNow;
+    public byte[]? RowVersion { get; set; }
 }
 
-public class ShiftAssignment
+public class ShiftAssignment : ISoftDeletable, IHasRowVersion
 {
     [Key] public int Id { get; set; }
     public int EmployeeId { get; set; }
@@ -26,6 +27,10 @@ public class ShiftAssignment
     [MaxLength(50)] public string DayOfWeek { get; set; } = "";
     public bool IsRecurring { get; set; }
     public DateTime CreatedOn { get; set; } = DateTime.UtcNow;
+    public bool IsDeleted { get; set; }
+    public DateTime? DeletedOn { get; set; }
+    public int? DeletedById { get; set; }
+    public byte[]? RowVersion { get; set; }
 
     [ForeignKey(nameof(EmployeeId))] public Employee? Employee { get; set; }
     [ForeignKey(nameof(ShiftTemplateId))] public ShiftTemplate? ShiftTemplate { get; set; }

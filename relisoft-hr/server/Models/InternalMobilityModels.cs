@@ -3,7 +3,7 @@ using System.ComponentModel.DataAnnotations.Schema;
 
 namespace RelisoftHR.Models;
 
-public class InternalJobPosting
+public class InternalJobPosting : IHasRowVersion
 {
     [Key] public int Id { get; set; }
     [Required, MaxLength(200)] public string Title { get; set; } = "";
@@ -16,6 +16,7 @@ public class InternalJobPosting
     public bool IsActive { get; set; } = true;
     public int CreatedById { get; set; }
     public DateTime CreatedOn { get; set; } = DateTime.UtcNow;
+    public byte[]? RowVersion { get; set; }
 
     [ForeignKey(nameof(CreatedById))] public Employee? CreatedBy { get; set; }
 }

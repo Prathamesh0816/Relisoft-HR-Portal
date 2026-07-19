@@ -3,7 +3,7 @@ using System.ComponentModel.DataAnnotations.Schema;
 
 namespace RelisoftHR.Models;
 
-public class Visitor
+public class Visitor : IHasRowVersion
 {
     [Key] public int Id { get; set; }
     [Required, MaxLength(200)] public string FullName { get; set; } = "";
@@ -21,6 +21,7 @@ public class Visitor
     public bool HasIdCard { get; set; }
     public int? HostEmployeeId { get; set; }
     public DateTime CreatedOn { get; set; } = DateTime.UtcNow;
+    public byte[]? RowVersion { get; set; }
 
     [ForeignKey(nameof(HostEmployeeId))] public Employee? HostEmployee { get; set; }
 }

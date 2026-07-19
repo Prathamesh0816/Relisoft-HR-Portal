@@ -3,11 +3,11 @@
   "version": "1.0.0",
   "description": "ReliSoft HR - Complete HR Management System",
   "scripts": {
-    "server": "cd server && npm start",
-    "client": "cd client && npm run dev",
+    "server": "dotnet run --no-build --project server/RelisoftHR.csproj --launch-profile http",
+    "client": "npm --prefix client run dev",
     "dev": "concurrently \"npm run server\" \"npm run client\"",
-    "install-all": "npm install && cd server && npm install && cd ../client && npm install",
-    "build": "cd client && npm run build"
+    "install-all": "npm install && npm --prefix client install",
+    "build": "npm --prefix client run build"
   },
   "dependencies": {
     "axios": "^1.18.1",

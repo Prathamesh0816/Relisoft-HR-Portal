@@ -3,7 +3,7 @@ using System.ComponentModel.DataAnnotations.Schema;
 
 namespace RelisoftHR.Models;
 
-public class Contractor
+public class Contractor : IHasRowVersion
 {
     [Key] public int Id { get; set; }
     [Required, MaxLength(200)] public string CompanyName { get; set; } = "";
@@ -16,9 +16,10 @@ public class Contractor
     [MaxLength(50)] public string Status { get; set; } = "Active";
     public bool IsActive { get; set; } = true;
     public DateTime CreatedOn { get; set; } = DateTime.UtcNow;
+    public byte[]? RowVersion { get; set; }
 }
 
-public class ContractorEmployee
+public class ContractorEmployee : IHasRowVersion
 {
     [Key] public int Id { get; set; }
     public int ContractorId { get; set; }
@@ -30,6 +31,7 @@ public class ContractorEmployee
     public DateTime? EndDate { get; set; }
     public bool IsActive { get; set; } = true;
     public DateTime CreatedOn { get; set; } = DateTime.UtcNow;
+    public byte[]? RowVersion { get; set; }
 
     [ForeignKey(nameof(ContractorId))] public Contractor? Contractor { get; set; }
 }

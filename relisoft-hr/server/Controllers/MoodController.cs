@@ -2,6 +2,7 @@ using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using RelisoftHR.Data;
+using RelisoftHR.DTOs;
 using RelisoftHR.Models;
 
 namespace RelisoftHR.Controllers;
@@ -21,7 +22,7 @@ public class MoodController : ControllerBase
     }
 
     [HttpPost("check-in")]
-    public async Task<ActionResult> CheckIn([FromBody] MoodEntry req)
+    public async Task<ActionResult> CheckIn([FromBody] MoodEntryRequest req)
     {
         var empId = GetUserId();
         var today = DateTime.UtcNow.Date;

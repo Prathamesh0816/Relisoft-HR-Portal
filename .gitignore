@@ -141,3 +141,26 @@ dist
 vite.config.js.timestamp-*
 vite.config.ts.timestamp-*
 .vite/
+
+# IDE/user-local files
+.vs/
+.vscode/*
+!.vscode/extensions.json
+!.vscode/settings.json
+
+# .NET build output
+**/bin/
+**/obj/
+**/publish/
+TestResults/
+*.user
+*.suo
+*.rsuser
+
+# Local database files
+*.mdf
+*.ldf
+
+# Local secret/config files
+secrets.json
+appsettings.Local.json

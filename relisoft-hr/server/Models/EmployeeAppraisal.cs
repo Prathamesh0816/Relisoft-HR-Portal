@@ -32,7 +32,7 @@ public class EmployeeAppraisal
     public ICollection<EmployeeAppraisalGoal> Goals { get; set; } = new List<EmployeeAppraisalGoal>();
 }
 
-public class EmployeeAppraisalGoal
+public class EmployeeAppraisalGoal : ISoftDeletable
 {
     [Key]
     public int Id { get; set; }
@@ -41,6 +41,9 @@ public class EmployeeAppraisalGoal
     public string Goal { get; set; } = "";
     public DateTime? TargetDate { get; set; }
     public bool Achieved { get; set; }
+    public bool IsDeleted { get; set; }
+    public DateTime? DeletedOn { get; set; }
+    public int? DeletedById { get; set; }
 
     [ForeignKey(nameof(AppraisalId))]
     public EmployeeAppraisal? Appraisal { get; set; }

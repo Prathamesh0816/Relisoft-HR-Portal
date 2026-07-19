@@ -8,13 +8,13 @@ public record WorkspaceResponse(
     HrPolicyDto HrPolicy
 );
 
-public record ProjectDto(int Id, string Name, List<TeamDto> Teams);
+public record ProjectDto(int Id, string Name, List<TeamDto> Teams, byte[]? RowVersion = null);
 
 public record LeaveTypeDto(int Id, string Name, decimal CarryForwardPct = 0, bool IsCompOff = false, bool IsFloaterHoliday = false, int MaxFloaterPerYear = 0, int CompOffValidityDays = 0);
 
 public record RoleDto(int Id, string Name, string? Label, bool IsCustom, int BaseRoleId);
 
-public record HrPolicyDto(bool AllowHalfDayLeave, bool SandwichLeave);
+public record HrPolicyDto(bool AllowHalfDayLeave, bool SandwichLeave, byte[]? RowVersion = null);
 
 public record CreateProjectRequest(string Name);
 

@@ -1,8 +1,10 @@
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using RelisoftHR.Data;
 using RelisoftHR.DTOs;
 using RelisoftHR.Models;
+using RelisoftHR.Services;
 
 namespace RelisoftHR.Controllers;
 
@@ -13,6 +15,18 @@ public class WorkspaceController : ControllerBase
     private readonly AppDbContext _db;
 
     public WorkspaceController(AppDbContext db) => _db = db;
+
+    private int GetUserId()
+    {
+        var claim = User.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)?.Value;
+        return claim != null ? int.Parse(claim) : 0;
+    }
+
+    private bool CanManageDelegate(int managerId) =>
+        managerId == GetUserId() ||
+        User.IsInRole("HR") ||
+        User.IsInRole("HRL2") ||
+        User.IsInRole("OrganizationHead");
 
     [HttpGet]
     public async Task<ActionResult<WorkspaceResponse>> GetWorkspace()
@@ -38,7 +52,7 @@ public class WorkspaceController : ControllerBase
             projects.Select(p => MapProject(p)).ToList(),
             leaveTypes.Select(lt => new LeaveTypeDto(lt.Id, lt.Name, lt.CarryForwardPct, lt.IsCompOff, lt.IsFloaterHoliday, lt.MaxFloaterPerYear, lt.CompOffValidityDays)).ToList(),
             roles.Select(r => new RoleDto(r.Id, r.Name, r.Label, r.IsCustom, r.BaseRoleId)).ToList(),
-            new HrPolicyDto(hrPolicy.AllowHalfDayLeave, hrPolicy.SandwichLeave)
+            new HrPolicyDto(hrPolicy.AllowHalfDayLeave, hrPolicy.SandwichLeave, hrPolicy.RowVersion)
         ));
     }
 
@@ -109,6 +123,7 @@ public class WorkspaceController : ControllerBase
             .Include(e => e.SalaryStructure)
             .FirstOrDefaultAsync(e => e.Id == id);
         if (employee == null) return NotFound(new { message = "Employee not found." });
+        HttpConcurrency.RequireIfMatch(Request, _db, employee);
 
         employee.EmployeeCode = req.EmployeeCode;
         employee.FullName = req.FullName;
@@ -146,7 +161,8 @@ public class WorkspaceController : ControllerBase
         }
 
         await _db.SaveChangesAsync();
-        return Ok(new { message = "Employee updated." });
+        HttpConcurrency.SetETag(Response, employee.RowVersion);
+        return Ok(new { message = "Employee updated.", employee.RowVersion });
     }
 
     [HttpPost("projects")]
@@ -162,9 +178,11 @@ public class WorkspaceController : ControllerBase
     {
         var project = await _db.Projects.FindAsync(id);
         if (project == null) return NotFound(new { message = "Project not found." });
+        HttpConcurrency.RequireIfMatch(Request, _db, project);
         project.Name = req.Name;
         await _db.SaveChangesAsync();
-        return Ok(new { message = "Project updated." });
+        HttpConcurrency.SetETag(Response, project.RowVersion);
+        return Ok(new { message = "Project updated.", project.RowVersion });
     }
 
     [HttpPost("teams")]
@@ -185,11 +203,13 @@ public class WorkspaceController : ControllerBase
     {
         var team = await _db.Teams.FindAsync(id);
         if (team == null) return NotFound(new { message = "Team not found." });
+        HttpConcurrency.RequireIfMatch(Request, _db, team);
         team.Name = req.Name;
         team.ProjectId = req.ProjectId;
         team.LeadId = req.LeadId;
         await _db.SaveChangesAsync();
-        return Ok(new { message = "Team updated." });
+        HttpConcurrency.SetETag(Response, team.RowVersion);
+        return Ok(new { message = "Team updated.", team.RowVersion });
     }
 
     [HttpPut("hr-policy")]
@@ -198,16 +218,19 @@ public class WorkspaceController : ControllerBase
         var policy = await _db.HrPolicies.FirstOrDefaultAsync();
         if (policy == null)
         {
-            _db.HrPolicies.Add(new HrPolicy { AllowHalfDayLeave = req.AllowHalfDayLeave, SandwichLeave = req.SandwichLeave });
+            policy = new HrPolicy { AllowHalfDayLeave = req.AllowHalfDayLeave, SandwichLeave = req.SandwichLeave };
+            _db.HrPolicies.Add(policy);
         }
         else
         {
+            HttpConcurrency.RequireIfMatch(Request, _db, policy);
             policy.AllowHalfDayLeave = req.AllowHalfDayLeave;
             policy.SandwichLeave = req.SandwichLeave;
             policy.UpdatedOn = DateTime.UtcNow;
         }
         await _db.SaveChangesAsync();
-        return Ok(new { message = "HR policy updated." });
+        HttpConcurrency.SetETag(Response, policy?.RowVersion);
+        return Ok(new { message = "HR policy updated.", RowVersion = policy?.RowVersion });
     }
 
     [HttpGet("delegates/{managerId}")]
@@ -219,7 +242,7 @@ public class WorkspaceController : ControllerBase
             .Where(d => d.ManagerId == managerId)
             .ToListAsync();
 
-        return Ok(delegates.Select(d => new { d.Id, d.DelegateId, DelegateName = d.Delegate?.FullName, d.ProjectId, ProjectName = d.Project?.Name, IsGeneral = !d.ProjectId.HasValue }));
+        return Ok(delegates.Select(d => new { d.Id, d.DelegateId, DelegateName = d.Delegate?.FullName, d.ProjectId, ProjectName = d.Project?.Name, IsGeneral = !d.ProjectId.HasValue, d.RowVersion }));
     }
 
     [HttpPost("delegates")]
@@ -243,8 +266,11 @@ public class WorkspaceController : ControllerBase
     {
         var d = await _db.ApprovalDelegates.FindAsync(id);
         if (d == null) return NotFound();
-        _db.ApprovalDelegates.Remove(d);
+        if (!CanManageDelegate(d.ManagerId)) return Forbid();
+        HttpConcurrency.RequireIfMatch(Request, _db, d);
+        _db.SoftDelete(d, GetUserId());
         await _db.SaveChangesAsync();
+        HttpConcurrency.SetETag(Response, d.RowVersion);
         return Ok(new { message = "Delegate removed." });
     }
 
@@ -282,7 +308,7 @@ public class WorkspaceController : ControllerBase
         var teams = e.EmployeeTeams.Select(et => new TeamDto(
             et.Team!.Id, et.Team.Name, et.Team.ProjectId,
             et.Team.Project?.Name ?? "", et.Team.LeadId,
-            et.Team.Lead?.FullName ?? ""
+            et.Team.Lead?.FullName ?? "", et.Team.RowVersion
         )).ToList();
 
         SalaryStructureDto? ss = null;
@@ -301,7 +327,7 @@ public class WorkspaceController : ControllerBase
             e.PrimaryTeam != null
                 ? new TeamDto(e.PrimaryTeam.Id, e.PrimaryTeam.Name,
                     e.PrimaryTeam.ProjectId, e.PrimaryTeam.Project?.Name ?? "",
-                    e.PrimaryTeam.LeadId, e.PrimaryTeam.Lead?.FullName ?? "")
+                    e.PrimaryTeam.LeadId, e.PrimaryTeam.Lead?.FullName ?? "", e.PrimaryTeam.RowVersion)
                 : null,
             e.PrimaryTeamId,
             teams,
@@ -309,7 +335,8 @@ public class WorkspaceController : ControllerBase
                 lb.Id, lb.LeaveTypeId, lb.LeaveType?.Name ?? "",
                 lb.AllocatedLeaves, lb.UsedLeaves, lb.RemainingLeaves
             )).ToList(),
-            null
+            null,
+            e.RowVersion
         );
     }
 
@@ -317,8 +344,9 @@ public class WorkspaceController : ControllerBase
     {
         return new ProjectDto(p.Id, p.Name,
             p.Teams.Select(t => new TeamDto(
-                t.Id, t.Name, p.Id, p.Name, t.LeadId, t.Lead?.FullName ?? ""
-            )).ToList()
+                t.Id, t.Name, p.Id, p.Name, t.LeadId, t.Lead?.FullName ?? "", t.RowVersion
+            )).ToList(),
+            p.RowVersion
         );
     }
 }

@@ -3,7 +3,7 @@ using System.ComponentModel.DataAnnotations.Schema;
 
 namespace RelisoftHR.Models;
 
-public class CommuteRoute
+public class CommuteRoute : ISoftDeletable, IHasRowVersion
 {
     [Key]
     public int Id { get; set; }
@@ -19,6 +19,10 @@ public class CommuteRoute
     public int Capacity { get; set; }
     public bool IsActive { get; set; } = true;
     public DateTime CreatedOn { get; set; } = DateTime.UtcNow;
+    public bool IsDeleted { get; set; }
+    public DateTime? DeletedOn { get; set; }
+    public int? DeletedById { get; set; }
+    public byte[]? RowVersion { get; set; }
 
     [ForeignKey(nameof(EmployeeId))]
     public Employee? Employee { get; set; }
@@ -34,7 +38,7 @@ public class CarpoolGroup
     public ICollection<CarpoolMember> Members { get; set; } = new List<CarpoolMember>();
 }
 
-public class CarpoolMember
+public class CarpoolMember : ISoftDeletable
 {
     [Key]
     public int Id { get; set; }
@@ -42,6 +46,9 @@ public class CarpoolMember
     public int EmployeeId { get; set; }
     public bool IsDriver { get; set; }
     public DateTime JoinedOn { get; set; } = DateTime.UtcNow;
+    public bool IsDeleted { get; set; }
+    public DateTime? DeletedOn { get; set; }
+    public int? DeletedById { get; set; }
 
     [ForeignKey(nameof(GroupId))]
     public CarpoolGroup? Group { get; set; }

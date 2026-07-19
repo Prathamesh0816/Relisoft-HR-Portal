@@ -2,7 +2,9 @@ using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using RelisoftHR.Data;
+using RelisoftHR.DTOs;
 using RelisoftHR.Models;
+using RelisoftHR.Services;
 
 namespace RelisoftHR.Controllers;
 
@@ -31,20 +33,25 @@ public class InternalMobilityController : ControllerBase
     }
 
     [HttpPost("jobs")]
-    public async Task<ActionResult> CreateJob([FromBody] InternalJobPosting req)
+    public async Task<ActionResult> CreateJob([FromBody] InternalJobPostingRequest req)
     {
-        req.CreatedById = GetUserId();
-        req.CreatedOn = DateTime.UtcNow;
-        _db.InternalJobPostings.Add(req);
+        var posting = new InternalJobPosting
+        {
+            Title = req.Title, Description = req.Description, Requirements = req.Requirements,
+            Department = req.Department, Location = req.Location, PostingDate = req.PostingDate,
+            ClosingDate = req.ClosingDate, CreatedById = GetUserId(), CreatedOn = DateTime.UtcNow, IsActive = true
+        };
+        _db.InternalJobPostings.Add(posting);
         await _db.SaveChangesAsync();
-        return Ok(req);
+        return Ok(posting);
     }
 
     [HttpPut("jobs/{id}")]
-    public async Task<ActionResult> UpdateJob(int id, [FromBody] InternalJobPosting req)
+    public async Task<ActionResult> UpdateJob(int id, [FromBody] InternalJobPostingRequest req)
     {
         var j = await _db.InternalJobPostings.FindAsync(id);
         if (j == null) return NotFound();
+        HttpConcurrency.RequireIfMatch(Request, _db, j);
         j.Title = req.Title;
         j.Description = req.Description;
         j.Requirements = req.Requirements;
@@ -52,6 +59,7 @@ public class InternalMobilityController : ControllerBase
         j.Location = req.Location;
         j.ClosingDate = req.ClosingDate;
         await _db.SaveChangesAsync();
+        HttpConcurrency.SetETag(Response, j.RowVersion);
         return Ok(j);
     }
 
@@ -78,17 +86,24 @@ public class InternalMobilityController : ControllerBase
     }
 
     [HttpPost("jobs/{jobId}/apply")]
-    public async Task<ActionResult> Apply(int jobId, [FromBody] InternalJobApplication req)
+    public async Task<ActionResult> Apply(int jobId, [FromBody] InternalJobApplicationRequest req)
     {
         var job = await _db.InternalJobPostings.FindAsync(jobId);
         if (job == null) return NotFound();
-        req.JobPostingId = jobId;
-        req.EmployeeId = GetUserId();
-        req.Status = "Applied";
-        req.CreatedOn = DateTime.UtcNow;
-        _db.InternalJobApplications.Add(req);
+        if (!job.IsActive || job.ClosingDate < DateTime.UtcNow)
+            return BadRequest(new { message = "This job posting is closed" });
+        var employeeId = GetUserId();
+        if (await _db.InternalJobApplications.AnyAsync(a =>
+            a.JobPostingId == jobId && a.EmployeeId == employeeId))
+            return Conflict(new { message = "You have already applied for this job" });
+        var application = new InternalJobApplication
+        {
+            JobPostingId = jobId, EmployeeId = employeeId, CoverNote = req.CoverNote,
+            Status = "Applied", CreatedOn = DateTime.UtcNow
+        };
+        _db.InternalJobApplications.Add(application);
         await _db.SaveChangesAsync();
-        return Ok(req);
+        return Ok(application);
     }
 
     [HttpGet("applications")]

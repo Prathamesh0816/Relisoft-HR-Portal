@@ -2,6 +2,7 @@ using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using RelisoftHR.Data;
+using RelisoftHR.DTOs;
 using RelisoftHR.Models;
 
 namespace RelisoftHR.Controllers;
@@ -32,12 +33,17 @@ public class NotificationController : ControllerBase
     }
 
     [HttpPost]
-    public async Task<ActionResult> CreateNotification([FromBody] Notification req)
+    public async Task<ActionResult> CreateNotification([FromBody] NotificationRequest req)
     {
-        req.CreatedOn = DateTime.UtcNow;
-        _db.Notifications.Add(req);
+        if (!await _db.Employees.AnyAsync(e => e.Id == req.EmployeeId)) return NotFound();
+        var notification = new Notification
+        {
+            EmployeeId = req.EmployeeId, Title = req.Title, Message = req.Message,
+            Category = req.Category, Link = req.Link, CreatedOn = DateTime.UtcNow
+        };
+        _db.Notifications.Add(notification);
         await _db.SaveChangesAsync();
-        return Ok(req);
+        return Ok(notification);
     }
 
     [HttpPost("{id}/read")]
@@ -45,6 +51,7 @@ public class NotificationController : ControllerBase
     {
         var n = await _db.Notifications.FindAsync(id);
         if (n == null) return NotFound();
+        if (n.EmployeeId != GetUserId()) return Forbid();
         n.IsRead = true;
         await _db.SaveChangesAsync();
         return Ok(n);
@@ -76,10 +83,14 @@ public class NotificationController : ControllerBase
     }
 
     [HttpPost("templates")]
-    public async Task<ActionResult> CreateTemplate([FromBody] NotificationTemplate req)
+    public async Task<ActionResult> CreateTemplate([FromBody] NotificationTemplateRequest req)
     {
-        _db.NotificationTemplates.Add(req);
+        var template = new NotificationTemplate
+        {
+            EventType = req.EventType, Title = req.Title, Message = req.Message, IsActive = req.IsActive
+        };
+        _db.NotificationTemplates.Add(template);
         await _db.SaveChangesAsync();
-        return Ok(req);
+        return Ok(template);
     }
 }

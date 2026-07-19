@@ -2,8 +2,10 @@ using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using RelisoftHR.Data;
+using RelisoftHR.DTOs;
 using RelisoftHR.Models;
 using RelisoftHR.Services;
+using System.Data;
  
 namespace RelisoftHR.Controllers;
 
@@ -37,19 +39,27 @@ public class TrainingController : ControllerBase
     }
 
     [HttpPost("courses")]
-    public async Task<ActionResult> CreateCourse([FromBody] TrainingCourse req)
+    public async Task<ActionResult> CreateCourse([FromBody] TrainingCourseRequest req)
     {
-        req.CreatedOn = DateTime.UtcNow;
-        _db.TrainingCourses.Add(req);
+        if (req.EndDate.HasValue && req.EndDate < req.StartDate) return BadRequest(new { message = "End date cannot be before start date" });
+        var course = new TrainingCourse
+        {
+            Title = req.Title, Description = req.Description, Category = req.Category,
+            Provider = req.Provider, DurationHours = req.DurationHours, Mode = req.Mode,
+            ResourceUrl = req.ResourceUrl, MaxSeats = req.MaxSeats, IsActive = req.IsActive,
+            StartDate = req.StartDate, EndDate = req.EndDate, CreatedOn = DateTime.UtcNow
+        };
+        _db.TrainingCourses.Add(course);
         await _db.SaveChangesAsync();
-        return Ok(req);
+        return Ok(course);
     }
 
     [HttpPut("courses/{id}")]
-    public async Task<ActionResult> UpdateCourse(int id, [FromBody] TrainingCourse req)
+    public async Task<ActionResult> UpdateCourse(int id, [FromBody] TrainingCourseRequest req)
     {
         var course = await _db.TrainingCourses.FindAsync(id);
         if (course == null) return NotFound();
+        HttpConcurrency.RequireIfMatch(Request, _db, course);
         course.Title = req.Title;
         course.Description = req.Description;
         course.Category = req.Category;
@@ -61,6 +71,7 @@ public class TrainingController : ControllerBase
         course.StartDate = req.StartDate;
         course.EndDate = req.EndDate;
         await _db.SaveChangesAsync();
+        HttpConcurrency.SetETag(Response, course.RowVersion);
         return Ok(course);
     }
 
@@ -80,7 +91,10 @@ public class TrainingController : ControllerBase
     public async Task<ActionResult> Register(int courseId)
     {
         var course = await _db.TrainingCourses.FindAsync(courseId);
-        if (course == null) return NotFound();
+        if (course == null || !course.IsActive) return NotFound();
+        await using var transaction = _db.Database.IsRelational()
+            ? await _db.Database.BeginTransactionAsync(IsolationLevel.Serializable)
+            : null;
         var registered = await _db.TrainingRegistrations.CountAsync(r => r.CourseId == courseId && r.Status == "Registered");
         if (registered >= course.MaxSeats)
             return BadRequest(new { message = "No seats available" });
@@ -97,6 +111,7 @@ public class TrainingController : ControllerBase
         };
         _db.TrainingRegistrations.Add(reg);
         await _db.SaveChangesAsync();
+        if (transaction != null) await transaction.CommitAsync();
 
         var emp = await _db.Employees.FindAsync(GetUserId());
         if (emp != null)
@@ -115,6 +130,10 @@ public class TrainingController : ControllerBase
     {
         var reg = await _db.TrainingRegistrations.FindAsync(id);
         if (reg == null) return NotFound();
+        if (reg.Status != "Registered")
+            return Conflict(new { message = "Only registered training can be completed" });
+        if (score is < 0 or > 100)
+            return BadRequest(new { message = "Score must be between 0 and 100" });
         reg.Status = "Completed";
         reg.Score = score;
         reg.CompletedOn = DateTime.UtcNow;

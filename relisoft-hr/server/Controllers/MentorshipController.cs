@@ -2,6 +2,7 @@ using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using RelisoftHR.Data;
+using RelisoftHR.DTOs;
 using RelisoftHR.Models;
 
 namespace RelisoftHR.Controllers;
@@ -30,15 +31,19 @@ public class MentorshipController : ControllerBase
     }
 
     [HttpPost("profile")]
-    public async Task<ActionResult> SaveProfile([FromBody] MentorshipProfile req)
+    public async Task<ActionResult> SaveProfile([FromBody] MentorshipProfileRequest req)
     {
         var empId = GetUserId();
         var profile = await _db.MentorshipProfiles
             .FirstOrDefaultAsync(p => p.EmployeeId == empId);
         if (profile == null)
         {
-            req.EmployeeId = empId;
-            _db.MentorshipProfiles.Add(req);
+            _db.MentorshipProfiles.Add(new MentorshipProfile
+            {
+                EmployeeId = empId, IsMentor = req.IsMentor, IsMentee = req.IsMentee,
+                Bio = req.Bio, AreasOfExpertise = req.AreasOfExpertise, Goals = req.Goals,
+                MaxMentees = req.MaxMentees, IsActive = true
+            });
         }
         else
         {
@@ -110,7 +115,7 @@ public class MentorshipController : ControllerBase
     }
 
     [HttpPost("request")]
-    public async Task<ActionResult> RequestMatch([FromBody] MentorshipMatch req)
+    public async Task<ActionResult> RequestMatch([FromBody] MentorshipMatchRequest req)
     {
         var empId = GetUserId();
         var existing = await _db.MentorshipMatches
@@ -134,6 +139,9 @@ public class MentorshipController : ControllerBase
     {
         var match = await _db.MentorshipMatches.FindAsync(id);
         if (match == null) return NotFound();
+        if (match.MentorId != GetUserId()) return Forbid();
+        if (match.Status != "Pending")
+            return Conflict(new { message = "This mentorship request has already been actioned" });
         if (action == "approve")
         {
             match.Status = "Active";
@@ -170,11 +178,15 @@ public class MentorshipController : ControllerBase
     }
 
     [HttpPost("{matchId}/sessions")]
-    public async Task<ActionResult> AddSession(int matchId, [FromBody] MentorshipSession req)
+    public async Task<ActionResult> AddSession(int matchId, [FromBody] MentorshipSessionRequest req)
     {
-        req.MatchId = matchId;
-        _db.MentorshipSessions.Add(req);
+        if (!await _db.MentorshipMatches.AnyAsync(m => m.Id == matchId)) return NotFound();
+        var session = new MentorshipSession
+        {
+            MatchId = matchId, Date = req.Date, DurationMinutes = req.DurationMinutes, Notes = req.Notes
+        };
+        _db.MentorshipSessions.Add(session);
         await _db.SaveChangesAsync();
-        return Ok(new { req.Id, message = "Session logged" });
+        return Ok(new { session.Id, message = "Session logged" });
     }
 }

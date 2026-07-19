@@ -2,7 +2,9 @@ using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using RelisoftHR.Data;
+using RelisoftHR.DTOs;
 using RelisoftHR.Models;
+using RelisoftHR.Services;
 
 namespace RelisoftHR.Controllers;
 
@@ -31,18 +33,25 @@ public class ComplianceController : ControllerBase
     }
 
     [HttpPost("requirements")]
-    public async Task<ActionResult> CreateRequirement([FromBody] ComplianceRequirement req)
+    public async Task<ActionResult> CreateRequirement([FromBody] ComplianceRequirementRequest req)
     {
-        _db.ComplianceRequirements.Add(req);
+        var requirement = new ComplianceRequirement
+        {
+            Name = req.Name, Description = req.Description, Category = req.Category,
+            Authority = req.Authority, DueDate = req.DueDate, IsRecurring = req.IsRecurring,
+            RecurrenceDays = req.RecurrenceDays, IsActive = true
+        };
+        _db.ComplianceRequirements.Add(requirement);
         await _db.SaveChangesAsync();
-        return Ok(req);
+        return Ok(requirement);
     }
 
     [HttpPut("requirements/{id}")]
-    public async Task<ActionResult> UpdateRequirement(int id, [FromBody] ComplianceRequirement req)
+    public async Task<ActionResult> UpdateRequirement(int id, [FromBody] ComplianceRequirementRequest req)
     {
         var r = await _db.ComplianceRequirements.FindAsync(id);
         if (r == null) return NotFound();
+        HttpConcurrency.RequireIfMatch(Request, _db, r);
         r.Name = req.Name;
         r.Description = req.Description;
         r.Category = req.Category;
@@ -51,6 +60,7 @@ public class ComplianceController : ControllerBase
         r.IsRecurring = req.IsRecurring;
         r.RecurrenceDays = req.RecurrenceDays;
         await _db.SaveChangesAsync();
+        HttpConcurrency.SetETag(Response, r.RowVersion);
         return Ok(r);
     }
 
@@ -68,14 +78,17 @@ public class ComplianceController : ControllerBase
     }
 
     [HttpPost("records")]
-    public async Task<ActionResult> CreateRecord([FromBody] ComplianceRecord req)
+    public async Task<ActionResult> CreateRecord([FromBody] ComplianceRecordRequest req)
     {
-        req.Status = "Completed";
-        req.CompletedOn = DateTime.UtcNow;
-        req.CreatedOn = DateTime.UtcNow;
-        _db.ComplianceRecords.Add(req);
+        if (!await _db.ComplianceRequirements.AnyAsync(r => r.Id == req.RequirementId)) return NotFound();
+        var record = new ComplianceRecord
+        {
+            RequirementId = req.RequirementId, EmployeeId = req.EmployeeId, Notes = req.Notes,
+            Status = "Completed", CompletedOn = DateTime.UtcNow, CreatedOn = DateTime.UtcNow
+        };
+        _db.ComplianceRecords.Add(record);
         await _db.SaveChangesAsync();
-        return Ok(req);
+        return Ok(record);
     }
 
     [HttpGet("dashboard")]

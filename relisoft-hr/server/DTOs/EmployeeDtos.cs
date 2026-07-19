@@ -30,10 +30,11 @@ public record EmployeeDto(
     DateTime JoinDate, string Role, int RoleId, string? RoleLabel,
     TeamDto? PrimaryTeam, int? PrimaryTeamId,
     List<TeamDto> Teams, List<LeaveBalanceDto> LeaveBalances,
-    string? ApproverName
+    string? ApproverName,
+    byte[]? RowVersion = null
 );
 
-public record TeamDto(int Id, string Name, int ProjectId, string ProjectName, int LeadId, string LeadName);
+public record TeamDto(int Id, string Name, int ProjectId, string ProjectName, int LeadId, string LeadName, byte[]? RowVersion = null);
 
 public record LeaveBalanceDto(
     int Id, int LeaveTypeId, string LeaveTypeName,

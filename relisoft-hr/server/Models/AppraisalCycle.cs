@@ -2,7 +2,7 @@ using System.ComponentModel.DataAnnotations;
 
 namespace RelisoftHR.Models;
 
-public class AppraisalCycle
+public class AppraisalCycle : IHasRowVersion
 {
     [Key]
     public int Id { get; set; }
@@ -13,4 +13,5 @@ public class AppraisalCycle
     [MaxLength(50)]
     public string Status { get; set; } = "Active"; // Active, Closed
     public DateTime CreatedOn { get; set; } = DateTime.UtcNow;
+    public byte[]? RowVersion { get; set; }
 }

@@ -2,6 +2,7 @@ using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using RelisoftHR.Data;
+using RelisoftHR.DTOs;
 using RelisoftHR.Models;
 using RelisoftHR.Services;
  
@@ -34,24 +35,31 @@ public class BenefitsController : ControllerBase
     }
 
     [HttpPost("plans")]
-    public async Task<ActionResult> CreatePlan([FromBody] BenefitPlan req)
+    public async Task<ActionResult> CreatePlan([FromBody] BenefitPlanRequest req)
     {
-        _db.BenefitPlans.Add(req);
+        var plan = new BenefitPlan
+        {
+            Name = req.Name, Description = req.Description, Category = req.Category,
+            EmployeeCost = req.EmployeeCost, EmployerCost = req.EmployerCost
+        };
+        _db.BenefitPlans.Add(plan);
         await _db.SaveChangesAsync();
-        return Ok(req);
+        return Ok(plan);
     }
 
     [HttpPut("plans/{id}")]
-    public async Task<ActionResult> UpdatePlan(int id, [FromBody] BenefitPlan req)
+    public async Task<ActionResult> UpdatePlan(int id, [FromBody] BenefitPlanRequest req)
     {
         var p = await _db.BenefitPlans.FindAsync(id);
         if (p == null) return NotFound();
+        HttpConcurrency.RequireIfMatch(Request, _db, p);
         p.Name = req.Name;
         p.Description = req.Description;
         p.Category = req.Category;
         p.EmployeeCost = req.EmployeeCost;
         p.EmployerCost = req.EmployerCost;
         await _db.SaveChangesAsync();
+        HttpConcurrency.SetETag(Response, p.RowVersion);
         return Ok(p);
     }
 
@@ -68,16 +76,23 @@ public class BenefitsController : ControllerBase
     }
 
     [HttpPost("enroll")]
-    public async Task<ActionResult> Enroll([FromBody] BenefitEnrollment req)
+    public async Task<ActionResult> Enroll([FromBody] BenefitEnrollmentRequest req)
     {
         var plan = await _db.BenefitPlans.FindAsync(req.BenefitPlanId);
-        if (plan == null) return NotFound(new { message = "Plan not found" });
-        req.EmployeeId = GetUserId();
-        req.EnrollmentDate = DateTime.UtcNow;
-        req.EffectiveDate = DateTime.UtcNow;
-        req.Status = "Active";
-        req.CreatedOn = DateTime.UtcNow;
-        _db.BenefitEnrollments.Add(req);
+        if (plan == null || !plan.IsActive) return NotFound(new { message = "Active plan not found" });
+        var employeeId = GetUserId();
+        var alreadyEnrolled = await _db.BenefitEnrollments.AnyAsync(e =>
+            e.EmployeeId == employeeId && e.BenefitPlanId == req.BenefitPlanId && e.Status == "Active");
+        if (alreadyEnrolled)
+            return Conflict(new { message = "Already enrolled in this plan" });
+
+        var enrollment = new BenefitEnrollment
+        {
+            EmployeeId = employeeId, BenefitPlanId = req.BenefitPlanId,
+            EnrollmentDate = DateTime.UtcNow, EffectiveDate = DateTime.UtcNow,
+            Status = "Active", CreatedOn = DateTime.UtcNow
+        };
+        _db.BenefitEnrollments.Add(enrollment);
         await _db.SaveChangesAsync();
 
         var emp = await _db.Employees.FindAsync(GetUserId());
@@ -85,11 +100,11 @@ public class BenefitsController : ControllerBase
         {
             await _notif.NotifyEmployeeAsync(emp.Id, emp, "Benefit Enrolled",
                 $"You have been enrolled in {plan.Name}.", "benefits",
-                "Benefit Enrolled", EmailTemplates.BenefitEnrolled(emp.FullName, plan.Name, req.EffectiveDate?.ToString("dd-MMM-yyyy") ?? "N/A"),
+                "Benefit Enrolled", EmailTemplates.BenefitEnrolled(emp.FullName, plan.Name, enrollment.EffectiveDate?.ToString("dd-MMM-yyyy") ?? "N/A"),
                 link: "/benefits");
         }
 
-        return Ok(req);
+        return Ok(enrollment);
     }
 
     [HttpPost("enrollments/{id}/cancel")]
@@ -97,6 +112,9 @@ public class BenefitsController : ControllerBase
     {
         var e = await _db.BenefitEnrollments.FindAsync(id);
         if (e == null) return NotFound();
+        if (e.EmployeeId != GetUserId()) return Forbid();
+        if (e.Status != "Active")
+            return BadRequest(new { message = "Enrollment is not active" });
         e.Status = "Cancelled";
         e.TerminationDate = DateTime.UtcNow;
         await _db.SaveChangesAsync();

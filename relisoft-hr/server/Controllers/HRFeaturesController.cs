@@ -2,7 +2,9 @@ using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using RelisoftHR.Data;
+using RelisoftHR.DTOs;
 using RelisoftHR.Models;
+using RelisoftHR.Services;
 
 namespace RelisoftHR.Controllers;
 
@@ -31,28 +33,35 @@ public class HRFeaturesController : ControllerBase
             .ToListAsync();
         return Ok(list.Select(a => new
         {
-            a.Id, a.Title, a.Content, a.Category, a.Priority, a.CreatedOn,
+            a.Id, a.Title, a.Content, a.Category, a.Priority, a.CreatedOn, a.RowVersion,
             CreatedByName = a.CreatedBy.FullName
         }));
     }
 
     [HttpPost("announcements")]
-    public async Task<ActionResult> CreateAnnouncement([FromBody] Announcement req)
+    public async Task<ActionResult> CreateAnnouncement([FromBody] AnnouncementRequest req)
     {
-        req.CreatedById = GetUserId();
-        req.CreatedOn = DateTime.UtcNow;
-        _db.Announcements.Add(req);
+        var announcement = new Announcement
+        {
+            Title = req.Title, Content = req.Content, Category = req.Category, Priority = req.Priority,
+            CreatedById = GetUserId(), CreatedOn = DateTime.UtcNow, IsActive = true
+        };
+        _db.Announcements.Add(announcement);
         await _db.SaveChangesAsync();
-        return Ok(req);
+        return Ok(announcement);
     }
 
     [HttpDelete("announcements/{id}")]
+    [Authorize(Roles = "HR,HRL2,OrganizationHead")]
     public async Task<ActionResult> DeleteAnnouncement(int id)
     {
         var a = await _db.Announcements.FindAsync(id);
         if (a == null) return NotFound();
+        HttpConcurrency.RequireIfMatch(Request, _db, a);
         a.IsActive = false;
+        _db.SoftDelete(a, GetUserId());
         await _db.SaveChangesAsync();
+        HttpConcurrency.SetETag(Response, a.RowVersion);
         return Ok(new { message = "Deleted" });
     }
 
@@ -138,14 +147,17 @@ public class HRFeaturesController : ControllerBase
     }
 
     [HttpPost("knowledge-base")]
-    public async Task<ActionResult> CreateArticle([FromBody] KnowledgeBaseArticle req)
+    public async Task<ActionResult> CreateArticle([FromBody] KnowledgeBaseArticleRequest req)
     {
-        req.CreatedById = GetUserId();
-        req.CreatedOn = DateTime.UtcNow;
-        req.UpdatedOn = DateTime.UtcNow;
-        _db.KnowledgeBaseArticles.Add(req);
+        var article = new KnowledgeBaseArticle
+        {
+            Title = req.Title, Content = req.Content, Category = req.Category, Tags = req.Tags,
+            IsPublished = req.IsPublished, CreatedById = GetUserId(),
+            CreatedOn = DateTime.UtcNow, UpdatedOn = DateTime.UtcNow
+        };
+        _db.KnowledgeBaseArticles.Add(article);
         await _db.SaveChangesAsync();
-        return Ok(req);
+        return Ok(article);
     }
 
     [HttpPost("knowledge-base/{id}/view")]

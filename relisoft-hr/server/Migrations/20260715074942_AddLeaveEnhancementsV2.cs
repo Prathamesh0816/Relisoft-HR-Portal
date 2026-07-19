@@ -1,9 +1,13 @@
+using Microsoft.EntityFrameworkCore.Infrastructure;
 using Microsoft.EntityFrameworkCore.Migrations;
+using RelisoftHR.Data;
 
 #nullable disable
 
 namespace RelisoftHR.Migrations
 {
+    [DbContext(typeof(AppDbContext))]
+    [Migration("20260715074942_AddLeaveEnhancementsV2")]
     public partial class AddLeaveEnhancementsV2 : Migration
     {
         protected override void Up(MigrationBuilder migrationBuilder)
@@ -54,68 +58,22 @@ namespace RelisoftHR.Migrations
                 type: "datetime2",
                 nullable: true);
 
-            migrationBuilder.UpdateData(
-                table: "LeaveTypes",
-                keyColumn: "Id",
-                keyValue: 1,
-                columns: new[] { "MaxConsecutiveDays", "RequiresAdvanceNotice" },
-                values: new object[] { 3, false });
-
-            migrationBuilder.UpdateData(
-                table: "LeaveTypes",
-                keyColumn: "Id",
-                keyValue: 2,
-                columns: new[] { "MaxConsecutiveDays", "RequiresAdvanceNotice", "AdvanceNoticeDays" },
-                values: new object[] { 15, true, 3 });
-
-            migrationBuilder.UpdateData(
-                table: "LeaveTypes",
-                keyColumn: "Id",
-                keyValue: 3,
-                columns: new[] { "MaxConsecutiveDays", "RequiresAdvanceNotice", "AdvanceNoticeDays" },
-                values: new object[] { 180, true, 30 });
-
-            migrationBuilder.UpdateData(
-                table: "LeaveTypes",
-                keyColumn: "Id",
-                keyValue: 4,
-                columns: new[] { "MaxConsecutiveDays", "RequiresAdvanceNotice", "AdvanceNoticeDays" },
-                values: new object[] { 15, true, 7 });
-
-            migrationBuilder.UpdateData(
-                table: "LeaveTypes",
-                keyColumn: "Id",
-                keyValue: 5,
-                columns: new[] { "MaxConsecutiveDays", "RequiresAdvanceNotice" },
-                values: new object[] { 3, false });
-
-            migrationBuilder.UpdateData(
-                table: "LeaveTypes",
-                keyColumn: "Id",
-                keyValue: 6,
-                columns: new[] { "MaxConsecutiveDays", "RequiresAdvanceNotice" },
-                values: new object[] { 1, false });
-
-            migrationBuilder.UpdateData(
-                table: "LeaveTypes",
-                keyColumn: "Id",
-                keyValue: 7,
-                columns: new[] { "MaxConsecutiveDays", "RequiresAdvanceNotice", "AdvanceNoticeDays" },
-                values: new object[] { 5, true, 7 });
-
-            migrationBuilder.UpdateData(
-                table: "LeaveTypes",
-                keyColumn: "Id",
-                keyValue: 8,
-                columns: new[] { "MaxConsecutiveDays", "RequiresAdvanceNotice", "AdvanceNoticeDays" },
-                values: new object[] { 30, true, 15 });
-
-            migrationBuilder.UpdateData(
-                table: "LeaveTypes",
-                keyColumn: "Id",
-                keyValue: 9,
-                columns: new[] { "MaxConsecutiveDays", "RequiresAdvanceNotice" },
-                values: new object[] { 1, false });
+            migrationBuilder.Sql(
+                """
+                UPDATE [LeaveTypes]
+                SET [MaxConsecutiveDays] = CASE [Id]
+                        WHEN 1 THEN 3 WHEN 2 THEN 15 WHEN 3 THEN 180
+                        WHEN 4 THEN 15 WHEN 5 THEN 3 WHEN 6 THEN 1
+                        WHEN 7 THEN 5 WHEN 8 THEN 30 WHEN 9 THEN 1
+                        ELSE [MaxConsecutiveDays]
+                    END,
+                    [RequiresAdvanceNotice] = CASE WHEN [Id] IN (2, 3, 4, 7, 8) THEN 1 ELSE 0 END,
+                    [AdvanceNoticeDays] = CASE [Id]
+                        WHEN 2 THEN 3 WHEN 3 THEN 30 WHEN 4 THEN 7
+                        WHEN 7 THEN 7 WHEN 8 THEN 15 ELSE 0
+                    END
+                WHERE [Id] BETWEEN 1 AND 9;
+                """);
         }
 
         protected override void Down(MigrationBuilder migrationBuilder)

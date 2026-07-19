@@ -1,5 +1,4 @@
 using System.ComponentModel.DataAnnotations;
-using System.ComponentModel.DataAnnotations.Schema;
 
 namespace RelisoftHR.Models;
 
@@ -16,6 +15,5 @@ public class SalaryStructure
     public decimal OtherDeductions { get; set; }
     public decimal TotalCtc => FixedPay + VariablePay;
 
-    [ForeignKey(nameof(EmployeeId))]
     public Employee? Employee { get; set; }
 }

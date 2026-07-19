@@ -2,6 +2,7 @@ using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using RelisoftHR.Data;
+using RelisoftHR.DTOs;
 using RelisoftHR.Models;
 using RelisoftHR.Services;
 
@@ -35,11 +36,18 @@ public class LoanController : ControllerBase
     }
 
     [HttpPost("types")]
-    public async Task<ActionResult> CreateLoanType([FromBody] LoanType req)
+    public async Task<ActionResult> CreateLoanType([FromBody] LoanTypeRequest req)
     {
-        _db.LoanTypes.Add(req);
+        if (req.MaxAmount < req.MinAmount) return BadRequest(new { message = "Maximum amount must be at least the minimum amount" });
+        var loanType = new LoanType
+        {
+            Name = req.Name, Description = req.Description, MinAmount = req.MinAmount,
+            MaxAmount = req.MaxAmount, InterestRate = req.InterestRate,
+            MaxInstallments = req.MaxInstallments, IsActive = true
+        };
+        _db.LoanTypes.Add(loanType);
         await _db.SaveChangesAsync();
-        return Ok(req);
+        return Ok(loanType);
     }
 
     [HttpGet("my")]
@@ -55,23 +63,28 @@ public class LoanController : ControllerBase
     }
 
     [HttpPost("apply")]
-    public async Task<ActionResult> ApplyLoan([FromBody] EmployeeLoan req)
+    public async Task<ActionResult> ApplyLoan([FromBody] EmployeeLoanRequest req)
     {
         var loanType = await _db.LoanTypes.FindAsync(req.LoanTypeId);
-        if (loanType == null) return NotFound(new { message = "Loan type not found" });
+        if (loanType == null || !loanType.IsActive) return NotFound(new { message = "Active loan type not found" });
+        if (req.Amount < loanType.MinAmount || req.Amount > loanType.MaxAmount)
+            return BadRequest(new { message = $"Amount must be between {loanType.MinAmount} and {loanType.MaxAmount}" });
+        if (req.Installments <= 0 || req.Installments > loanType.MaxInstallments)
+            return BadRequest(new { message = $"Installments must be between 1 and {loanType.MaxInstallments}" });
         var rate = loanType.InterestRate / 100;
         var totalInterest = req.Amount * rate * req.Installments;
         var totalAmount = req.Amount + totalInterest;
-        req.EmiAmount = totalAmount / req.Installments;
-        req.InterestRate = loanType.InterestRate;
-        req.EmployeeId = GetUserId();
-        req.OutstandingBalance = totalAmount;
-        req.Status = "Pending";
-        req.CreatedOn = DateTime.UtcNow;
-        _db.EmployeeLoans.Add(req);
+        var loan = new EmployeeLoan
+        {
+            EmployeeId = GetUserId(), LoanTypeId = req.LoanTypeId, Amount = req.Amount,
+            InterestRate = loanType.InterestRate, Installments = req.Installments,
+            EmiAmount = totalAmount / req.Installments, OutstandingBalance = totalAmount,
+            Purpose = req.Purpose, Status = "Pending", CreatedOn = DateTime.UtcNow
+        };
+        _db.EmployeeLoans.Add(loan);
         await _db.SaveChangesAsync();
 
-        var emp = await _db.Employees.FindAsync(req.EmployeeId);
+        var emp = await _db.Employees.FindAsync(loan.EmployeeId);
         if (emp != null)
         {
             await _notif.NotifyEmployeeAsync(emp.Id, emp, "Loan Application Submitted",
@@ -80,7 +93,7 @@ public class LoanController : ControllerBase
                 link: "/loans");
         }
 
-        return Ok(req);
+        return Ok(loan);
     }
 
     [HttpGet("pending")]
@@ -100,6 +113,8 @@ public class LoanController : ControllerBase
     {
         var loan = await _db.EmployeeLoans.Include(l => l.LoanType).FirstOrDefaultAsync(l => l.Id == id);
         if (loan == null) return NotFound();
+        if (loan.Status != "Pending")
+            return BadRequest(new { message = "Only pending loans can be approved" });
         loan.Status = "Approved";
         loan.ApprovedById = GetUserId();
         loan.ApprovedOn = DateTime.UtcNow;
@@ -137,6 +152,8 @@ public class LoanController : ControllerBase
     {
         var loan = await _db.EmployeeLoans.Include(l => l.LoanType).FirstOrDefaultAsync(l => l.Id == id);
         if (loan == null) return NotFound();
+        if (loan.Status != "Pending")
+            return BadRequest(new { message = "Only pending loans can be rejected" });
         loan.Status = "Rejected";
         await _db.SaveChangesAsync();
 

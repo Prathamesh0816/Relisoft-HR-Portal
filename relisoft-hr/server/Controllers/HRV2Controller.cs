@@ -3,6 +3,7 @@ using Microsoft.EntityFrameworkCore;
 using RelisoftHR.Data;
 using RelisoftHR.DTOs;
 using RelisoftHR.Models;
+using RelisoftHR.Services;
 
 namespace RelisoftHR.Controllers;
 
@@ -13,6 +14,12 @@ public class HRV2Controller : ControllerBase
     private readonly AppDbContext _db;
 
     public HRV2Controller(AppDbContext db) => _db = db;
+
+    private int GetUserId()
+    {
+        var claim = User.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)?.Value;
+        return claim != null ? int.Parse(claim) : 0;
+    }
 
     // ────── Probation ──────
 
@@ -63,7 +70,8 @@ public class HRV2Controller : ControllerBase
     public async Task<ActionResult> ExtendProbation(ExtendProbationRequest req)
     {
         var p = await _db.EmployeeProbations.FirstOrDefaultAsync(pr => pr.EmployeeId == req.EmployeeId);
-        if (p == null || p.Status != "Probation") return BadRequest(new { message = "No active probation found." });
+        if (p == null || (p.Status != "Probation" && p.Status != "Extended"))
+            return BadRequest(new { message = "No active probation found." });
         p.CurrentEndDate = p.CurrentEndDate?.AddMonths(req.ExtraMonths);
         p.ExtensionCount++;
         p.Notes = req.Reason;
@@ -95,7 +103,7 @@ public class HRV2Controller : ControllerBase
     public async Task<ActionResult<List<AppraisalCycleDto>>> GetCycles()
     {
         var cycles = await _db.AppraisalCycles.OrderByDescending(c => c.StartDate).ToListAsync();
-        return Ok(cycles.Select(c => new AppraisalCycleDto(c.Id, c.Name, c.StartDate, c.EndDate, c.Status)).ToList());
+        return Ok(cycles.Select(c => new AppraisalCycleDto(c.Id, c.Name, c.StartDate, c.EndDate, c.Status, c.RowVersion)).ToList());
     }
 
     [HttpPost("appraisal-cycles")]
@@ -117,9 +125,11 @@ public class HRV2Controller : ControllerBase
     {
         var cycle = await _db.AppraisalCycles.FindAsync(id);
         if (cycle == null) return NotFound();
+        HttpConcurrency.RequireIfMatch(Request, _db, cycle);
         cycle.Status = "Closed";
         await _db.SaveChangesAsync();
-        return Ok(new { message = "Cycle closed." });
+        HttpConcurrency.SetETag(Response, cycle.RowVersion);
+        return Ok(new { message = "Cycle closed.", cycle.RowVersion });
     }
 
     [HttpGet("appraisals")]
@@ -161,6 +171,8 @@ public class HRV2Controller : ControllerBase
     {
         var a = await _db.EmployeeAppraisals.Include(ap => ap.Goals).FirstOrDefaultAsync(ap => ap.Id == id);
         if (a == null || a.Status != "Draft") return BadRequest(new { message = "Cannot submit self appraisal." });
+        var employeeId = GetUserId();
+        if (a.EmployeeId != employeeId) return Forbid();
         a.SelfRating = req.SelfRating;
         a.SelfComments = req.SelfComments;
         a.Status = "Submitted";
@@ -168,7 +180,7 @@ public class HRV2Controller : ControllerBase
 
         if (req.Goals != null)
         {
-            _db.EmployeeAppraisalGoals.RemoveRange(a.Goals);
+            _db.SoftDeleteRange(a.Goals, employeeId);
             foreach (var g in req.Goals)
                 a.Goals.Add(new EmployeeAppraisalGoal { Goal = g.Goal, TargetDate = g.TargetDate, Achieved = g.Achieved });
         }
@@ -204,7 +216,7 @@ public class HRV2Controller : ControllerBase
         var list = await query.OrderByDescending(s => s.DiscussionDate).ToListAsync();
         return Ok(list.Select(s => new SalaryDiscussionDto(
             s.Id, s.EmployeeId, s.Employee?.FullName ?? "", s.ProposedSalary, s.ApprovedSalary,
-            s.Status, s.ProposedBy?.FullName, s.ApprovedBy?.FullName, s.DiscussionDate, s.Notes
+            s.Status, s.ProposedBy?.FullName, s.ApprovedBy?.FullName, s.DiscussionDate, s.Notes, s.RowVersion
         )).ToList());
     }
 
@@ -227,28 +239,26 @@ public class HRV2Controller : ControllerBase
     {
         var sd = await _db.SalaryDiscussions.FindAsync(id);
         if (sd == null) return NotFound();
+        HttpConcurrency.RequireIfMatch(Request, _db, sd);
         sd.ApprovedSalary = req.ApprovedSalary;
         sd.Status = "Approved";
         sd.ApprovedById = req.ApprovedById;
         sd.UpdatedOn = DateTime.UtcNow;
 
-        var emp = await _db.Employees.FindAsync(sd.EmployeeId);
-        if (emp != null && emp.SalaryStructureId.HasValue)
+        var ss = await _db.SalaryStructures.FirstOrDefaultAsync(s => s.EmployeeId == sd.EmployeeId);
+        if (ss != null)
         {
-            var ss = await _db.SalaryStructures.FindAsync(emp.SalaryStructureId);
-            if (ss != null)
-            {
-                var totalNew = req.ApprovedSalary;
-                ss.FixedPay = totalNew * 0.6m;
-                ss.VariablePay = totalNew * 0.2m;
-                ss.PF = totalNew * 0.12m;
-                ss.Gratuity = totalNew * 0.05m;
-                ss.Insurance = 5000;
-                ss.OtherDeductions = totalNew * 0.03m;
-            }
+            var totalNew = req.ApprovedSalary;
+            ss.FixedPay = totalNew * 0.6m;
+            ss.VariablePay = totalNew * 0.2m;
+            ss.PF = totalNew * 0.12m;
+            ss.Gratuity = totalNew * 0.05m;
+            ss.Insurance = 5000;
+            ss.OtherDeductions = totalNew * 0.03m;
         }
         await _db.SaveChangesAsync();
-        return Ok(new { message = "Salary approved and structure updated." });
+        HttpConcurrency.SetETag(Response, sd.RowVersion);
+        return Ok(new { message = "Salary approved and structure updated.", sd.RowVersion });
     }
 
     [HttpPut("salary-discussions/{id}/reject")]
@@ -256,10 +266,12 @@ public class HRV2Controller : ControllerBase
     {
         var sd = await _db.SalaryDiscussions.FindAsync(id);
         if (sd == null) return NotFound();
+        HttpConcurrency.RequireIfMatch(Request, _db, sd);
         sd.Status = "Rejected";
         sd.UpdatedOn = DateTime.UtcNow;
         await _db.SaveChangesAsync();
-        return Ok(new { message = "Salary proposal rejected." });
+        HttpConcurrency.SetETag(Response, sd.RowVersion);
+        return Ok(new { message = "Salary proposal rejected.", sd.RowVersion });
     }
 
     // ────── Intern → Permanent ──────
@@ -279,7 +291,7 @@ public class HRV2Controller : ControllerBase
 
         var existingOnboarding = await _db.EmployeeOnboardings
             .FirstOrDefaultAsync(o => o.EmployeeId == req.EmployeeId);
-        if (existingOnboarding == null || existingOnboarding.Status != "Completed")
+        if (existingOnboarding == null)
         {
             var onboarding = new EmployeeOnboarding
             {
@@ -294,6 +306,16 @@ public class HRV2Controller : ControllerBase
                 GatePassIssuedOn = DateTime.UtcNow
             };
             _db.EmployeeOnboardings.Add(onboarding);
+        }
+        else if (existingOnboarding.Status != "Completed")
+        {
+            existingOnboarding.Status = "Completed";
+            existingOnboarding.CompletedSteps = existingOnboarding.TotalSteps;
+            existingOnboarding.CompletedOn = DateTime.UtcNow;
+            existingOnboarding.ReliSoftIdCreatedOn ??= DateTime.UtcNow;
+            existingOnboarding.ClientIdCreatedOn ??= DateTime.UtcNow;
+            existingOnboarding.VirtualIdCardIssuedOn ??= DateTime.UtcNow;
+            existingOnboarding.GatePassIssuedOn ??= DateTime.UtcNow;
         }
 
         await _db.SaveChangesAsync();

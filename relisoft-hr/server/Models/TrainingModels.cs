@@ -3,7 +3,7 @@ using System.ComponentModel.DataAnnotations.Schema;
 
 namespace RelisoftHR.Models;
 
-public class TrainingCourse
+public class TrainingCourse : IHasRowVersion
 {
     [Key] public int Id { get; set; }
     [Required, MaxLength(200)] public string Title { get; set; } = "";
@@ -18,6 +18,7 @@ public class TrainingCourse
     public DateTime StartDate { get; set; }
     public DateTime? EndDate { get; set; }
     public DateTime CreatedOn { get; set; } = DateTime.UtcNow;
+    public byte[]? RowVersion { get; set; }
 }
 
 public class TrainingRegistration

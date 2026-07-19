@@ -2,6 +2,7 @@ using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using RelisoftHR.Data;
+using RelisoftHR.DTOs;
 using RelisoftHR.Models;
 using RelisoftHR.Services;
 
@@ -38,11 +39,16 @@ public class ExpenseController : ControllerBase
     }
 
     [HttpPost("categories")]
-    public async Task<ActionResult> CreateCategory([FromBody] ExpenseCategory req)
+    public async Task<ActionResult> CreateCategory([FromBody] ExpenseCategoryRequest req)
     {
-        _db.ExpenseCategories.Add(req);
+        var category = new ExpenseCategory
+        {
+            Name = req.Name, Description = req.Description,
+            RequiresReceipt = req.RequiresReceipt, SortOrder = req.SortOrder, IsActive = true
+        };
+        _db.ExpenseCategories.Add(category);
         await _db.SaveChangesAsync();
-        return Ok(req);
+        return Ok(category);
     }
 
     [HttpGet("claims")]
@@ -58,15 +64,19 @@ public class ExpenseController : ControllerBase
     }
 
     [HttpPost("claims")]
-    public async Task<ActionResult> CreateClaim([FromBody] ExpenseClaim req)
+    public async Task<ActionResult> CreateClaim([FromBody] ExpenseClaimRequest req)
     {
-        req.EmployeeId = GetUserId();
-        req.Status = "Pending";
-        req.CreatedOn = DateTime.UtcNow;
-        _db.ExpenseClaims.Add(req);
+        if (!await _db.ExpenseCategories.AnyAsync(c => c.Id == req.CategoryId && c.IsActive)) return NotFound();
+        var claim = new ExpenseClaim
+        {
+            EmployeeId = GetUserId(), CategoryId = req.CategoryId, Title = req.Title,
+            Description = req.Description, Amount = req.Amount, ExpenseDate = req.ExpenseDate,
+            ReceiptUrl = req.ReceiptUrl, Status = "Pending", CreatedOn = DateTime.UtcNow
+        };
+        _db.ExpenseClaims.Add(claim);
         await _db.SaveChangesAsync();
 
-        var emp = await _db.Employees.FindAsync(req.EmployeeId);
+        var emp = await _db.Employees.FindAsync(claim.EmployeeId);
         if (emp != null)
         {
             var cat = await _db.ExpenseCategories.FindAsync(req.CategoryId);
@@ -76,7 +86,7 @@ public class ExpenseController : ControllerBase
                 link: "/expenses");
         }
 
-        return Ok(req);
+        return Ok(claim);
     }
 
     [HttpGet("claims/pending")]
@@ -96,6 +106,8 @@ public class ExpenseController : ControllerBase
     {
         var claim = await _db.ExpenseClaims.FindAsync(id);
         if (claim == null) return NotFound();
+        if (claim.Status != "Pending")
+            return Conflict(new { message = "Only pending claims can be approved" });
         claim.Status = "Approved";
         claim.ApprovedById = GetUserId();
         claim.ApprovedOn = DateTime.UtcNow;
@@ -118,6 +130,8 @@ public class ExpenseController : ControllerBase
     {
         var claim = await _db.ExpenseClaims.FindAsync(id);
         if (claim == null) return NotFound();
+        if (claim.Status != "Pending")
+            return Conflict(new { message = "Only pending claims can be rejected" });
         claim.Status = "Rejected";
         claim.RejectionReason = reason ?? "";
         await _db.SaveChangesAsync();
@@ -139,6 +153,8 @@ public class ExpenseController : ControllerBase
     {
         var claim = await _db.ExpenseClaims.FindAsync(id);
         if (claim == null) return NotFound();
+        if (claim.Status != "Approved")
+            return Conflict(new { message = "Only approved claims can be reimbursed" });
         claim.Status = "Reimbursed";
         claim.ReimbursedOn = DateTime.UtcNow;
         await _db.SaveChangesAsync();

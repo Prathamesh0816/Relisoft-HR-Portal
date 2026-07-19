@@ -1,9 +1,8 @@
 using System.ComponentModel.DataAnnotations;
-using System.ComponentModel.DataAnnotations.Schema;
 
 namespace RelisoftHR.Models;
 
-public class Employee
+public class Employee : IHasRowVersion
 {
     [Key]
     public int Id { get; set; }
@@ -25,18 +24,15 @@ public class Employee
     public string Status { get; set; } = "Active"; // Active, Inactive, Onboarding, Offboarding, Separated
     [MaxLength(100)]
     public string Location { get; set; } = "";
-    public int? SalaryStructureId { get; set; }
     public DateTime JoinDate { get; set; }
     public int RoleId { get; set; }
     public int? PrimaryTeamId { get; set; }
     public DateTime CreatedOn { get; set; } = DateTime.UtcNow;
     public DateTime? UpdatedOn { get; set; }
+    public byte[]? RowVersion { get; set; }
 
-    [ForeignKey(nameof(RoleId))]
     public OrganizationRole? Role { get; set; }
-    [ForeignKey(nameof(PrimaryTeamId))]
     public Team? PrimaryTeam { get; set; }
-    [ForeignKey(nameof(SalaryStructureId))]
     public SalaryStructure? SalaryStructure { get; set; }
     public ICollection<EmployeeTeam> EmployeeTeams { get; set; } = new List<EmployeeTeam>();
     public ICollection<EmployeeLeaveBalance> LeaveBalances { get; set; } = new List<EmployeeLeaveBalance>();

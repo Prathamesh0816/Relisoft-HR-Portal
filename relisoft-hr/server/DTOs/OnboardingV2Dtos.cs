@@ -28,7 +28,7 @@ public record EmployeeOffboardingDto(
 
 public record StartOffboardingRequest(int EmployeeId, DateTime ResignationDate, string? Remarks);
 
-public record AssetDto(int Id, string Name, string AssetTag, string Category, string? SerialNumber, string Status);
+public record AssetDto(int Id, string Name, string AssetTag, string Category, string? SerialNumber, string Status, byte[]? RowVersion = null);
 
 public record EmployeeAssetDto(
     int Id, int EmployeeId, string EmployeeName, int AssetId, string AssetName,

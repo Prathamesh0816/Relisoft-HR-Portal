@@ -2,6 +2,27 @@ import axios from 'axios'
 
 const api = axios.create({ headers: { 'Content-Type': 'application/json' } })
 
+const concurrencyVersions = new Map()
+
+function rememberVersions(resource, value, fallbackId) {
+  const records = Array.isArray(value) ? value : [value]
+  records.filter(Boolean).forEach((record) => {
+    const id = fallbackId ?? record.id
+    if (id !== undefined && id !== null && record.rowVersion) {
+      concurrencyVersions.set(`${resource}:${id}`, record.rowVersion)
+    }
+  })
+}
+
+function concurrencyConfig(resource, id) {
+  const rowVersion = concurrencyVersions.get(`${resource}:${id}`)
+  return rowVersion ? { headers: { 'If-Match': `"${rowVersion}"` } } : {}
+}
+
+function forgetVersion(resource, id) {
+  concurrencyVersions.delete(`${resource}:${id}`)
+}
+
 api.interceptors.request.use((config) => {
   const stored = localStorage.getItem('relisoft-hr-user')
   if (stored) {
@@ -18,6 +39,9 @@ api.interceptors.response.use(
       localStorage.removeItem('relisoft-hr-user')
       window.location.reload()
     }
+    if (err.response?.data?.detail && !err.response.data.message) {
+      err.response.data.message = err.response.data.detail
+    }
     return Promise.reject(err)
   }
 )
@@ -30,6 +54,10 @@ export async function login(username, password) {
 
 export async function loadWorkspace() {
   const { data } = await api.get('/api/workspace')
+  rememberVersions('employee', data.employees)
+  rememberVersions('project', data.projects)
+  data.projects?.forEach((project) => rememberVersions('team', project.teams))
+  rememberVersions('hr-policy', data.hrPolicy, 'current')
   return data
 }
 
@@ -39,7 +67,8 @@ export async function createEmployee(req) {
 }
 
 export async function updateEmployee(id, req) {
-  const { data } = await api.put(`/api/workspace/employees/${id}`, req)
+  const { data } = await api.put(`/api/workspace/employees/${id}`, req, concurrencyConfig('employee', id))
+  rememberVersions('employee', { id, rowVersion: data.rowVersion })
   return data
 }
 
@@ -130,7 +159,8 @@ export async function createProject(name) {
 }
 
 export async function updateProject(id, name) {
-  const { data } = await api.put(`/api/workspace/projects/${id}`, { name })
+  const { data } = await api.put(`/api/workspace/projects/${id}`, { name }, concurrencyConfig('project', id))
+  rememberVersions('project', { id, rowVersion: data.rowVersion })
   return data
 }
 
@@ -140,17 +170,20 @@ export async function createTeam(req) {
 }
 
 export async function updateTeam(id, req) {
-  const { data } = await api.put(`/api/workspace/teams/${id}`, req)
+  const { data } = await api.put(`/api/workspace/teams/${id}`, req, concurrencyConfig('team', id))
+  rememberVersions('team', { id, rowVersion: data.rowVersion })
   return data
 }
 
 export async function updateHrPolicy(allowHalfDayLeave, sandwichLeave) {
-  const { data } = await api.put('/api/workspace/hr-policy', { allowHalfDayLeave, sandwichLeave })
+  const { data } = await api.put('/api/workspace/hr-policy', { allowHalfDayLeave, sandwichLeave }, concurrencyConfig('hr-policy', 'current'))
+  rememberVersions('hr-policy', data, 'current')
   return data
 }
 
 export async function getDelegates(managerId) {
   const { data } = await api.get(`/api/workspace/delegates/${managerId}`)
+  rememberVersions('delegate', data)
   return data
 }
 
@@ -160,7 +193,8 @@ export async function addDelegate(managerId, req) {
 }
 
 export async function removeDelegate(id) {
-  const { data } = await api.delete(`/api/workspace/delegates/${id}`)
+  const { data } = await api.delete(`/api/workspace/delegates/${id}`, concurrencyConfig('delegate', id))
+  forgetVersion('delegate', id)
   return data
 }
 
@@ -289,6 +323,7 @@ export async function bulkOffboard(requests) {
 
 export async function getAssets() {
   const { data } = await api.get('/api/assets')
+  rememberVersions('asset', data)
   return data
 }
 
@@ -344,6 +379,7 @@ export async function confirmProbation(req) {
 
 export async function getAppraisalCycles() {
   const { data } = await api.get('/api/hr-v2/appraisal-cycles')
+  rememberVersions('appraisal-cycle', data)
   return data
 }
 
@@ -353,7 +389,8 @@ export async function createAppraisalCycle(req) {
 }
 
 export async function closeAppraisalCycle(id) {
-  const { data } = await api.put(`/api/hr-v2/appraisal-cycles/${id}`)
+  const { data } = await api.put(`/api/hr-v2/appraisal-cycles/${id}`, null, concurrencyConfig('appraisal-cycle', id))
+  rememberVersions('appraisal-cycle', { id, rowVersion: data.rowVersion })
   return data
 }
 
@@ -384,6 +421,7 @@ export async function convertInternToPermanent(req) {
 
 export async function getSalaryDiscussions(employeeId) {
   const { data } = await api.get(`/api/hr-v2/salary-discussions${employeeId ? `?employeeId=${employeeId}` : ''}`)
+  rememberVersions('salary-discussion', data)
   return data
 }
 
@@ -393,12 +431,14 @@ export async function createSalaryDiscussion(req) {
 }
 
 export async function approveSalary(id, req) {
-  const { data } = await api.put(`/api/hr-v2/salary-discussions/${id}/approve`, req)
+  const { data } = await api.put(`/api/hr-v2/salary-discussions/${id}/approve`, req, concurrencyConfig('salary-discussion', id))
+  rememberVersions('salary-discussion', { id, rowVersion: data.rowVersion })
   return data
 }
 
 export async function rejectSalary(id) {
-  const { data } = await api.put(`/api/hr-v2/salary-discussions/${id}/reject`)
+  const { data } = await api.put(`/api/hr-v2/salary-discussions/${id}/reject`, null, concurrencyConfig('salary-discussion', id))
+  rememberVersions('salary-discussion', { id, rowVersion: data.rowVersion })
   return data
 }
 
@@ -441,6 +481,7 @@ export async function getDashboardStats() {
 // ─── Announcements ───
 export async function getAnnouncements() {
   const { data } = await api.get('/api/hr-features/announcements')
+  rememberVersions('announcement', data)
   return data
 }
 
@@ -450,7 +491,8 @@ export async function createAnnouncement(req) {
 }
 
 export async function deleteAnnouncement(id) {
-  const { data } = await api.delete(`/api/hr-features/announcements/${id}`)
+  const { data } = await api.delete(`/api/hr-features/announcements/${id}`, concurrencyConfig('announcement', id))
+  forgetVersion('announcement', id)
   return data
 }
 
@@ -516,6 +558,7 @@ export async function getMoodOrgOverview() {
 // ─── Skills Endorsement & Brag Board ───
 export async function getMySkills() {
   const { data } = await api.get('/api/skills')
+  rememberVersions('skill', data)
   return data
 }
 
@@ -525,12 +568,14 @@ export async function addSkill(req) {
 }
 
 export async function removeSkill(id) {
-  const { data } = await api.delete(`/api/skills/${id}`)
+  const { data } = await api.delete(`/api/skills/${id}`, concurrencyConfig('skill', id))
+  forgetVersion('skill', id)
   return data
 }
 
 export async function getSkillsDirectory(search) {
   const { data } = await api.get(`/api/skills/directory${search ? `?search=${search}` : ''}`)
+  rememberVersions('skill', data)
   return data
 }
 
@@ -541,6 +586,7 @@ export async function endorseSkill(skillId) {
 
 export async function getBragPosts() {
   const { data } = await api.get('/api/brag-board')
+  rememberVersions('brag-post', data)
   return data
 }
 
@@ -555,23 +601,27 @@ export async function likeBragPost(id) {
 }
 
 export async function deleteBragPost(id) {
-  const { data } = await api.delete(`/api/brag-board/${id}`)
+  const { data } = await api.delete(`/api/brag-board/${id}`, concurrencyConfig('brag-post', id))
+  forgetVersion('brag-post', id)
   return data
 }
 
 // ─── Carpool & Commute ───
 export async function getMyCommuteRoute() {
   const { data } = await api.get('/api/carpool/routes')
+  rememberVersions('commute-route', data, 'current')
   return data
 }
 
 export async function saveCommuteRoute(req) {
-  const { data } = await api.post('/api/carpool/routes', req)
+  const { data } = await api.post('/api/carpool/routes', req, concurrencyConfig('commute-route', 'current'))
+  rememberVersions('commute-route', data, 'current')
   return data
 }
 
 export async function deleteCommuteRoute() {
-  const { data } = await api.delete('/api/carpool/routes')
+  const { data } = await api.delete('/api/carpool/routes', concurrencyConfig('commute-route', 'current'))
+  forgetVersion('commute-route', 'current')
   return data
 }
 
@@ -722,6 +772,7 @@ export async function getMyRewardPoints() {
 
 export async function getRewardCatalog() {
   const { data } = await api.get('/api/rewards/catalog')
+  rememberVersions('reward-item', data)
   return data
 }
 
@@ -731,7 +782,8 @@ export async function addRewardCatalogItem(req) {
 }
 
 export async function updateRewardCatalogItem(id, req) {
-  const { data } = await api.put(`/api/rewards/catalog/${id}`, req)
+  const { data } = await api.put(`/api/rewards/catalog/${id}`, req, concurrencyConfig('reward-item', id))
+  rememberVersions('reward-item', data)
   return data
 }
 
@@ -802,6 +854,7 @@ export async function reimburseExpenseClaim(id) {
 // ─── Timesheets ───
 export async function getMyTimesheets(date) {
   const { data } = await api.get(`/api/timesheets${date ? `?date=${date}` : ''}`)
+  rememberVersions('timesheet', data)
   return data
 }
 export async function createTimesheetEntry(req) {
@@ -809,11 +862,13 @@ export async function createTimesheetEntry(req) {
   return data
 }
 export async function updateTimesheetEntry(id, req) {
-  const { data } = await api.put(`/api/timesheets/${id}`, req)
+  const { data } = await api.put(`/api/timesheets/${id}`, req, concurrencyConfig('timesheet', id))
+  rememberVersions('timesheet', data)
   return data
 }
 export async function deleteTimesheetEntry(id) {
-  const { data } = await api.delete(`/api/timesheets/${id}`)
+  const { data } = await api.delete(`/api/timesheets/${id}`, concurrencyConfig('timesheet', id))
+  forgetVersion('timesheet', id)
   return data
 }
 export async function getTimesheetPeriods() {
@@ -840,6 +895,7 @@ export async function rejectTimesheet(id) {
 // ─── Training & Learning ───
 export async function getTrainingCourses(category) {
   const { data } = await api.get(`/api/training/courses${category ? `?category=${category}` : ''}`)
+  rememberVersions('training-course', data)
   return data
 }
 export async function createTrainingCourse(req) {
@@ -847,7 +903,8 @@ export async function createTrainingCourse(req) {
   return data
 }
 export async function updateTrainingCourse(id, req) {
-  const { data } = await api.put(`/api/training/courses/${id}`, req)
+  const { data } = await api.put(`/api/training/courses/${id}`, req, concurrencyConfig('training-course', id))
+  rememberVersions('training-course', data)
   return data
 }
 export async function getMyTrainingRegistrations() {
@@ -904,6 +961,7 @@ export async function getLoanRepayments(id) {
 // ─── Shift Management ───
 export async function getShiftTemplates() {
   const { data } = await api.get('/api/shifts/templates')
+  rememberVersions('shift-template', data)
   return data
 }
 export async function createShiftTemplate(req) {
@@ -911,11 +969,13 @@ export async function createShiftTemplate(req) {
   return data
 }
 export async function updateShiftTemplate(id, req) {
-  const { data } = await api.put(`/api/shifts/templates/${id}`, req)
+  const { data } = await api.put(`/api/shifts/templates/${id}`, req, concurrencyConfig('shift-template', id))
+  rememberVersions('shift-template', data)
   return data
 }
 export async function getShiftAssignments(employeeId) {
   const { data } = await api.get(`/api/shifts/assignments${employeeId ? `?employeeId=${employeeId}` : ''}`)
+  rememberVersions('shift-assignment', data)
   return data
 }
 export async function createShiftAssignment(req) {
@@ -923,7 +983,8 @@ export async function createShiftAssignment(req) {
   return data
 }
 export async function deleteShiftAssignment(id) {
-  const { data } = await api.delete(`/api/shifts/assignments/${id}`)
+  const { data } = await api.delete(`/api/shifts/assignments/${id}`, concurrencyConfig('shift-assignment', id))
+  forgetVersion('shift-assignment', id)
   return data
 }
 export async function getShiftSwaps() {
@@ -942,6 +1003,7 @@ export async function respondToShiftSwap(id, action) {
 // ─── Visitor Management ───
 export async function getVisitors(status) {
   const { data } = await api.get(`/api/visitors${status ? `?status=${status}` : ''}`)
+  rememberVersions('visitor', data)
   return data
 }
 export async function createVisitor(req) {
@@ -949,7 +1011,8 @@ export async function createVisitor(req) {
   return data
 }
 export async function updateVisitor(id, req) {
-  const { data } = await api.put(`/api/visitors/${id}`, req)
+  const { data } = await api.put(`/api/visitors/${id}`, req, concurrencyConfig('visitor', id))
+  rememberVersions('visitor', data)
   return data
 }
 export async function checkInVisitor(id) {
@@ -962,6 +1025,7 @@ export async function checkOutVisitor(id) {
 }
 export async function getTodayVisitors() {
   const { data } = await api.get('/api/visitors/today')
+  rememberVersions('visitor', data)
   return data
 }
 
@@ -994,6 +1058,7 @@ export async function getMySurveys() {
 // ─── Benefits Administration ───
 export async function getBenefitPlans() {
   const { data } = await api.get('/api/benefits/plans')
+  rememberVersions('benefit-plan', data)
   return data
 }
 export async function createBenefitPlan(req) {
@@ -1001,7 +1066,8 @@ export async function createBenefitPlan(req) {
   return data
 }
 export async function updateBenefitPlan(id, req) {
-  const { data } = await api.put(`/api/benefits/plans/${id}`, req)
+  const { data } = await api.put(`/api/benefits/plans/${id}`, req, concurrencyConfig('benefit-plan', id))
+  rememberVersions('benefit-plan', data)
   return data
 }
 export async function getMyBenefitEnrollments() {
@@ -1042,6 +1108,7 @@ export async function getUnreadNotificationCount() {
 // ─── Internal Mobility ───
 export async function getInternalJobs() {
   const { data } = await api.get('/api/internal-mobility/jobs')
+  rememberVersions('internal-job', data)
   return data
 }
 export async function createInternalJob(req) {
@@ -1049,7 +1116,8 @@ export async function createInternalJob(req) {
   return data
 }
 export async function updateInternalJob(id, req) {
-  const { data } = await api.put(`/api/internal-mobility/jobs/${id}`, req)
+  const { data } = await api.put(`/api/internal-mobility/jobs/${id}`, req, concurrencyConfig('internal-job', id))
+  rememberVersions('internal-job', data)
   return data
 }
 export async function closeInternalJob(id) {
@@ -1080,6 +1148,7 @@ export async function rejectJobApplication(id) {
 // ─── Compliance ───
 export async function getComplianceRequirements() {
   const { data } = await api.get('/api/compliance/requirements')
+  rememberVersions('compliance-requirement', data)
   return data
 }
 export async function createComplianceRequirement(req) {
@@ -1087,7 +1156,8 @@ export async function createComplianceRequirement(req) {
   return data
 }
 export async function updateComplianceRequirement(id, req) {
-  const { data } = await api.put(`/api/compliance/requirements/${id}`, req)
+  const { data } = await api.put(`/api/compliance/requirements/${id}`, req, concurrencyConfig('compliance-requirement', id))
+  rememberVersions('compliance-requirement', data)
   return data
 }
 export async function getComplianceRecords(status) {
@@ -1106,6 +1176,7 @@ export async function getComplianceDashboard() {
 // ─── Contractors ───
 export async function getContractors() {
   const { data } = await api.get('/api/contractors')
+  rememberVersions('contractor', data)
   return data
 }
 export async function createContractor(req) {
@@ -1113,11 +1184,13 @@ export async function createContractor(req) {
   return data
 }
 export async function updateContractor(id, req) {
-  const { data } = await api.put(`/api/contractors/${id}`, req)
+  const { data } = await api.put(`/api/contractors/${id}`, req, concurrencyConfig('contractor', id))
+  rememberVersions('contractor', data)
   return data
 }
 export async function getContractorEmployees(contractorId) {
   const { data } = await api.get(`/api/contractors/${contractorId}/employees`)
+  rememberVersions('contractor-employee', data)
   return data
 }
 export async function addContractorEmployee(contractorId, req) {
@@ -1125,7 +1198,8 @@ export async function addContractorEmployee(contractorId, req) {
   return data
 }
 export async function updateContractorEmployee(id, req) {
-  const { data } = await api.put(`/api/contractors/employees/${id}`, req)
+  const { data } = await api.put(`/api/contractors/employees/${id}`, req, concurrencyConfig('contractor-employee', id))
+  rememberVersions('contractor-employee', data)
   return data
 }
 export async function deactivateContractorEmployee(id) {

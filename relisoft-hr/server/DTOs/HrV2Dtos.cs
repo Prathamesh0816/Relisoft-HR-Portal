@@ -6,7 +6,7 @@ public record EmployeeProbationDto(
     int ExtensionCount, string Status, string? Notes, DateTime? ConfirmedOn
 );
 
-public record AppraisalCycleDto(int Id, string Name, DateTime StartDate, DateTime EndDate, string Status);
+public record AppraisalCycleDto(int Id, string Name, DateTime StartDate, DateTime EndDate, string Status, byte[]? RowVersion = null);
 
 public record EmployeeAppraisalDto(
     int Id, int EmployeeId, string EmployeeName, int CycleId, string CycleName,
@@ -33,7 +33,8 @@ public record InternConversionRequest(int EmployeeId, int NewRoleId, string NewD
 
 public record SalaryDiscussionDto(
     int Id, int EmployeeId, string EmployeeName, decimal ProposedSalary, decimal? ApprovedSalary,
-    string Status, string? ProposedByName, string? ApprovedByName, DateTime DiscussionDate, string? Notes
+    string Status, string? ProposedByName, string? ApprovedByName, DateTime DiscussionDate, string? Notes,
+    byte[]? RowVersion = null
 );
 
 public record SalaryDiscussionRequest(int EmployeeId, decimal ProposedSalary, int? ProposedById, string? Notes);

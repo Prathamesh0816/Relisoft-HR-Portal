@@ -32,7 +32,7 @@ public class RewardTransaction
     public Employee? Employee { get; set; }
 }
 
-public class RewardCatalogItem
+public class RewardCatalogItem : IHasRowVersion
 {
     [Key]
     public int Id { get; set; }
@@ -48,6 +48,7 @@ public class RewardCatalogItem
     public int Quantity { get; set; }
     public bool IsActive { get; set; } = true;
     public DateTime CreatedOn { get; set; } = DateTime.UtcNow;
+    public byte[]? RowVersion { get; set; }
 }
 
 public class RewardRedemption

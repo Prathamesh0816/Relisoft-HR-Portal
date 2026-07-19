@@ -1,6 +1,6 @@
 namespace RelisoftHR.Models;
 
-public class Announcement
+public class Announcement : ISoftDeletable, IHasRowVersion
 {
     public int Id { get; set; }
     public string Title { get; set; } = "";
@@ -11,4 +11,8 @@ public class Announcement
     public int CreatedById { get; set; }
     public Employee CreatedBy { get; set; } = null!;
     public DateTime CreatedOn { get; set; } = DateTime.UtcNow;
+    public bool IsDeleted { get; set; }
+    public DateTime? DeletedOn { get; set; }
+    public int? DeletedById { get; set; }
+    public byte[]? RowVersion { get; set; }
 }

@@ -3,7 +3,7 @@ using System.ComponentModel.DataAnnotations.Schema;
 
 namespace RelisoftHR.Models;
 
-public class SalaryDiscussion
+public class SalaryDiscussion : IHasRowVersion
 {
     [Key]
     public int Id { get; set; }
@@ -19,6 +19,7 @@ public class SalaryDiscussion
     public string? Notes { get; set; }
     public DateTime CreatedOn { get; set; } = DateTime.UtcNow;
     public DateTime? UpdatedOn { get; set; }
+    public byte[]? RowVersion { get; set; }
 
     [ForeignKey(nameof(EmployeeId))]
     public Employee? Employee { get; set; }
