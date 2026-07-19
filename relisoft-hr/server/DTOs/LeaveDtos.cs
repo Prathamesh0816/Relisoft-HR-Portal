@@ -12,7 +12,9 @@ public record LeaveRequestDto(
     string? ApproverName, DateTime AppliedOn, DateTime? ActionedOn,
     string? ApprovalReason, bool CanCancel, string? PrimaryTeamName,
     bool IsMedicalLeave, bool LossOfPay, string? MedicalCertificatePath,
-    string? CancellationReason = null, DateTime? CancellationRequestedOn = null
+    string? CancellationReason = null, DateTime? CancellationRequestedOn = null,
+    string ApprovalRoute = "ProjectManager", int? ProjectManagerId = null,
+    string? ProjectManagerName = null
 );
 
 public record ReviewerDecisionRequest(int LeaveApplicationId, int ApproverId, string Action, string? Reason = null);

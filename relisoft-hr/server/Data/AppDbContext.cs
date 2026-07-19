@@ -147,8 +147,14 @@ public class AppDbContext : DbContext
             .HasIndex(r => r.Name).IsUnique();
         modelBuilder.Entity<Project>()
             .HasIndex(p => p.Name).IsUnique();
+        modelBuilder.Entity<Project>()
+            .HasIndex(p => p.ManagerId);
         modelBuilder.Entity<Team>()
             .HasIndex(t => new { t.ProjectId, t.Name }).IsUnique();
+        modelBuilder.Entity<Team>()
+            .Property(t => t.ApprovalRoute)
+            .HasConversion<string>()
+            .HasMaxLength(30);
 
         modelBuilder.Entity<EmployeeTeam>()
             .HasIndex(et => new { et.EmployeeId, et.TeamId }).IsUnique();
@@ -167,6 +173,11 @@ public class AppDbContext : DbContext
             .WithMany(p => p.Teams)
             .HasForeignKey(t => t.ProjectId)
             .OnDelete(DeleteBehavior.Cascade);
+        modelBuilder.Entity<Project>()
+            .HasOne(p => p.Manager)
+            .WithMany()
+            .HasForeignKey(p => p.ManagerId)
+            .OnDelete(DeleteBehavior.NoAction);
         modelBuilder.Entity<Employee>()
             .HasOne(e => e.Role)
             .WithMany(r => r.Employees)
@@ -176,6 +187,11 @@ public class AppDbContext : DbContext
             .HasOne(t => t.Lead)
             .WithMany()
             .HasForeignKey(t => t.LeadId)
+            .OnDelete(DeleteBehavior.NoAction);
+        modelBuilder.Entity<Team>()
+            .HasOne(t => t.ApprovalDelegate)
+            .WithMany()
+            .HasForeignKey(t => t.ApprovalDelegateId)
             .OnDelete(DeleteBehavior.NoAction);
         modelBuilder.Entity<Employee>()
             .HasOne(e => e.PrimaryTeam)
@@ -214,9 +230,14 @@ public class AppDbContext : DbContext
             .HasForeignKey(l => l.LeaveTypeId)
             .OnDelete(DeleteBehavior.NoAction);
         modelBuilder.Entity<LeaveApplication>()
-            .HasOne<Employee>()
+            .HasOne(l => l.Approver)
             .WithMany()
             .HasForeignKey(l => l.ApproverId)
+            .OnDelete(DeleteBehavior.NoAction);
+        modelBuilder.Entity<LeaveApplication>()
+            .HasOne(l => l.ProjectManager)
+            .WithMany()
+            .HasForeignKey(l => l.ProjectManagerId)
             .OnDelete(DeleteBehavior.NoAction);
         modelBuilder.Entity<LeaveApplication>()
             .HasOne<Employee>()
@@ -812,6 +833,12 @@ public class AppDbContext : DbContext
         {
             table.HasCheckConstraint("CK_LeaveApplications_DateRange", "[ToDate] >= [FromDate]");
             table.HasCheckConstraint("CK_LeaveApplications_TotalDays", "[TotalDays] > 0");
+            table.HasCheckConstraint("CK_LeaveApplications_ApprovalRoute", "[ApprovalRoute] IN ('ProjectManager', 'TeamLead', 'Delegate', 'Legacy')");
+        });
+        modelBuilder.Entity<Team>().ToTable(table =>
+        {
+            table.HasCheckConstraint("CK_Teams_ApprovalRoute", "[ApprovalRoute] IN ('ProjectManager', 'TeamLead', 'Delegate')");
+            table.HasCheckConstraint("CK_Teams_ApprovalDelegate", "([ApprovalRoute] = 'Delegate' AND [ApprovalDelegateId] IS NOT NULL) OR ([ApprovalRoute] <> 'Delegate' AND [ApprovalDelegateId] IS NULL)");
         });
         modelBuilder.Entity<EmployeeLeaveBalance>().ToTable(table =>
             table.HasCheckConstraint("CK_EmployeeLeaveBalances_NonNegative", "[AllocatedLeaves] >= 0 AND [UsedLeaves] >= 0"));

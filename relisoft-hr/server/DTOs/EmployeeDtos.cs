@@ -34,7 +34,13 @@ public record EmployeeDto(
     byte[]? RowVersion = null
 );
 
-public record TeamDto(int Id, string Name, int ProjectId, string ProjectName, int LeadId, string LeadName, byte[]? RowVersion = null);
+public record TeamDto(
+    int Id, string Name, int ProjectId, string ProjectName,
+    int LeadId, string LeadName, byte[]? RowVersion = null,
+    string ApprovalRoute = "ProjectManager", int? ApprovalDelegateId = null,
+    string? ApprovalDelegateName = null, int? ProjectManagerId = null,
+    string? ProjectManagerName = null
+);
 
 public record LeaveBalanceDto(
     int Id, int LeaveTypeId, string LeaveTypeName,

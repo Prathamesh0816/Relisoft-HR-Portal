@@ -15,8 +15,8 @@ public static class DemoDataSeeder
         var today = DateOnly.FromDateTime(DateTime.Today);
 
         // 1. Projects
-        var proj1 = new Project { Name = "Relisoft HR Portal", CreatedOn = utc };
-        var proj2 = new Project { Name = "Client ERP Integration", CreatedOn = utc };
+        var proj1 = new Project { Name = "Relisoft HR Portal", ManagerId = 2, CreatedOn = utc };
+        var proj2 = new Project { Name = "Client ERP Integration", ManagerId = 2, CreatedOn = utc };
         db.Projects.AddRange(proj1, proj2);
         await db.SaveChangesAsync();
 
@@ -64,20 +64,20 @@ public static class DemoDataSeeder
             {
                 EmployeeId = 3, LeaveTypeId = 1, FromDate = new DateTime(today.Year, 7, 20, 0, 0, 0, DateTimeKind.Utc),
                 ToDate = new DateTime(today.Year, 7, 20, 0, 0, 0, DateTimeKind.Utc), TotalDays = 1, Reason = "Not feeling well",
-                Status = "Pending", ApproverId = 1, ApproverName = "Preeti Patil", AppliedOn = utc.AddDays(-2), CanCancel = true
+                Status = "Pending", ApproverId = 2, ProjectManagerId = 2, ApproverName = "Rakesh Patil", AppliedOn = utc.AddDays(-2), CanCancel = true
             },
             new LeaveApplication
             {
                 EmployeeId = 3, LeaveTypeId = 2, FromDate = new DateTime(today.Year, 8, 10, 0, 0, 0, DateTimeKind.Utc),
                 ToDate = new DateTime(today.Year, 8, 12, 0, 0, 0, DateTimeKind.Utc), TotalDays = 3, Reason = "Family function",
-                Status = "Approved", ApproverId = 1, ApproverName = "Preeti Patil", AppliedOn = utc.AddDays(-10),
+                Status = "Approved", ApproverId = 2, ProjectManagerId = 2, ApproverName = "Rakesh Patil", AppliedOn = utc.AddDays(-10),
                 ActionedOn = utc.AddDays(-8), ApprovalReason = "Approved", CanCancel = false
             },
             new LeaveApplication
             {
                 EmployeeId = 1, LeaveTypeId = 2, FromDate = new DateTime(today.Year, 9, 5, 0, 0, 0, DateTimeKind.Utc),
                 ToDate = new DateTime(today.Year, 9, 7, 0, 0, 0, DateTimeKind.Utc), TotalDays = 3, Reason = "Personal work",
-                Status = "Pending", ApproverId = 2, ApproverName = "Rakesh Patil", AppliedOn = utc, CanCancel = true
+                Status = "Pending", ApproverId = 2, ProjectManagerId = 2, ApproverName = "Rakesh Patil", AppliedOn = utc, CanCancel = true
             }
         );
         await db.SaveChangesAsync();

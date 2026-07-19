@@ -22,7 +22,10 @@ export default function HrRegistration() {
     if (role.name === 'HR' || role.name === 'HRL2') return data.employees.find((e) => e.role === 'OrganizationHead')?.fullName || 'No org head found'
     if (role.name === 'Manager' || role.name === 'ManagerL2') return data.employees.find((e) => e.role === 'HR' || e.role === 'HRL2')?.fullName || 'No HR found'
     const team = teams.find((t) => String(t.id) === String(employeeForm.primaryTeamId))
-    return team?.leadName || 'Choose a primary team'
+    if (!team) return 'Choose a primary team'
+    if (team.approvalRoute === 'TeamLead') return team.leadName
+    if (team.approvalRoute === 'Delegate') return team.approvalDelegateName || team.projectManagerName || team.leadName
+    return team.projectManagerName || team.leadName
   }
 
   const handleSubmit = async (e) => {

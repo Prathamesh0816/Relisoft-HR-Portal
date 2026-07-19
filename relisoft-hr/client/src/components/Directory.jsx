@@ -14,6 +14,7 @@ function roleImportance(employee) {
 
 function approverForEmployee(employee, data) {
   if (!employee) return 'Select an employee'
+  if (employee.approverName) return employee.approverName
   if (employee.role === 'OrganizationHead') return data.employees.find((e) => e.role === 'HR' || e.role === 'HRL2')?.fullName || 'No HR found'
   if (employee.role === 'HR' || employee.role === 'HRL2') return data.employees.find((e) => e.role === 'OrganizationHead')?.fullName || 'No org head found'
   if (employee.role === 'Manager' || employee.role === 'ManagerL2') return data.employees.find((e) => e.role === 'HR' || e.role === 'HRL2')?.fullName || 'No HR found'

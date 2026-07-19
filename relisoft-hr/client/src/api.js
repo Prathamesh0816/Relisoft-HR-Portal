@@ -153,13 +153,13 @@ export async function cancelTicket(id, req) {
   return data
 }
 
-export async function createProject(name) {
-  const { data } = await api.post('/api/workspace/projects', { name })
+export async function createProject(req) {
+  const { data } = await api.post('/api/workspace/projects', req)
   return data
 }
 
-export async function updateProject(id, name) {
-  const { data } = await api.put(`/api/workspace/projects/${id}`, { name }, concurrencyConfig('project', id))
+export async function updateProject(id, req) {
+  const { data } = await api.put(`/api/workspace/projects/${id}`, req, concurrencyConfig('project', id))
   rememberVersions('project', { id, rowVersion: data.rowVersion })
   return data
 }

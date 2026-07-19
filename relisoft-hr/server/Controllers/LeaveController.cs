@@ -27,7 +27,7 @@ public class LeaveController : ControllerBase
     [HttpPost("apply-leave")]
     public async Task<ActionResult> ApplyLeave(ApplyLeaveRequest req)
     {
-        var employee = await _db.Employees.FindAsync(req.EmployeeId);
+        var employee = await _db.Employees.Include(e => e.Role).FirstOrDefaultAsync(e => e.Id == req.EmployeeId);
         if (employee == null) return NotFound(new { message = "Employee not found." });
 
         var leaveType = await _db.LeaveTypes.FindAsync(req.LeaveTypeId);
@@ -75,6 +75,10 @@ public class LeaveController : ControllerBase
         bool lossOfPay = balance != null && totalDays > balance.RemainingLeaves;
         if (balance == null) lossOfPay = true;
 
+        var approval = await ResolveApprovalAssignment(employee);
+        if (approval == null)
+            return BadRequest(new { message = "No approval route is configured for this employee. Assign a project manager to their primary team project." });
+
         var application = new LeaveApplication
         {
             EmployeeId = req.EmployeeId,
@@ -85,6 +89,10 @@ public class LeaveController : ControllerBase
             TotalDays = totalDays,
             Reason = req.Reason,
             Status = "Pending",
+            ApproverId = approval.Approver.Id,
+            ApproverName = approval.Approver.FullName,
+            ProjectManagerId = approval.ProjectManager?.Id,
+            ApprovalRoute = approval.Route.ToString(),
             CanCancel = true,
             IsMedicalLeave = isMedical,
             LossOfPay = lossOfPay
@@ -93,8 +101,7 @@ public class LeaveController : ControllerBase
         _db.LeaveApplications.Add(application);
         await _db.SaveChangesAsync();
 
-        var approver = await GetApprover(employee);
-        _ = SendEmailLeaveSubmitted(employee, leaveType, application, approver?.FullName ?? "Manager");
+        await SendEmailLeaveSubmitted(employee, leaveType, application, approval);
 
         return Ok(new
         {
@@ -112,6 +119,7 @@ public class LeaveController : ControllerBase
     {
         var requests = await _db.LeaveApplications
             .Include(l => l.LeaveType)
+            .Include(l => l.ProjectManager)
             .Where(l => l.EmployeeId == employeeId)
             .OrderByDescending(l => l.AppliedOn)
             .ToListAsync();
@@ -126,22 +134,32 @@ public class LeaveController : ControllerBase
         if (reviewer == null) return NotFound();
 
         var managedEmployeeIds = await GetManagedEmployeeIds(reviewer);
+        var canReviewAll = reviewer.Role?.Name is "OrganizationHead" or "HRL2";
 
         var requests = await _db.LeaveApplications
             .Include(l => l.LeaveType).Include(l => l.Employee)!.ThenInclude(e => e!.PrimaryTeam)
-            .Where(l => managedEmployeeIds.Contains(l.EmployeeId) && l.Status == "Pending")
+            .Include(l => l.ProjectManager)
+            .Where(l => l.Status == "Pending" &&
+                (canReviewAll || l.ApproverId == reviewerId ||
+                 (l.ApproverId == null && managedEmployeeIds.Contains(l.EmployeeId))))
             .OrderByDescending(l => l.AppliedOn)
             .ToListAsync();
 
         var cancellationRequests = await _db.LeaveApplications
             .Include(l => l.LeaveType).Include(l => l.Employee)
-            .Where(l => managedEmployeeIds.Contains(l.EmployeeId) && l.Status == "CancellationRequested")
+            .Include(l => l.ProjectManager)
+            .Where(l => l.Status == "CancellationRequested" &&
+                (canReviewAll || l.ApproverId == reviewerId ||
+                 (l.ApproverId == null && managedEmployeeIds.Contains(l.EmployeeId))))
             .OrderByDescending(l => l.CancellationRequestedOn ?? l.AppliedOn)
             .ToListAsync();
 
         var recentDecisions = await _db.LeaveApplications
             .Include(l => l.LeaveType).Include(l => l.Employee)!.ThenInclude(e => e!.PrimaryTeam)
-            .Where(l => managedEmployeeIds.Contains(l.EmployeeId) && l.Status != "Pending" && l.Status != "CancellationRequested")
+            .Include(l => l.ProjectManager)
+            .Where(l => l.Status != "Pending" && l.Status != "CancellationRequested" &&
+                (canReviewAll || l.ApproverId == reviewerId ||
+                 (l.ApproverId == null && managedEmployeeIds.Contains(l.EmployeeId))))
             .OrderByDescending(l => l.ActionedOn ?? l.AppliedOn)
             .Take(20)
             .ToListAsync();
@@ -163,8 +181,12 @@ public class LeaveController : ControllerBase
             .Include(l => l.LeaveType)
             .FirstOrDefaultAsync(l => l.Id == req.LeaveApplicationId);
         if (application == null) return NotFound(new { message = "Leave application not found." });
+        if (application.Status is not ("Pending" or "CancellationRequested"))
+            return Conflict(new { message = "This leave request has already been actioned." });
 
         var approver = await _db.Employees.Include(e => e.Role).FirstOrDefaultAsync(e => e.Id == req.ApproverId);
+        if (approver == null) return NotFound(new { message = "Approver not found." });
+        if (!await CanReview(application, approver)) return Forbid();
 
         if (application.Status == "CancellationRequested")
         {
@@ -200,7 +222,7 @@ public class LeaveController : ControllerBase
         var isApprove = req.Action.Equals("approve", StringComparison.OrdinalIgnoreCase);
         application.Status = isApprove ? "Approved" : "Rejected";
         application.ApproverId = req.ApproverId;
-        application.ApproverName = approver?.FullName;
+        application.ApproverName = approver.FullName;
         application.ActionedOn = DateTime.UtcNow;
         application.CanCancel = false;
         application.ApprovalReason = req.Reason;
@@ -254,8 +276,20 @@ public class LeaveController : ControllerBase
                     results.Add(new { LeaveId = leaveId, Success = false, Message = "Leave not found." });
                     continue;
                 }
+                if (application.Status != "Pending")
+                {
+                    errors++;
+                    results.Add(new { LeaveId = leaveId, Success = false, Message = "Leave has already been actioned." });
+                    continue;
+                }
 
                 var approver = await _db.Employees.FindAsync(req.ApproverId);
+                if (approver == null || !await CanReview(application, approver))
+                {
+                    errors++;
+                    results.Add(new { LeaveId = leaveId, Success = false, Message = "You are not the assigned approver." });
+                    continue;
+                }
 
                 if (application.IsMedicalLeave && string.IsNullOrEmpty(application.MedicalCertificatePath) && req.Action == "approve")
                 {
@@ -267,7 +301,7 @@ public class LeaveController : ControllerBase
                 var isApprove = req.Action.Equals("approve", StringComparison.OrdinalIgnoreCase);
                 application.Status = isApprove ? "Approved" : "Rejected";
                 application.ApproverId = req.ApproverId;
-                application.ApproverName = approver?.FullName;
+                application.ApproverName = approver.FullName;
                 application.ActionedOn = DateTime.UtcNow;
                 application.CanCancel = false;
                 application.ApprovalReason = req.Reason;
@@ -562,21 +596,73 @@ public class LeaveController : ControllerBase
         });
     }
 
-    private async Task<Employee?> GetApprover(Employee employee)
+    private sealed record ApprovalAssignment(
+        Employee Approver,
+        Employee? ProjectManager,
+        TeamApprovalRoute Route
+    );
+
+    private async Task<ApprovalAssignment?> ResolveApprovalAssignment(Employee employee)
     {
-        var empWithRole = await _db.Employees.Include(e => e.Role).FirstOrDefaultAsync(e => e.Id == employee.Id);
-        if (empWithRole?.Role?.Name == "OrganizationHead" || empWithRole?.Role?.Name is "HRL2" or "HR")
-            return await _db.Employees.FirstOrDefaultAsync(e => e.RoleId == 6);
+        var teamQuery = _db.Teams
+            .Include(t => t.Project)!.ThenInclude(p => p!.Manager)
+            .Include(t => t.Lead)
+            .Include(t => t.ApprovalDelegate)!.ThenInclude(d => d!.Delegate)
+            .AsQueryable();
 
-        if (empWithRole?.Role?.Name is "Manager" or "ManagerL2")
-            return await _db.Employees.FirstOrDefaultAsync(e => e.RoleId == 7 || e.RoleId == 6);
+        Team? team = null;
+        if (employee.PrimaryTeamId.HasValue)
+            team = await teamQuery.FirstOrDefaultAsync(t => t.Id == employee.PrimaryTeamId);
+        team ??= await teamQuery.FirstOrDefaultAsync(t => t.EmployeeTeams.Any(et => et.EmployeeId == employee.Id));
 
-        var team = await _db.Teams.Include(t => t.Lead).FirstOrDefaultAsync(t => t.EmployeeTeams.Any(et => et.EmployeeId == employee.Id));
-        if (team?.Lead != null) return team.Lead;
+        if (team != null)
+        {
+            var manager = team.Project?.Manager;
+            var selected = team.ApprovalRoute switch
+            {
+                TeamApprovalRoute.TeamLead => team.Lead,
+                TeamApprovalRoute.Delegate => team.ApprovalDelegate?.Delegate,
+                _ => manager
+            };
 
-        var project = await _db.Projects.Include(p => p.Teams).ThenInclude(t => t.Lead)
-            .FirstOrDefaultAsync(p => p.Teams.Any(t => t.EmployeeTeams.Any(et => et.EmployeeId == employee.Id)));
-        return project?.Teams.FirstOrDefault()?.Lead;
+            // A stale delegate or incomplete legacy row must never strand a request.
+            selected ??= manager ?? team.Lead;
+            if (selected != null)
+                return new ApprovalAssignment(selected, manager, team.ApprovalRoute);
+        }
+
+        var fallback = employee.Role?.Name switch
+        {
+            "OrganizationHead" or "HRL2" or "HR" => await _db.Employees
+                .Include(e => e.Role)
+                .FirstOrDefaultAsync(e => e.Role!.Name == "OrganizationHead"),
+            "Manager" or "ManagerL2" => await _db.Employees
+                .Include(e => e.Role)
+                .FirstOrDefaultAsync(e => e.Role!.Name == "HRL2" || e.Role.Name == "OrganizationHead"),
+            _ => null
+        };
+
+        return fallback == null
+            ? null
+            : new ApprovalAssignment(fallback, fallback, TeamApprovalRoute.ProjectManager);
+    }
+
+    private async Task<bool> CanReview(LeaveApplication application, Employee reviewer)
+    {
+        var authenticatedId = GetAuthenticatedEmployeeId();
+        if (authenticatedId != 0 && authenticatedId != reviewer.Id) return false;
+
+        if (application.ApproverId.HasValue)
+            return application.ApproverId == reviewer.Id || reviewer.Role?.Name is "OrganizationHead" or "HRL2";
+
+        var managedIds = await GetManagedEmployeeIds(reviewer);
+        return managedIds.Contains(application.EmployeeId);
+    }
+
+    private int GetAuthenticatedEmployeeId()
+    {
+        var claim = HttpContext?.User.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)?.Value;
+        return int.TryParse(claim, out var employeeId) ? employeeId : 0;
     }
 
     private async Task<List<int>> GetManagedEmployeeIds(Employee reviewer)
@@ -586,13 +672,15 @@ public class LeaveController : ControllerBase
         if (reviewer.Role?.Name == "OrganizationHead" || reviewer.Role?.Name == "HRL2")
             return allEmployees.Select(e => e.Id).ToList();
 
-        var directTeam = await _db.Teams.Include(t => t.EmployeeTeams)
-            .FirstOrDefaultAsync(t => t.LeadId == reviewer.Id);
-        var directIds = directTeam?.EmployeeTeams.Select(et => et.EmployeeId).ToList() ?? new();
+        var directIds = await _db.EmployeeTeams
+            .Where(et => et.Team!.LeadId == reviewer.Id)
+            .Select(et => et.EmployeeId)
+            .Distinct()
+            .ToListAsync();
 
         var myProjects = await _db.Projects
             .Include(p => p.Teams)
-            .Where(p => p.Teams.Any(t => t.LeadId == reviewer.Id))
+            .Where(p => p.ManagerId == reviewer.Id)
             .ToListAsync();
 
         var projectTeamIds = myProjects.SelectMany(p => p.Teams).Select(t => t.Id).ToList();
@@ -619,7 +707,7 @@ public class LeaveController : ControllerBase
 
                 var mgrProjects = await _db.Projects
                     .Include(p => p.Teams)
-                    .Where(p => p.Teams.Any(t => t.LeadId == managerId))
+                    .Where(p => p.ManagerId == managerId)
                     .ToListAsync();
                 var mgrTeamIds = mgrProjects.SelectMany(p => p.Teams).Select(t => t.Id).ToList();
                 if (mgrTeamIds.Any())
@@ -654,19 +742,39 @@ public class LeaveController : ControllerBase
             l.FromDate, l.ToDate, l.TotalDays, l.IsHalfDay, l.Reason ?? "", l.Status,
             l.ApproverName, l.AppliedOn, l.ActionedOn, l.ApprovalReason, l.CanCancel,
             l.Employee?.PrimaryTeam?.Name, l.IsMedicalLeave, l.LossOfPay, l.MedicalCertificatePath,
-            l.CancellationReason, l.CancellationRequestedOn
+            l.CancellationReason, l.CancellationRequestedOn, l.ApprovalRoute,
+            l.ProjectManagerId, l.ProjectManager?.FullName
         );
     }
 
-    private async Task SendEmailLeaveSubmitted(Employee employee, LeaveType leaveType, LeaveApplication app, string approverName)
+    private async Task SendEmailLeaveSubmitted(
+        Employee employee,
+        LeaveType leaveType,
+        LeaveApplication app,
+        ApprovalAssignment approval)
     {
         try
         {
             await _emailService.SendEmailAsync(employee.Email, "Leave Request Submitted",
-                EmailTemplates.LeaveSubmitted(employee, leaveType, app.FromDate, app.ToDate, app.TotalDays, approverName));
+                EmailTemplates.LeaveSubmitted(employee, leaveType, app.FromDate, app.ToDate, app.TotalDays, approval.Approver.FullName));
             await _notif.NotifyAsync(employee.Id, "Leave Request Submitted",
                 $"Your {leaveType.Name} ({app.FromDate:dd-MMM} - {app.ToDate:dd-MMM}) has been submitted for approval.",
                 "leave", link: "/apply");
+
+            await _notif.NotifyAsync(approval.Approver.Id, "Leave Approval Required",
+                $"{employee.FullName} submitted {leaveType.Name} for {app.FromDate:dd-MMM} - {app.ToDate:dd-MMM}.",
+                "leave", "Leave Approval Required",
+                $"<p>{employee.FullName} submitted a leave request for your approval.</p><p>{app.FromDate:dd-MMM} - {app.ToDate:dd-MMM}</p>",
+                approval.Approver.Email, "/reviewer");
+
+            if (approval.ProjectManager != null && approval.ProjectManager.Id != approval.Approver.Id)
+            {
+                await _notif.NotifyAsync(approval.ProjectManager.Id, "Team Leave Submitted",
+                    $"{employee.FullName}'s leave was routed to {approval.Approver.FullName} ({approval.Route}).",
+                    "leave", "Team Leave Submitted",
+                    $"<p>{employee.FullName} submitted leave from {app.FromDate:dd-MMM} to {app.ToDate:dd-MMM}.</p><p>Approver: {approval.Approver.FullName} ({approval.Route}).</p>",
+                    approval.ProjectManager.Email, "/reviewer");
+            }
         }
         catch (Exception ex) { _logger.LogError(ex, "Failed to send leave submitted email to {Email}", employee.Email); }
     }
@@ -682,6 +790,19 @@ public class LeaveController : ControllerBase
                 await _notif.NotifyAsync(app.EmployeeId, $"Leave {action}",
                     $"Your leave ({app.LeaveType?.Name}) from {app.FromDate:dd-MMM} to {app.ToDate:dd-MMM} has been {action}.",
                     "leave", link: "/my-leaves");
+            }
+
+            if (app.ProjectManagerId.HasValue && app.ProjectManagerId != app.ApproverId)
+            {
+                var manager = await _db.Employees.FindAsync(app.ProjectManagerId);
+                if (manager != null)
+                {
+                    await _notif.NotifyAsync(manager.Id, $"Team Leave {action}",
+                        $"{app.Employee?.FullName}'s leave was {action} by {app.ApproverName}.",
+                        "leave", "Team Leave Decision",
+                        $"<p>{app.Employee?.FullName}'s leave request was {action} by {app.ApproverName}.</p>",
+                        manager.Email, "/reviewer");
+                }
             }
         }
         catch (Exception ex) { _logger.LogError(ex, "Failed to send leave decision email"); }
@@ -700,6 +821,19 @@ public class LeaveController : ControllerBase
                 await _notif.NotifyAsync(approver.Id, "Cancellation Request",
                     $"{employee.FullName} has requested to cancel their leave ({app.FromDate:dd-MMM} - {app.ToDate:dd-MMM}).",
                     "leave", link: "/reviewer");
+
+                if (app.ProjectManagerId.HasValue && app.ProjectManagerId != approver.Id)
+                {
+                    var manager = await _db.Employees.FindAsync(app.ProjectManagerId);
+                    if (manager != null)
+                    {
+                        await _notif.NotifyAsync(manager.Id, "Team Leave Cancellation Requested",
+                            $"{employee.FullName} requested cancellation; {approver.FullName} remains the assigned approver.",
+                            "leave", "Team Leave Cancellation Requested",
+                            $"<p>{employee.FullName} requested cancellation of leave from {app.FromDate:dd-MMM} to {app.ToDate:dd-MMM}.</p><p>Approver: {approver.FullName}.</p>",
+                            manager.Email, "/reviewer");
+                    }
+                }
             }
         }
         catch (Exception ex) { _logger.LogError(ex, "Failed to send cancellation request email"); }

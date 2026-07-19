@@ -159,6 +159,7 @@ export default function LeaveHome() {
 
   const approverName = (emp) => {
     if (!emp) return 'Select an employee'
+    if (emp.approverName) return emp.approverName
     if (emp.role === 'OrganizationHead') return data.employees.find((e) => e.role === 'HR' || e.role === 'HRL2')?.fullName || 'No active HR found'
     if (emp.role === 'HR' || emp.role === 'HRL2') return data.employees.find((e) => e.role === 'OrganizationHead')?.fullName || 'No organization head found'
     if (emp.role === 'Manager' || emp.role === 'ManagerL2') return data.employees.find((e) => e.role === 'HR' || e.role === 'HRL2')?.fullName || 'No HR found'

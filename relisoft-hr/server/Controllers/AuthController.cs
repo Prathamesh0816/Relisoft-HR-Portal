@@ -95,7 +95,7 @@ public class AuthController : ControllerBase
                                "calendar", "orgchart", "candidateForm", "hrOnboard", "offboard", "assets", "lifecycle", "hrdocs",
                                "dashboard", "analytics", "attendance", "announcements", "knowledgebase" }
                                .Concat(common).ToArray(),
-            "OrganizationHead" or "ManagerL2" or "Manager" => new[] { "overview", "review", "directory", "apply", "onboarding",
+            "OrganizationHead" or "ManagerL2" or "Manager" => new[] { "overview", "review", "projects", "directory", "apply", "onboarding",
                                                                   "tickets", "calendar", "orgchart", "dashboard", "attendance", "announcements", "knowledgebase" }
                                                                   .Concat(common).ToArray(),
             "TeamLead" => new[] { "review", "apply", "onboarding", "tickets", "directory", "calendar", "dashboard", "attendance", "announcements", "knowledgebase" }

@@ -6,29 +6,20 @@ The implemented backend is EF Core with SQL Server tables. `specs/database/schem
 
 ## Summary
 
-- Tables in implemented EF model: 88
-- Relationships in implemented EF model: 98
-- Main design center: `Employee`, with organization, leave, lifecycle, workplace, engagement, and operations modules around it.
-- Overall EF relationship wiring is mostly coherent, but there are several missing uniqueness and referential constraints that can allow duplicate or orphaned business data.
+- The main design center is `Employee`, with organization, leave, lifecycle, workplace, engagement, and operations modules around it.
+- Business identifiers, one-per-owner records, and repeated membership/application records use unique indexes.
+- Historical employee records use restrictive foreign keys, while selected user-facing records use standardized soft deletion.
+- Shared mutable aggregates use SQL Server row-version concurrency tokens.
+- Project ownership and team approval routing are explicit: project manager by default, with team-lead and validated-delegate alternatives.
 
 ## Relationship Review
 
-### High priority
+### Residual considerations
 
-- `Employee.EmployeeCode` and `Employee.Email` are required but not unique in the EF model. HR systems normally require both to be unique. Add unique indexes for `EmployeeCode` and, if business rules require it, `Email`.
-- `LeaveApplication.ApproverId`, `LeaveApplication.CancellationActionedById`, and `EmployeeTicket.AssignedHrId` are stored as IDs but are not foreign keys. If these should point to employees or users, add navigation properties and FK configuration.
-- Workforce resilience tables contain ID-looking fields (`EmployeeId`, `OwnerId`, `DependentId`, `CreatedById`) but have no real FKs. That makes the workforce module a denormalized reporting area rather than a relational module.
-- `ApprovalDelegate` has a unique index on `(ManagerId, ProjectId, DelegateId)`, but SQL Server filters nullable unique indexes to rows where `ProjectId IS NOT NULL`. This means duplicate global delegates with `ProjectId = null` are still possible.
-- The implemented schema and documented schema are for different databases: SQL Server/EF Core in code versus MongoDB/Mongoose in `specs/database/schema.md`.
-
-### Medium priority
-
-- `AttendanceRecord` only has an index on `EmployeeId`; it does not enforce one record per employee per date. Consider a unique `(EmployeeId, Date)` index.
-- `SurveyResponse` stores both `SurveyId` and `QuestionId`, but there is no database constraint that the question belongs to the same survey as the response. A wrong pair can be inserted unless guarded in application logic.
-- `InternalJobApplication` and `TrainingRegistration` do not prevent duplicate applications/registrations for the same employee and posting/course. Consider unique indexes on `(JobPostingId, EmployeeId)` and `(CourseId, EmployeeId)`.
-- `DeskBooking` and `RoomBooking` prevent duplicate bookings with the same start time, but not overlapping time ranges. This needs application validation or stronger persisted constraints.
-- `Employee.PrimaryTeamId` and `EmployeeTeam` can disagree. If primary team must be one of the employee's memberships, enforce that in service logic or with a stricter model.
-- Several employee-owned records cascade on employee delete. That may be fine for hard-delete cleanup, but HR systems often prefer soft delete or `NoAction` for audit history.
+- Workforce resilience tables are intentionally denormalized reporting data; their ID-like fields are not transactional foreign keys.
+- Desk and room overlap prevention remains application-level because ordinary SQL check constraints cannot compare a row with other reservations.
+- Employee writes enforce that `PrimaryTeamId` is included in `EmployeeTeam`, and team writes guarantee that the selected lead is a member.
+- `specs/database/schema.md` describes a legacy MongoDB design and should not be treated as the implemented SQL Server schema.
 
 ## Core Organization
 
@@ -37,7 +28,9 @@ erDiagram
     OrganizationRole ||--o{ Employee : RoleId
     Team ||--o{ Employee : PrimaryTeamId_nullable
     Project ||--o{ Team : ProjectId
+    Employee ||--o{ Project : ManagerId_nullable
     Employee ||--o{ Team : LeadId
+    ApprovalDelegate ||--o{ Team : ApprovalDelegateId_nullable
     Employee ||--o{ EmployeeTeam : EmployeeId
     Team ||--o{ EmployeeTeam : TeamId
     Employee ||--|| UserLogin : EmployeeId
@@ -62,11 +55,14 @@ erDiagram
     Project {
         int Id PK
         string Name
+        int ManagerId FK
     }
     Team {
         int Id PK
         int ProjectId FK
         int LeadId FK
+        string ApprovalRoute
+        int ApprovalDelegateId FK
     }
     EmployeeTeam {
         int Id PK
@@ -95,6 +91,8 @@ erDiagram
 ```mermaid
 erDiagram
     Employee ||--o{ LeaveApplication : EmployeeId
+    Employee ||--o{ LeaveApplication : ApproverId_nullable
+    Employee ||--o{ LeaveApplication : ProjectManagerId_nullable
     LeaveType ||--o{ LeaveApplication : LeaveTypeId
     Employee ||--o{ EmployeeLeaveBalance : EmployeeId
     LeaveType ||--o{ EmployeeLeaveBalance : LeaveTypeId
@@ -116,8 +114,10 @@ erDiagram
         int Id PK
         int EmployeeId FK
         int LeaveTypeId FK
-        int ApproverId
-        int CancellationActionedById
+        int ApproverId FK
+        int ProjectManagerId FK
+        string ApprovalRoute
+        int CancellationActionedById FK
     }
     EmployeeLeaveBalance {
         int Id PK
