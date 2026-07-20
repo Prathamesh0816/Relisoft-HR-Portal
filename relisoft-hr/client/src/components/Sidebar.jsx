@@ -52,7 +52,7 @@ export default function Sidebar({ onLogout }) {
 
   return (
     <aside className="w-64 shrink-0">
-      <div className="card-surface p-4 sticky top-4 max-h-[calc(100vh-2rem)] flex flex-col gap-4 overflow-hidden">
+      <div className="card-surface p-4 sticky top-4 h-[calc(100dvh-7rem)] flex flex-col gap-3 overflow-hidden">
         <div className="shrink-0 px-3 py-2.5 rounded-xl border border-navy/10 dark:border-white/10 bg-white dark:bg-navy-dark/80">
           <div className="font-bold text-sm text-navy dark:text-white">{currentUser?.fullName}</div>
           <div className="text-xs font-bold text-navy/50 dark:text-white/50 mt-0.5">{currentUser?.roleLabel || currentUser?.role}</div>
