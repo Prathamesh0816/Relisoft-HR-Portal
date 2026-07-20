@@ -79,7 +79,9 @@ export async function applyLeave(req) {
 
 export async function getMyLeaveRequests(employeeId) {
   const { data } = await api.get(`/api/leave/employee/${employeeId}/requests`)
-  return data
+  return Array.isArray(data)
+    ? { requests: data }
+    : { ...data, requests: data?.requests || [] }
 }
 
 export async function getReviewerRequests(reviewerId) {
@@ -172,6 +174,12 @@ export async function createTeam(req) {
 export async function updateTeam(id, req) {
   const { data } = await api.put(`/api/workspace/teams/${id}`, req, concurrencyConfig('team', id))
   rememberVersions('team', { id, rowVersion: data.rowVersion })
+  return data
+}
+
+export async function deleteTeam(id) {
+  const { data } = await api.delete(`/api/workspace/teams/${id}`, concurrencyConfig('team', id))
+  forgetVersion('team', id)
   return data
 }
 

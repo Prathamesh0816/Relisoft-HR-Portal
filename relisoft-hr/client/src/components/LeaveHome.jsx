@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useMemo } from 'react'
 import useStore from '../store'
 import { applyLeave, getMyLeaveRequests, cancelLeave, requestCancellation, loadWorkspace, checkLeaveBalance, applyCompOff, getFloaterUsage, uploadMedicalCertificate, transferCompOff, getCompOffTransfers } from '../api'
 
@@ -24,6 +24,17 @@ export default function LeaveHome() {
   const [transferForm, setTransferForm] = useState({ toEmployeeId: '', days: '', reason: '', submitting: false })
   const [transfers, setTransfers] = useState([])
   const [showTransferForm, setShowTransferForm] = useState(false)
+  const availableLeaveTypes = useMemo(
+    () => data.leaveTypes.filter((leaveType) => !leaveType.isCompOff),
+    [data.leaveTypes]
+  )
+
+  useEffect(() => {
+    const selectionExists = availableLeaveTypes.some((leaveType) =>
+      String(leaveType.id) === String(leaveForm.leaveTypeId))
+    if (!selectionExists && availableLeaveTypes[0])
+      updateForm('leaveForm', 'leaveTypeId', String(availableLeaveTypes[0].id))
+  }, [availableLeaveTypes, leaveForm.leaveTypeId, updateForm])
 
   useEffect(() => {
     if (currentUser?.employeeId) {
@@ -58,6 +69,12 @@ export default function LeaveHome() {
   const handleSubmit = async (e) => {
     e.preventDefault()
     if (leaveForm.submitting) return
+    const leaveType = availableLeaveTypes.find((item) =>
+      String(item.id) === String(leaveForm.leaveTypeId))
+    if (!leaveType) {
+      setMessage({ type: 'error', text: 'Select a valid leave type before submitting.' })
+      return
+    }
     setSubmitting('leaveForm', true)
     try {
       const res = await applyLeave({
@@ -163,9 +180,11 @@ export default function LeaveHome() {
     if (emp.role === 'OrganizationHead') return data.employees.find((e) => e.role === 'HR' || e.role === 'HRL2')?.fullName || 'No active HR found'
     if (emp.role === 'HR' || emp.role === 'HRL2') return data.employees.find((e) => e.role === 'OrganizationHead')?.fullName || 'No organization head found'
     if (emp.role === 'Manager' || emp.role === 'ManagerL2') return data.employees.find((e) => e.role === 'HR' || e.role === 'HRL2')?.fullName || 'No HR found'
-    if (emp.primaryProject?.approvalRoute === 'TeamLead') return emp.primaryTeam?.leadName || emp.primaryProject.managerName || 'No primary team lead assigned'
+    if (emp.primaryProject?.approvalRoute === 'TeamLead') return emp.primaryTeam?.leadId !== emp.id ? emp.primaryTeam?.leadName || emp.primaryProject.managerName || 'No primary team lead assigned' : 'No approver configured'
     if (emp.primaryProject?.approvalRoute === 'Delegate') return emp.primaryProject.approvalDelegateName || emp.primaryProject.managerName || 'No delegate assigned'
-    return emp.primaryProject?.managerName || emp.primaryTeam?.projectManagerName || 'No project manager assigned'
+    return emp.primaryProject?.managerId !== emp.id
+      ? emp.primaryProject?.managerName || emp.primaryTeam?.projectManagerName || 'No project manager assigned'
+      : 'No approver configured'
   }
 
   const selectedLeaveType = data.leaveTypes.find((l) => String(l.id) === String(leaveForm.leaveTypeId))
@@ -191,8 +210,9 @@ export default function LeaveHome() {
             </div>
             <div>
               <label className="text-xs font-bold text-navy/70 dark:text-white/70 uppercase tracking-wider">Leave type</label>
-              <select value={leaveForm.leaveTypeId} disabled={leaveForm.submitting} onChange={(e) => updateForm('leaveForm', 'leaveTypeId', e.target.value)} className="mt-1.5 w-full h-12 px-4 rounded-xl border border-navy/10 dark:border-white/10 bg-white dark:bg-[var(--bg-secondary)] focus:border-gold-1 focus:ring-4 focus:ring-gold-1/10 outline-none transition-all text-navy dark:text-white">
-                {data.leaveTypes.filter((lt) => !lt.isCompOff).map((lt) => <option key={lt.id} value={lt.id}>{lt.name}{lt.isFloaterHoliday ? ` (max ${lt.maxFloaterPerYear}/yr)` : ''}</option>)}
+              <select value={leaveForm.leaveTypeId} required disabled={leaveForm.submitting || availableLeaveTypes.length === 0} onChange={(e) => updateForm('leaveForm', 'leaveTypeId', e.target.value)} className="mt-1.5 w-full h-12 px-4 rounded-xl border border-navy/10 dark:border-white/10 bg-white dark:bg-[var(--bg-secondary)] focus:border-gold-1 focus:ring-4 focus:ring-gold-1/10 outline-none transition-all text-navy dark:text-white">
+                <option value="" disabled>{availableLeaveTypes.length ? 'Select leave type' : 'No leave types available'}</option>
+                {availableLeaveTypes.map((lt) => <option key={lt.id} value={lt.id}>{lt.name}{lt.isFloaterHoliday ? ` (max ${lt.maxFloaterPerYear}/yr)` : ''}</option>)}
               </select>
             </div>
             <div>
@@ -222,6 +242,9 @@ export default function LeaveHome() {
                 <div>
                   <span className="text-xs font-bold text-navy/50 dark:text-white/50 uppercase">Current balance</span>
                   <strong className="block text-lg text-navy dark:text-white">{balanceInfo.remaining} remaining</strong>
+                  {balanceInfo.accruesMonthly && (
+                    <span className="text-xs text-navy/50 dark:text-white/50">{balanceInfo.allocated} accrued of {balanceInfo.annualEntitlement} days this year</span>
+                  )}
                 </div>
                 {balanceInfo.isFloater && floaterUsage && (
                   <div className="text-xs font-bold text-navy/50 dark:text-white/50">Used {floaterUsage.used} of {floaterUsage.max} floater holidays this year</div>
@@ -251,6 +274,7 @@ export default function LeaveHome() {
                 const remaining = lb.remainingLeaves
                 const used = lb.usedLeaves
                 const allocated = lb.allocatedLeaves
+                const accruesMonthly = data.leaveTypes.some((leaveType) => leaveType.id === lb.leaveTypeId && leaveType.accruesMonthly)
                 const pct = allocated > 0 ? Math.min(100, Math.max(0, (used / allocated) * 100)) : 0
                 return (
                   <div key={lb.leaveTypeId} className="flex items-center gap-4 p-4 rounded-xl border border-navy/10 dark:border-white/10 bg-white dark:bg-[var(--bg-secondary)]">
@@ -263,6 +287,7 @@ export default function LeaveHome() {
                     <div>
                       <h4 className="font-bold text-navy dark:text-white text-sm">{lb.leaveTypeName}</h4>
                       <div className="text-xs text-navy/50 dark:text-white/50 mt-1">{used} used of {allocated}</div>
+                      {accruesMonthly && <div className="text-[11px] text-gold-2 mt-1">Accrued monthly</div>}
                     </div>
                   </div>
                 )

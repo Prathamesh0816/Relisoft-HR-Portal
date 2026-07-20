@@ -52,14 +52,14 @@ export default function Sidebar({ onLogout }) {
 
   return (
     <aside className="w-64 shrink-0">
-      <div className="card-surface p-4 sticky top-4 space-y-4">
-        <div className="px-3 py-2.5 rounded-xl border border-navy/10 dark:border-white/10 bg-white dark:bg-navy-dark/80">
+      <div className="card-surface p-4 sticky top-4 max-h-[calc(100vh-2rem)] flex flex-col gap-4 overflow-hidden">
+        <div className="shrink-0 px-3 py-2.5 rounded-xl border border-navy/10 dark:border-white/10 bg-white dark:bg-navy-dark/80">
           <div className="font-bold text-sm text-navy dark:text-white">{currentUser?.fullName}</div>
           <div className="text-xs font-bold text-navy/50 dark:text-white/50 mt-0.5">{currentUser?.roleLabel || currentUser?.role}</div>
         </div>
-        <div>
+        <div className="min-h-0 flex flex-1 flex-col">
           <div className="text-xs font-bold text-navy dark:text-white uppercase tracking-widest mb-2 px-3">Workspace</div>
-          <nav className="space-y-1.5">
+          <nav aria-label="Workspace navigation" className="min-h-0 flex-1 space-y-1.5 overflow-y-auto overscroll-contain pr-1">
             {views.map((view) => (
               <button
                 key={view}
@@ -75,7 +75,7 @@ export default function Sidebar({ onLogout }) {
             ))}
           </nav>
         </div>
-        <div className="pt-3 border-t border-navy/10 dark:border-white/10 space-y-2">
+        <div className="shrink-0 pt-3 border-t border-navy/10 dark:border-white/10 space-y-2">
           <ThemeToggle />
           <button onClick={onLogout} className="w-full text-left px-3 py-2.5 rounded-xl text-sm font-bold border border-navy/10 dark:border-white/10 bg-white dark:bg-navy-dark/80 text-navy/70 dark:text-white/70 hover:bg-red-50 dark:hover:bg-red-900/20 hover:text-red-600 dark:hover:text-red-400 hover:border-red-200 dark:hover:border-red-800 transition-all flex items-center gap-2">
             <LogOut size={14} /> Logout

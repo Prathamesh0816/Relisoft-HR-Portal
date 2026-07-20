@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
 import useStore from '../store'
-import { getReviewerRequests, makeDecision, loadWorkspace, uploadMedicalCertificate, getDelegates, addDelegate, removeDelegate } from '../api'
+import { getReviewerRequests, makeDecision, loadWorkspace, uploadMedicalCertificate } from '../api'
 
 function statusClass(status) {
   const s = String(status || '').toLowerCase()
@@ -10,25 +10,14 @@ function statusClass(status) {
 }
 
 export default function ReviewerInbox() {
-  const { data, reviewer, currentUser, setReviewerId, setReviewerData, setData, setMessage } = useStore()
+  const { data, reviewer, currentUser, setReviewerId, setReviewerData, setData, setMessage, setActiveView } = useStore()
   const [decisionInFlight, setDecisionInFlight] = useState(null)
-  const [delegates, setDelegates] = useState([])
-  const [delegateForm, setDelegateForm] = useState({ delegateId: '', submitting: false })
-  const [showDelegates, setShowDelegates] = useState(false)
   const employee = data.employees.find((e) => String(e.id) === String(currentUser?.employeeId))
+  const managedProjects = data.projects.filter((project) => String(project.managerId) === String(currentUser?.employeeId))
 
   useEffect(() => {
-    if (currentUser && ['HRL2', 'HR', 'OrganizationHead', 'Manager', 'ManagerL2', 'TeamLead'].includes(currentUser.role)) {
+    if (currentUser && (['HRL2', 'HR', 'OrganizationHead', 'Manager', 'ManagerL2', 'TeamLead'].includes(currentUser.role) || currentUser.views?.includes('review'))) {
       setReviewerId(String(currentUser.employeeId))
-    }
-    if (currentUser && !['HRL2', 'HR', 'OrganizationHead', 'Manager', 'ManagerL2', 'TeamLead'].includes(currentUser.role)) {
-      getDelegates(currentUser.employeeId).then((d) => {
-        const list = Array.isArray(d) ? d : d?.delegates || []
-        if (list.length > 0) setReviewerId(String(currentUser.employeeId))
-      }).catch(() => {})
-    }
-    if (currentUser?.employeeId) {
-      getDelegates(currentUser.employeeId).then((d) => setDelegates(Array.isArray(d) ? d : d?.delegates || [])).catch(() => {})
     }
   }, [currentUser])
 
@@ -59,34 +48,6 @@ export default function ReviewerInbox() {
       setMessage({ type: 'error', text: err.response?.data?.message || 'Failed.' })
     } finally {
       setDecisionInFlight(null)
-    }
-  }
-
-  const handleAddDelegate = async (e) => {
-    e.preventDefault()
-    if (delegateForm.submitting || !delegateForm.delegateId) return
-    setDelegateForm((f) => ({ ...f, submitting: true }))
-    try {
-      await addDelegate(currentUser?.employeeId, { delegateId: Number(delegateForm.delegateId), projectId: null })
-      setMessage({ type: 'success', text: 'Delegate added.' })
-      const d = await getDelegates(currentUser?.employeeId)
-      setDelegates(Array.isArray(d) ? d : d?.delegates || [])
-      setDelegateForm({ delegateId: '', submitting: false })
-    } catch (err) {
-      setMessage({ type: 'error', text: err.response?.data?.message || 'Failed.' })
-      setDelegateForm((f) => ({ ...f, submitting: false }))
-    }
-  }
-
-  const handleRemoveDelegate = async (id) => {
-    if (!window.confirm('Remove this delegate?')) return
-    try {
-      await removeDelegate(id)
-      setMessage({ type: 'success', text: 'Delegate removed.' })
-      const d = await getDelegates(currentUser?.employeeId)
-      setDelegates(Array.isArray(d) ? d : d?.delegates || [])
-    } catch (err) {
-      setMessage({ type: 'error', text: err.response?.data?.message || 'Failed.' })
     }
   }
 
@@ -245,53 +206,23 @@ export default function ReviewerInbox() {
         </div>
       </div>
 
-      <div className="card-surface">
+      {managedProjects.length > 0 && <div className="card-surface">
         <div className="p-5">
-          <h2 className="font-heading font-bold text-xl text-navy dark:text-white">Approval delegates</h2>
-          <p className="text-muted dark:text-white/60 text-sm mt-1">Delegate your leave approval authority to other employees when you are unavailable.</p>
+          <h2 className="font-heading font-bold text-xl text-navy dark:text-white">Project approval delegates</h2>
+          <p className="text-muted dark:text-white/60 text-sm mt-1">Delegation is configured separately for each project you manage.</p>
         </div>
         <div className="px-5 pb-5 space-y-4">
-          <button type="button" onClick={() => setShowDelegates(!showDelegates)} className="gold-button px-5 py-2.5 rounded-xl font-bold text-xs">
-            {showDelegates ? 'Close' : 'Add delegate'}
-          </button>
-          {showDelegates && (
-            <form onSubmit={handleAddDelegate} className="p-4 rounded-xl border border-navy/10 dark:border-white/10 bg-white dark:bg-[var(--bg-secondary)] space-y-3">
-              <div className="grid md:grid-cols-2 gap-4">
-                <div>
-                  <label className="text-xs font-bold text-navy/70 dark:text-white/70 uppercase tracking-wider">Delegate</label>
-                  <select value={delegateForm.delegateId} disabled={delegateForm.submitting} onChange={(e) => setDelegateForm((f) => ({ ...f, delegateId: e.target.value }))} required className="mt-1.5 w-full h-12 px-4 rounded-xl border border-navy/10 dark:border-white/10 bg-white dark:bg-[var(--bg-secondary)] text-navy dark:text-white">
-                    <option value="">Select employee</option>
-                    {data.employees.filter((e) => String(e.id) !== String(currentUser?.employeeId)).map((e) => (
-                      <option key={e.id} value={e.id}>{e.fullName} ({e.employeeCode})</option>
-                    ))}
-                  </select>
-                </div>
-                <div className="flex items-end">
-                  <button type="submit" disabled={delegateForm.submitting || !delegateForm.delegateId} className="gold-button px-5 py-2.5 rounded-xl font-bold text-xs">
-                    {delegateForm.submitting ? 'Adding...' : 'Add delegate'}
-                  </button>
-                </div>
+          <div className="grid md:grid-cols-2 gap-3">
+            {managedProjects.map((project) => (
+              <div key={project.id} className="p-4 rounded-xl border border-navy/10 dark:border-white/10 bg-white dark:bg-[var(--bg-secondary)]">
+                <strong className="text-sm text-navy dark:text-white">{project.name}</strong>
+                <span className="block text-xs text-navy/50 dark:text-white/50 mt-1">{project.approvalRoute === 'Delegate' ? `Delegate: ${project.approvalDelegateName || 'Not selected'}` : `Route: ${project.approvalRoute || 'ProjectManager'}`}</span>
               </div>
-            </form>
-          )}
-          {delegates.length === 0 ? (
-            <p className="text-sm text-navy/50 dark:text-white/50">No delegates configured.</p>
-          ) : (
-            <div className="space-y-2">
-              {delegates.map((d) => (
-                <div key={d.id} className="flex items-center justify-between p-3 rounded-xl border border-navy/10 dark:border-white/10 bg-white dark:bg-[var(--bg-secondary)]">
-                  <div className="flex items-center gap-3">
-                    <span className="font-bold text-sm text-navy dark:text-white">{d.delegateName}</span>
-                    {d.projectName && <span className="px-2 py-0.5 rounded bg-navy/5 text-[10px] font-bold text-navy/50">Project: {d.projectName}</span>}
-                    {d.isGeneral && <span className="px-2 py-0.5 rounded bg-amber-50 text-[10px] font-bold text-amber-700">General (all leaves)</span>}
-                  </div>
-                  <button onClick={() => handleRemoveDelegate(d.id)} className="px-3 py-1.5 rounded-lg bg-red-50 dark:bg-red-900/30 text-red-600 border border-red-200 text-[10px] font-bold hover:bg-red-100">Remove</button>
-                </div>
-              ))}
-            </div>
-          )}
+            ))}
+          </div>
+          <button type="button" onClick={() => setActiveView('projects')} className="gold-button px-5 py-2.5 rounded-xl font-bold text-xs">Configure by project</button>
         </div>
-      </div>
+      </div>}
     </div>
   )
 }

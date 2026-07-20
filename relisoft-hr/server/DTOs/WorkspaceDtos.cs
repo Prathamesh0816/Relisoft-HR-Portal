@@ -15,7 +15,7 @@ public record ProjectDto(
     int? ApprovalDelegateEmployeeId = null, string? ApprovalDelegateName = null
 );
 
-public record LeaveTypeDto(int Id, string Name, decimal CarryForwardPct = 0, bool IsCompOff = false, bool IsFloaterHoliday = false, int MaxFloaterPerYear = 0, int CompOffValidityDays = 0);
+public record LeaveTypeDto(int Id, string Name, decimal CarryForwardPct = 0, bool IsCompOff = false, bool IsFloaterHoliday = false, int MaxFloaterPerYear = 0, int CompOffValidityDays = 0, bool AccruesMonthly = false);
 
 public record RoleDto(int Id, string Name, string? Label, bool IsCustom, int BaseRoleId);
 

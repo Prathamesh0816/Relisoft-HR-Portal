@@ -216,6 +216,11 @@ public class AppDbContext : DbContext
             .WithMany()
             .HasForeignKey(e => e.PrimaryTeamId)
             .OnDelete(DeleteBehavior.NoAction);
+        modelBuilder.Entity<Employee>()
+            .HasOne(e => e.BackupApprover)
+            .WithMany()
+            .HasForeignKey(e => e.BackupApproverId)
+            .OnDelete(DeleteBehavior.NoAction);
         modelBuilder.Entity<SalaryStructure>()
             .HasOne(ss => ss.Employee)
             .WithOne(e => e.SalaryStructure)
@@ -752,7 +757,7 @@ public class AppDbContext : DbContext
 
         modelBuilder.Entity<LeaveType>().HasData(
             new LeaveType { Id = 1, Name = "Sick/Casual Leave", SortOrder = 1, CarryForwardPct = 0, MaxConsecutiveDays = 3, RequiresAdvanceNotice = false },
-            new LeaveType { Id = 2, Name = "Planned Leave", SortOrder = 2, CarryForwardPct = 50, MaxConsecutiveDays = 15, RequiresAdvanceNotice = true, AdvanceNoticeDays = 3 },
+            new LeaveType { Id = 2, Name = "Planned Leave", SortOrder = 2, CarryForwardPct = 50, AccruesMonthly = true, MaxConsecutiveDays = 15, RequiresAdvanceNotice = true, AdvanceNoticeDays = 3 },
             new LeaveType { Id = 3, Name = "Maternity Leave", SortOrder = 3, MaxConsecutiveDays = 180, RequiresAdvanceNotice = true, AdvanceNoticeDays = 30 },
             new LeaveType { Id = 4, Name = "Paternity Leave", SortOrder = 4, MaxConsecutiveDays = 15, RequiresAdvanceNotice = true, AdvanceNoticeDays = 7 },
             new LeaveType { Id = 5, Name = "Bereavement Leave", SortOrder = 5, MaxConsecutiveDays = 3, RequiresAdvanceNotice = false },
@@ -847,11 +852,16 @@ public class AppDbContext : DbContext
 
     private static void ConfigureCheckConstraints(ModelBuilder modelBuilder)
     {
+        modelBuilder.Entity<Employee>().ToTable(table =>
+            table.HasCheckConstraint(
+                "CK_Employees_BackupApproval",
+                "[BackupApproverId] IS NULL OR [AllowSelfApproval] = 0"));
+
         modelBuilder.Entity<LeaveApplication>().ToTable(table =>
         {
             table.HasCheckConstraint("CK_LeaveApplications_DateRange", "[ToDate] >= [FromDate]");
             table.HasCheckConstraint("CK_LeaveApplications_TotalDays", "[TotalDays] > 0");
-            table.HasCheckConstraint("CK_LeaveApplications_ApprovalRoute", "[ApprovalRoute] IN ('ProjectManager', 'TeamLead', 'Delegate', 'Legacy')");
+            table.HasCheckConstraint("CK_LeaveApplications_ApprovalRoute", "[ApprovalRoute] IN ('ProjectManager', 'TeamLead', 'Delegate', 'BackupApprover', 'SelfApproval', 'Legacy')");
         });
         modelBuilder.Entity<Project>().ToTable(table =>
         {

@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { ChevronDown, ChevronRight } from 'lucide-react'
 import useStore from '../store'
-import { createProject, updateProject, createTeam, updateTeam, loadWorkspace } from '../api'
+import { createProject, updateProject, createTeam, updateTeam, deleteTeam, loadWorkspace } from '../api'
 
 const APPROVAL_ROUTES = [
   { value: 'ProjectManager', label: 'Project manager' },
@@ -202,6 +202,23 @@ export default function ProjectBuilder() {
     } catch (error) { setMessage({ type: 'error', text: error.response?.data?.message || 'Failed.' }) }
   }
 
+  const handleDeleteTeam = async () => {
+    if (!selTeam || !window.confirm(`Remove team "${selTeam.name}"?`)) return
+    try {
+      await deleteTeam(selTeam.id)
+      const refreshed = await loadWorkspace()
+      setData(refreshed)
+      const refreshedTeams = refreshed.projects
+        .filter((project) => canAdministerProjects || project.managerId === currentUser?.employeeId)
+        .flatMap((project) => project.teams.map((team) => ({ ...team, projectName: project.name })))
+      if (refreshedTeams[0]) selectTeam(refreshedTeams[0])
+      else setSelectedTeamId('')
+      setMessage({ type: 'success', text: 'Team removed.' })
+    } catch (error) {
+      setMessage({ type: 'error', text: error.response?.data?.message || 'Failed to remove team.' })
+    }
+  }
+
   const renderApprovalFields = (route, setRoute, delegateEmployeeId, setDelegateEmployeeId, managerId, fieldPrefix) => (
     <>
       <div>
@@ -238,7 +255,7 @@ export default function ProjectBuilder() {
     <div className="card-surface">
       <div className="p-5">
         <h2 className="font-heading font-bold text-xl text-navy dark:text-white">Projects and teams</h2>
-        <p className="text-muted dark:text-white/60 text-sm mt-1">Manage project ownership, team leads, and approval routing.</p>
+        <p className="text-muted dark:text-white/60 text-sm mt-1">{canAdministerProjects ? 'Manage project ownership, team leads, and approval routing.' : 'Add, update, or remove teams and configure project-specific approval delegates.'}</p>
       </div>
       <div className="px-5 pb-5 space-y-6">
         <section aria-labelledby="existing-projects-heading">
@@ -312,17 +329,15 @@ export default function ProjectBuilder() {
               <h3 id="management-heading" className="font-bold text-navy dark:text-white">Manage structure</h3>
               <p className="text-sm text-muted dark:text-white/60 mt-1">Choose one area and complete its changes without mixing workflows.</p>
             </div>
-            {canAdministerProjects && (
-              <div role="tablist" aria-label="Structure management" className="inline-flex self-start border border-navy/10 dark:border-white/10 rounded-lg p-1 bg-navy/[0.02] dark:bg-white/[0.03]">
-                <button type="button" role="tab" aria-selected={managementView === 'projects'} onClick={() => setManagementView('projects')} className={`h-9 px-4 rounded-md text-sm font-bold ${managementView === 'projects' ? 'bg-white dark:bg-[var(--bg-secondary)] text-navy dark:text-white shadow-sm' : 'text-navy/50 dark:text-white/50'}`}>Projects</button>
-                <button type="button" role="tab" aria-selected={managementView === 'teams'} onClick={() => setManagementView('teams')} className={`h-9 px-4 rounded-md text-sm font-bold ${managementView === 'teams' ? 'bg-white dark:bg-[var(--bg-secondary)] text-navy dark:text-white shadow-sm' : 'text-navy/50 dark:text-white/50'}`}>Teams</button>
-              </div>
-            )}
+            <div role="tablist" aria-label="Structure management" className="inline-flex self-start border border-navy/10 dark:border-white/10 rounded-lg p-1 bg-navy/[0.02] dark:bg-white/[0.03]">
+              <button type="button" role="tab" aria-selected={managementView === 'projects'} onClick={() => setManagementView('projects')} className={`h-9 px-4 rounded-md text-sm font-bold ${managementView === 'projects' ? 'bg-white dark:bg-[var(--bg-secondary)] text-navy dark:text-white shadow-sm' : 'text-navy/50 dark:text-white/50'}`}>{canAdministerProjects ? 'Projects' : 'Delegation'}</button>
+              <button type="button" role="tab" aria-selected={managementView === 'teams'} onClick={() => setManagementView('teams')} className={`h-9 px-4 rounded-md text-sm font-bold ${managementView === 'teams' ? 'bg-white dark:bg-[var(--bg-secondary)] text-navy dark:text-white shadow-sm' : 'text-navy/50 dark:text-white/50'}`}>Teams</button>
+            </div>
           </div>
 
-          {managementView === 'projects' && canAdministerProjects && (
+          {managementView === 'projects' && (
             <div role="tabpanel" className="space-y-8 pt-5">
-              <form onSubmit={handleCreateProject} className="max-w-2xl space-y-4">
+              {canAdministerProjects && <form onSubmit={handleCreateProject} className="max-w-2xl space-y-4">
                 <div>
                   <h4 className="font-bold text-navy dark:text-white">Create project</h4>
                   <p className="text-sm text-muted dark:text-white/60 mt-1">Set the project name and its responsible manager.</p>
@@ -339,13 +354,13 @@ export default function ProjectBuilder() {
                 </div>
                 {renderApprovalFields(projectForm.approvalRoute, (value) => updateForm('projectForm', 'approvalRoute', value), projectForm.delegateEmployeeId, (value) => updateForm('projectForm', 'delegateEmployeeId', value), projectForm.managerId, 'create-project')}
                 <button type="submit" className="px-5 py-2.5 rounded-xl border border-navy/10 dark:border-white/10 text-navy/70 dark:text-white/70 font-bold text-sm">Add project</button>
-              </form>
+              </form>}
 
               {selProject && (
                 <form onSubmit={handleUpdateProject} className="max-w-2xl pt-6 border-t border-navy/10 dark:border-white/10 space-y-4">
                   <div>
-                    <h4 className="font-bold text-navy dark:text-white">Update project</h4>
-                    <p className="text-sm text-muted dark:text-white/60 mt-1">Select an existing project, then edit its saved values.</p>
+                    <h4 className="font-bold text-navy dark:text-white">{canAdministerProjects ? 'Update project' : 'Project approval delegation'}</h4>
+                    <p className="text-sm text-muted dark:text-white/60 mt-1">Each project keeps its own approval route and delegate, even when the same manager owns multiple projects.</p>
                   </div>
                   <div>
                     <label className="text-xs font-bold text-navy/70 dark:text-white/70 uppercase">Existing project</label>
@@ -355,16 +370,16 @@ export default function ProjectBuilder() {
                   </div>
                   <div>
                     <label className="text-xs font-bold text-navy/70 dark:text-white/70 uppercase">Project name</label>
-                    <input value={updProjectName} onChange={(event) => setUpdProjectName(event.target.value)} required className="mt-1.5 w-full h-12 px-4 rounded-xl border border-navy/10 dark:border-white/10 bg-white dark:bg-[var(--bg-secondary)] text-navy dark:text-white" />
+                    <input value={updProjectName} onChange={(event) => setUpdProjectName(event.target.value)} disabled={!canAdministerProjects} required className="mt-1.5 w-full h-12 px-4 rounded-xl border border-navy/10 dark:border-white/10 bg-white dark:bg-[var(--bg-secondary)] text-navy dark:text-white disabled:opacity-70" />
                   </div>
                   <div>
                     <label className="text-xs font-bold text-navy/70 dark:text-white/70 uppercase">Project manager</label>
-                    <select value={updProjectManagerId} onChange={(event) => { setUpdProjectManagerId(event.target.value); setUpdDelegateEmployeeId('') }} required className="mt-1.5 w-full h-12 px-4 rounded-xl border border-navy/10 dark:border-white/10 bg-white dark:bg-[var(--bg-secondary)] text-navy dark:text-white">
+                    <select value={updProjectManagerId} disabled={!canAdministerProjects} onChange={(event) => { setUpdProjectManagerId(event.target.value); setUpdDelegateEmployeeId('') }} required className="mt-1.5 w-full h-12 px-4 rounded-xl border border-navy/10 dark:border-white/10 bg-white dark:bg-[var(--bg-secondary)] text-navy dark:text-white disabled:opacity-70">
                       {managerOptions.map((employee) => <option key={employee.id} value={employee.id}>{employee.fullName}</option>)}
                     </select>
                   </div>
                   {renderApprovalFields(updApprovalRoute, setUpdApprovalRoute, updDelegateEmployeeId, setUpdDelegateEmployeeId, updProjectManagerId, 'update-project')}
-                  <button type="submit" className="px-5 py-2.5 rounded-xl border border-navy/10 dark:border-white/10 text-navy/70 dark:text-white/70 font-bold text-sm">Save project</button>
+                  <button type="submit" className="px-5 py-2.5 rounded-xl border border-navy/10 dark:border-white/10 text-navy/70 dark:text-white/70 font-bold text-sm">Save project approval</button>
                 </form>
               )}
             </div>
@@ -424,7 +439,10 @@ export default function ProjectBuilder() {
                       {data.employees.map((employee) => <option key={employee.id} value={employee.id}>{employee.fullName}</option>)}
                     </select>
                   </div>
-                  <button type="submit" className="px-5 py-2.5 rounded-xl border border-navy/10 dark:border-white/10 text-navy/70 dark:text-white/70 font-bold text-sm">Save team</button>
+                  <div className="flex flex-wrap gap-3">
+                    <button type="submit" className="px-5 py-2.5 rounded-xl border border-navy/10 dark:border-white/10 text-navy/70 dark:text-white/70 font-bold text-sm">Save team</button>
+                    <button type="button" onClick={handleDeleteTeam} className="px-5 py-2.5 rounded-xl border border-red-200 bg-red-50 text-red-600 font-bold text-sm">Remove team</button>
+                  </div>
                 </form>
               )}
             </div>

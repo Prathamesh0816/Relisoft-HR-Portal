@@ -7,6 +7,8 @@ export default function HrRegistration() {
   const teams = data.projects.flatMap((p) => p.teams.map((t) => ({ ...t, projectName: p.name })))
   const allRoles = data.roles || []
   const selectedRole = allRoles.find((r) => String(r.id) === String(employeeForm.role))
+  const fallbackMode = employeeForm.allowSelfApproval ? 'self' : employeeForm.backupApproverId ? 'employee' : 'none'
+  const backupApproverOptions = data.employees.filter((employee) => employee.status !== 'Inactive' && employee.status !== 'Separated')
   useEffect(() => {
     const firstProject = data.projects[0]
     if (!employeeForm.primaryProjectId && firstProject) {
@@ -65,6 +67,15 @@ export default function HrRegistration() {
     return project.managerName || team?.leadName || 'No project manager assigned'
   }
 
+  const setFallbackMode = (mode) => {
+    updateForm('employeeForm', 'allowSelfApproval', mode === 'self')
+    updateForm(
+      'employeeForm',
+      'backupApproverId',
+      mode === 'employee' ? String(employeeForm.backupApproverId || backupApproverOptions[0]?.id || '') : ''
+    )
+  }
+
   const handleSubmit = async (e) => {
     e.preventDefault()
     if (employeeForm.submitting) return
@@ -91,11 +102,13 @@ export default function HrRegistration() {
         primaryProjectId: Number(employeeForm.primaryProjectId),
         projectIds: employeeForm.projectIds.map(Number),
         primaryTeamId: Number(employeeForm.primaryTeamId),
-        teamIds: employeeForm.teamIds.map(Number)
+        teamIds: employeeForm.teamIds.map(Number),
+        backupApproverId: employeeForm.backupApproverId ? Number(employeeForm.backupApproverId) : null,
+        allowSelfApproval: employeeForm.allowSelfApproval
       })
       const primaryProject = data.projects[0]
       const primaryTeam = primaryProject?.teams[0]
-      const defaults = { employeeCode: '', fullName: '', email: '', department: '', designation: '', jobRole: '', employmentType: 'Full-time', location: '', salaryStructure: { fixedPay: '', variablePay: '', pf: '', gratuity: '', insurance: '', otherDeductions: '' }, joinDate: new Date().toISOString().slice(0, 10), role: 1, primaryProjectId: String(primaryProject?.id || ''), projectIds: [String(primaryProject?.id || '')].filter(Boolean), primaryTeamId: String(primaryTeam?.id || ''), teamIds: [String(primaryTeam?.id || '')].filter(Boolean), submitting: false }
+      const defaults = { employeeCode: '', fullName: '', email: '', department: '', designation: '', jobRole: '', employmentType: 'Full-time', location: '', salaryStructure: { fixedPay: '', variablePay: '', pf: '', gratuity: '', insurance: '', otherDeductions: '' }, joinDate: new Date().toISOString().slice(0, 10), role: 1, primaryProjectId: String(primaryProject?.id || ''), projectIds: [String(primaryProject?.id || '')].filter(Boolean), primaryTeamId: String(primaryTeam?.id || ''), teamIds: [String(primaryTeam?.id || '')].filter(Boolean), backupApproverId: '', allowSelfApproval: false, submitting: false }
       resetForm('employeeForm', defaults)
       setMessage({ type: 'success', text: `${res.message} Username: ${res.loginUsername} | Temporary password: ${res.temporaryPassword}` })
       const fresh = await loadWorkspace()
@@ -171,7 +184,7 @@ export default function HrRegistration() {
             <select value={employeeForm.primaryProjectId} disabled={employeeForm.submitting} onChange={(e) => setPrimaryProject(e.target.value)} required className="mt-1.5 w-full h-12 px-4 rounded-xl border border-navy/10 dark:border-white/10 bg-white dark:bg-[var(--bg-secondary)] focus:border-gold-1 focus:ring-4 focus:ring-gold-1/10 outline-none text-navy dark:text-white">
               {data.projects.map((project) => <option key={project.id} value={project.id}>{project.name}</option>)}
             </select>
-            <p className="mt-1.5 text-xs text-navy/50 dark:text-white/50">Leave approval and reporting ownership follow this project.</p>
+            <p className="mt-1.5 text-xs text-navy/50 dark:text-white/50">The approver always comes from this project, even when the employee joins secondary projects or teams.</p>
           </div>
           <div className="md:col-span-2">
             <label className="text-xs font-bold text-navy/70 dark:text-white/70 uppercase tracking-wider">Primary team</label>
@@ -187,7 +200,7 @@ export default function HrRegistration() {
         <hr className="border-navy/10 dark:border-white/10" />
         <div className="grid md:grid-cols-2 gap-4">
           <div>
-            <div className="text-xs font-bold text-navy/50 dark:text-white/50 uppercase tracking-wider">Project memberships</div>
+            <div className="text-xs font-bold text-navy/50 dark:text-white/50 uppercase tracking-wider">Primary and secondary projects</div>
             <div className="mt-2 border-y border-navy/10 dark:border-white/10 divide-y divide-navy/10 dark:divide-white/10">
               {data.projects.map((project) => {
                 const projectId = String(project.id)
@@ -207,11 +220,28 @@ export default function HrRegistration() {
             <h3 className="font-heading font-bold text-navy dark:text-white mt-1">{approverName()}</h3>
             <div className="text-xs text-navy/50 dark:text-white/50 mt-1">After this step, the employee receives part 2 onboarding access.</div>
           </div>
+          <div className="md:col-span-2 p-4 rounded-lg border border-navy/10 dark:border-white/10 bg-white dark:bg-[var(--bg-secondary)]">
+            <div className="text-xs font-bold text-navy/50 dark:text-white/50 uppercase tracking-wider">If the primary approver is unavailable</div>
+            <p className="mt-1 text-xs text-navy/50 dark:text-white/50">HR can assign a backup approver or allow this employee to approve their own request.</p>
+            <div className="grid md:grid-cols-2 gap-3 mt-3">
+              <select value={fallbackMode} disabled={employeeForm.submitting} onChange={(event) => setFallbackMode(event.target.value)} aria-label="Fallback approval option" className="w-full h-12 px-4 rounded-xl border border-navy/10 dark:border-white/10 bg-white dark:bg-[var(--bg-secondary)] text-navy dark:text-white">
+                <option value="none">No fallback</option>
+                <option value="employee">Select another approver</option>
+                <option value="self">Self approval</option>
+              </select>
+              {fallbackMode === 'employee' && (
+                <select value={employeeForm.backupApproverId} disabled={employeeForm.submitting} onChange={(event) => updateForm('employeeForm', 'backupApproverId', event.target.value)} aria-label="Backup approver" required className="w-full h-12 px-4 rounded-xl border border-navy/10 dark:border-white/10 bg-white dark:bg-[var(--bg-secondary)] text-navy dark:text-white">
+                  <option value="">Select employee</option>
+                  {backupApproverOptions.map((employee) => <option key={employee.id} value={employee.id}>{employee.fullName} - {employee.employeeCode}</option>)}
+                </select>
+              )}
+            </div>
+          </div>
         </div>
         <hr className="border-navy/10 dark:border-white/10" />
         <div>
           <h3 className="text-sm font-bold text-navy dark:text-white">Team memberships</h3>
-          <p className="mt-1 text-xs text-navy/50 dark:text-white/50">Choose teams within the selected projects. The primary team remains selected.</p>
+          <p className="mt-1 text-xs text-navy/50 dark:text-white/50">Choose any teams from the primary project or selected secondary projects. The primary team remains selected.</p>
         </div>
         <div className="grid md:grid-cols-2 gap-3">
           {teams.filter((team) => employeeForm.projectIds.includes(String(team.projectId))).map((team) => {

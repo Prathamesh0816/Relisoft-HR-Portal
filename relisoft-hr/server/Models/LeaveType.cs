@@ -11,6 +11,7 @@ public class LeaveType
     public bool IsActive { get; set; } = true;
     public int SortOrder { get; set; }
     public decimal CarryForwardPct { get; set; }
+    public bool AccruesMonthly { get; set; }
     public bool IsCompOff { get; set; }
     public bool IsFloaterHoliday { get; set; }
     public int MaxFloaterPerYear { get; set; }

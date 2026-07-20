@@ -72,8 +72,8 @@ public class LeaveController : ControllerBase
         var balance = await _db.EmployeeLeaveBalances
             .FirstOrDefaultAsync(lb => lb.EmployeeId == req.EmployeeId && lb.LeaveTypeId == req.LeaveTypeId);
 
-        bool lossOfPay = balance != null && totalDays > balance.RemainingLeaves;
-        if (balance == null) lossOfPay = true;
+        var effectiveBalance = LeaveAccrualCalculator.Calculate(balance, employee, leaveType, DateTime.UtcNow);
+        bool lossOfPay = balance == null || totalDays > effectiveBalance.Remaining;
 
         var approval = await ResolveApprovalAssignment(employee);
         if (approval == null)
@@ -92,7 +92,7 @@ public class LeaveController : ControllerBase
             ApproverId = approval.Approver.Id,
             ApproverName = approval.Approver.FullName,
             ProjectManagerId = approval.ProjectManager?.Id,
-            ApprovalRoute = approval.Route.ToString(),
+            ApprovalRoute = approval.Route,
             CanCancel = true,
             IsMedicalLeave = isMedical,
             LossOfPay = lossOfPay
@@ -117,12 +117,38 @@ public class LeaveController : ControllerBase
     [HttpGet("employee/{employeeId}/requests")]
     public async Task<ActionResult> GetEmployeeRequests(int employeeId)
     {
+        var employee = await _db.Employees
+            .Include(e => e.Role)
+            .FirstOrDefaultAsync(e => e.Id == employeeId);
+        if (employee == null) return NotFound(new { message = "Employee not found." });
+
         var requests = await _db.LeaveApplications
             .Include(l => l.LeaveType)
             .Include(l => l.ProjectManager)
             .Where(l => l.EmployeeId == employeeId)
             .OrderByDescending(l => l.AppliedOn)
             .ToListAsync();
+
+        var unassignedRequests = requests.Where(request =>
+            request.ApproverId == null &&
+            request.Status is "Pending" or "CancellationRequested").ToList();
+        if (unassignedRequests.Count > 0)
+        {
+            var approval = await ResolveApprovalAssignment(employee);
+            if (approval != null)
+            {
+                foreach (var request in unassignedRequests)
+                {
+                    request.ApproverId = approval.Approver.Id;
+                    request.ApproverName = approval.Approver.FullName;
+                    request.ProjectManagerId = approval.ProjectManager?.Id;
+                    request.ProjectManager = approval.ProjectManager;
+                    request.ApprovalRoute = approval.Route;
+                }
+
+                await _db.SaveChangesAsync();
+            }
+        }
 
         return Ok(requests.Select(MapRequest).ToList());
     }
@@ -205,8 +231,8 @@ public class LeaveController : ControllerBase
                 if (balance != null)
                 {
                     balance.UsedLeaves -= application.TotalDays;
-                    balance.RemainingLeaves = balance.AllocatedLeaves - balance.UsedLeaves;
-                    balance.UpdatedOn = DateTime.UtcNow;
+                    LeaveAccrualCalculator.RefreshStoredRemaining(
+                        balance, application.Employee!, application.LeaveType!, DateTime.UtcNow);
                 }
             }
 
@@ -234,8 +260,8 @@ public class LeaveController : ControllerBase
             if (balance != null)
             {
                 balance.UsedLeaves += application.TotalDays;
-                balance.RemainingLeaves = balance.AllocatedLeaves - balance.UsedLeaves;
-                balance.UpdatedOn = DateTime.UtcNow;
+                LeaveAccrualCalculator.RefreshStoredRemaining(
+                    balance, application.Employee!, application.LeaveType!, DateTime.UtcNow);
             }
         }
 
@@ -313,8 +339,8 @@ public class LeaveController : ControllerBase
                     if (balance != null)
                     {
                         balance.UsedLeaves += application.TotalDays;
-                        balance.RemainingLeaves = balance.AllocatedLeaves - balance.UsedLeaves;
-                        balance.UpdatedOn = DateTime.UtcNow;
+                        LeaveAccrualCalculator.RefreshStoredRemaining(
+                            balance, application.Employee!, application.LeaveType!, DateTime.UtcNow);
                     }
                 }
 
@@ -417,12 +443,21 @@ public class LeaveController : ControllerBase
     [HttpPost("comp-off")]
     public async Task<ActionResult> ApplyCompOff(CompOffRequestData req)
     {
+        var employee = await _db.Employees
+            .Include(e => e.Role)
+            .FirstOrDefaultAsync(e => e.Id == req.EmployeeId);
+        if (employee == null) return NotFound(new { message = "Employee not found." });
+
         var compOffType = await _db.LeaveTypes.FirstOrDefaultAsync(lt => lt.IsCompOff);
         if (compOffType == null) return NotFound(new { message = "Comp off leave type not configured." });
 
         var daysSince = (DateTime.UtcNow - req.WorkedDate).Days;
         if (daysSince > compOffType.CompOffValidityDays)
             return BadRequest(new { message = $"Comp off must be applied within {compOffType.CompOffValidityDays} days of the worked date." });
+
+        var approval = await ResolveApprovalAssignment(employee);
+        if (approval == null)
+            return BadRequest(new { message = "No approval route is configured for this employee. Assign a project manager to their primary team project." });
 
         var application = new LeaveApplication
         {
@@ -433,11 +468,17 @@ public class LeaveController : ControllerBase
             TotalDays = 1,
             Reason = req.Reason,
             Status = "Pending",
+            ApproverId = approval.Approver.Id,
+            ApproverName = approval.Approver.FullName,
+            ProjectManagerId = approval.ProjectManager?.Id,
+            ApprovalRoute = approval.Route,
             CanCancel = true
         };
 
         _db.LeaveApplications.Add(application);
         await _db.SaveChangesAsync();
+
+        await SendEmailLeaveSubmitted(employee, compOffType, application, approval);
 
         return Ok(new { message = "Comp off request submitted.", application.Id });
     }
@@ -556,6 +597,7 @@ public class LeaveController : ControllerBase
             {
                 var balance = await _db.EmployeeLeaveBalances
                     .FirstOrDefaultAsync(lb => lb.EmployeeId == emp.Id && lb.LeaveTypeId == lt.Id);
+                var effectiveBalance = LeaveAccrualCalculator.Calculate(balance, emp, lt, DateTime.UtcNow);
                 result.Add(new
                 {
                     emp.EmployeeCode,
@@ -563,9 +605,9 @@ public class LeaveController : ControllerBase
                     emp.Id,
                     Role = emp.Role?.Label ?? "",
                     LeaveType = lt.Name,
-                    Allocated = balance?.AllocatedLeaves ?? 0,
-                    Used = balance?.UsedLeaves ?? 0,
-                    Remaining = balance?.RemainingLeaves ?? 0
+                    Allocated = effectiveBalance.Allocated,
+                    Used = effectiveBalance.Used,
+                    Remaining = effectiveBalance.Remaining
                 });
             }
         }
@@ -576,30 +618,37 @@ public class LeaveController : ControllerBase
     [HttpGet("balance-check/{employeeId}/{leaveTypeId}")]
     public async Task<ActionResult> CheckBalance(int employeeId, int leaveTypeId)
     {
+        var employee = await _db.Employees.FindAsync(employeeId);
+        if (employee == null) return NotFound(new { message = "Employee not found." });
+
         var balance = await _db.EmployeeLeaveBalances
             .FirstOrDefaultAsync(lb => lb.EmployeeId == employeeId && lb.LeaveTypeId == leaveTypeId);
         var leaveType = await _db.LeaveTypes.FindAsync(leaveTypeId);
+        if (leaveType == null) return NotFound(new { message = "Leave type not found." });
 
-        if (leaveType?.IsFloaterHoliday == true)
+        if (leaveType.IsFloaterHoliday)
         {
             var used = await _db.LeaveApplications
                 .CountAsync(l => l.EmployeeId == employeeId && l.LeaveTypeId == leaveTypeId && l.Status == "Approved" && l.AppliedOn.Year == DateTime.UtcNow.Year);
             return Ok(new { remaining = leaveType.MaxFloaterPerYear - used, max = leaveType.MaxFloaterPerYear, isFloater = true });
         }
 
+        var effectiveBalance = LeaveAccrualCalculator.Calculate(balance, employee, leaveType, DateTime.UtcNow);
         return Ok(new
         {
-            remaining = balance?.RemainingLeaves ?? 0,
-            allocated = balance?.AllocatedLeaves ?? 0,
-            used = balance?.UsedLeaves ?? 0,
-            isFloater = false
+            remaining = effectiveBalance.Remaining,
+            allocated = effectiveBalance.Allocated,
+            used = effectiveBalance.Used,
+            isFloater = false,
+            accruesMonthly = leaveType.AccruesMonthly,
+            annualEntitlement = balance?.AllocatedLeaves ?? 0
         });
     }
 
     private sealed record ApprovalAssignment(
         Employee Approver,
         Employee? ProjectManager,
-        ProjectApprovalRoute Route
+        string Route
     );
 
     private async Task<ApprovalAssignment?> ResolveApprovalAssignment(Employee employee)
@@ -624,35 +673,86 @@ public class LeaveController : ControllerBase
                 .FirstOrDefaultAsync(t => t.ProjectId == project.Id &&
                     t.EmployeeTeams.Any(et => et.EmployeeId == employee.Id));
 
-            var manager = project.Manager;
+            var manager = IsAvailableApprover(project.Manager, employee.Id) ? project.Manager : null;
             var selected = project.ApprovalRoute switch
             {
                 ProjectApprovalRoute.TeamLead => primaryTeam?.Lead,
                 ProjectApprovalRoute.Delegate => project.ApprovalDelegate?.Delegate,
-                _ => manager
+                _ => project.Manager
             };
 
-            // A stale delegate or incomplete legacy row must never strand a request.
-            selected ??= manager ?? primaryTeam?.Lead;
-            if (selected != null)
-                return new ApprovalAssignment(selected, manager, project.ApprovalRoute);
+            if (IsAvailableApprover(selected, employee.Id))
+                return new ApprovalAssignment(selected!, manager, project.ApprovalRoute.ToString());
+
+            var configuredFallback = await ResolveConfiguredFallback(employee);
+            if (configuredFallback != null)
+                return new ApprovalAssignment(configuredFallback.Value.Approver, manager, configuredFallback.Value.Route);
+
+            // A project owner must not become their own approver unless HR enabled self approval.
+            if (selected?.Id == employee.Id)
+            {
+                var organizationalFallback = await ResolveOrganizationalFallback(employee);
+                if (organizationalFallback != null)
+                    return new ApprovalAssignment(
+                        organizationalFallback,
+                        organizationalFallback,
+                        ProjectApprovalRoute.ProjectManager.ToString());
+            }
+
+            // Preserve a final primary-project safety net for incomplete legacy rows.
+            selected = IsAvailableApprover(manager) ? manager : primaryTeam?.Lead;
+            if (IsAvailableApprover(selected, employee.Id))
+                return new ApprovalAssignment(selected!, manager, project.ApprovalRoute.ToString());
         }
 
-        var fallback = employee.Role?.Name switch
-        {
-            "OrganizationHead" or "HRL2" or "HR" => await _db.Employees
-                .Include(e => e.Role)
-                .FirstOrDefaultAsync(e => e.Role!.Name == "OrganizationHead"),
-            "Manager" or "ManagerL2" => await _db.Employees
-                .Include(e => e.Role)
-                .FirstOrDefaultAsync(e => e.Role!.Name == "HRL2" || e.Role.Name == "OrganizationHead"),
-            _ => null
-        };
+        var fallbackApproval = await ResolveConfiguredFallback(employee);
+        if (fallbackApproval != null)
+            return new ApprovalAssignment(
+                fallbackApproval.Value.Approver,
+                null,
+                fallbackApproval.Value.Route);
+
+        var fallback = await ResolveOrganizationalFallback(employee);
 
         return fallback == null
             ? null
-            : new ApprovalAssignment(fallback, fallback, ProjectApprovalRoute.ProjectManager);
+            : new ApprovalAssignment(fallback, fallback, ProjectApprovalRoute.ProjectManager.ToString());
     }
+
+    private async Task<(Employee Approver, string Route)?> ResolveConfiguredFallback(Employee employee)
+    {
+        if (employee.AllowSelfApproval)
+            return (employee, "SelfApproval");
+        if (!employee.BackupApproverId.HasValue)
+            return null;
+
+        var backup = await _db.Employees.FirstOrDefaultAsync(candidate =>
+            candidate.Id == employee.BackupApproverId &&
+            candidate.Status != "Inactive" && candidate.Status != "Separated");
+        return backup == null ? null : (backup, "BackupApprover");
+    }
+
+    private async Task<Employee?> ResolveOrganizationalFallback(Employee employee)
+    {
+        var candidates = _db.Employees.Include(candidate => candidate.Role).Where(candidate =>
+            candidate.Id != employee.Id &&
+            candidate.Status != "Inactive" && candidate.Status != "Separated");
+
+        return employee.Role?.Name switch
+        {
+            "OrganizationHead" => await candidates.FirstOrDefaultAsync(candidate =>
+                candidate.Role!.Name == "HRL2" || candidate.Role.Name == "HR"),
+            "HRL2" or "HR" => await candidates.FirstOrDefaultAsync(candidate =>
+                candidate.Role!.Name == "OrganizationHead"),
+            "Manager" or "ManagerL2" => await candidates.FirstOrDefaultAsync(candidate =>
+                candidate.Role!.Name == "HRL2" || candidate.Role.Name == "OrganizationHead"),
+            _ => null
+        };
+    }
+
+    private static bool IsAvailableApprover(Employee? employee, int? applicantId = null) =>
+        employee != null && employee.Id != applicantId &&
+        employee.Status != "Inactive" && employee.Status != "Separated";
 
     private async Task<bool> CanReview(LeaveApplication application, Employee reviewer)
     {
@@ -679,9 +779,13 @@ public class LeaveController : ControllerBase
         if (reviewer.Role?.Name == "OrganizationHead" || reviewer.Role?.Name == "HRL2")
             return allEmployees.Select(e => e.Id).ToList();
 
-        var directIds = await _db.EmployeeTeams
-            .Where(et => et.Team!.LeadId == reviewer.Id)
-            .Select(et => et.EmployeeId)
+        var directIds = await _db.Employees
+            .Where(employee => employee.PrimaryTeam != null &&
+                employee.PrimaryTeam.LeadId == reviewer.Id &&
+                employee.EmployeeProjects.Any(membership =>
+                    membership.IsPrimary &&
+                    membership.ProjectId == employee.PrimaryTeam.ProjectId))
+            .Select(employee => employee.Id)
             .Distinct()
             .ToListAsync();
 
@@ -690,7 +794,7 @@ public class LeaveController : ControllerBase
             .Select(p => p.Id)
             .ToListAsync();
         var projectEmployeeIds = await _db.EmployeeProjects
-            .Where(ep => managedProjectIds.Contains(ep.ProjectId))
+            .Where(ep => ep.IsPrimary && managedProjectIds.Contains(ep.ProjectId))
             .Select(ep => ep.EmployeeId)
             .Distinct()
             .ToListAsync();
@@ -703,7 +807,7 @@ public class LeaveController : ControllerBase
             .Select(p => p.Id)
             .ToListAsync();
         var delegatedIds = await _db.EmployeeProjects
-            .Where(ep => delegatedProjectIds.Contains(ep.ProjectId))
+            .Where(ep => ep.IsPrimary && delegatedProjectIds.Contains(ep.ProjectId))
             .Select(ep => ep.EmployeeId)
             .Distinct()
             .ToListAsync();

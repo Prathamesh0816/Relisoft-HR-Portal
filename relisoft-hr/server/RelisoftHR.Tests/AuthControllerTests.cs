@@ -2,12 +2,14 @@ using Microsoft.AspNetCore.Mvc;
 using Microsoft.Extensions.Configuration;
 using RelisoftHR.Controllers;
 using RelisoftHR.DTOs;
+using RelisoftHR.Models;
 
 namespace RelisoftHR.Tests;
 
 public class AuthControllerTests
 {
     private readonly AuthController _controller;
+    private readonly RelisoftHR.Data.AppDbContext _db;
     private readonly Dictionary<string, string?> _configValues = new()
     {
         ["Jwt:Key"] = "CHANGE_ME_DEVELOPMENT_JWT_KEY_32_CHARS_MINIMUM",
@@ -17,9 +19,9 @@ public class AuthControllerTests
 
     public AuthControllerTests()
     {
-        var db = TestDbContext.Create();
+        _db = TestDbContext.Create();
         var config = new ConfigurationBuilder().AddInMemoryCollection(_configValues!).Build();
-        _controller = new AuthController(db, config);
+        _controller = new AuthController(_db, config);
     }
 
     [Fact]
@@ -55,6 +57,29 @@ public class AuthControllerTests
         var response = Assert.IsType<LoginResponse>(ok.Value);
         Assert.Equal("Employee", response.Role);
         Assert.Equal("Aradhana Shinde", response.FullName);
+    }
+
+    [Fact]
+    public async Task Login_AsProjectDelegate_AddsLeaveReviewView()
+    {
+        var delegation = new ApprovalDelegate
+        {
+            Id = 20,
+            ManagerId = 4,
+            DelegateId = 3,
+            ProjectId = 1
+        };
+        _db.ApprovalDelegates.Add(delegation);
+        var project = await _db.Projects.FindAsync(1);
+        Assert.NotNull(project);
+        project.ApprovalRoute = ProjectApprovalRoute.Delegate;
+        project.ApprovalDelegateId = delegation.Id;
+        await _db.SaveChangesAsync();
+
+        var result = await _controller.Login(new LoginRequest("aradhana", "password"));
+
+        var response = Assert.IsType<LoginResponse>(Assert.IsType<OkObjectResult>(result.Result).Value);
+        Assert.Contains("review", response.Views);
     }
 
     [Fact]

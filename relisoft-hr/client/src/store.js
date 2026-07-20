@@ -19,7 +19,8 @@ const useStore = create((set, get) => ({
     jobRole: '', employmentType: 'Full-time', location: '',
     salaryStructure: { fixedPay: '', variablePay: '', pf: '', gratuity: '', insurance: '', otherDeductions: '' },
     joinDate: new Date().toISOString().slice(0, 10), role: 1,
-    primaryProjectId: '', projectIds: [], primaryTeamId: '', teamIds: [], submitting: false
+    primaryProjectId: '', projectIds: [], primaryTeamId: '', teamIds: [],
+    backupApproverId: '', allowSelfApproval: false, submitting: false
   },
   leaveForm: {
     employeeId: '', leaveTypeId: '', startDate: '', endDate: '', isHalfDay: false, reason: '', submitting: false,

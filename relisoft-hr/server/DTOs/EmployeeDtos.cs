@@ -4,14 +4,16 @@ public record CreateEmployeeRequest(
     string EmployeeCode, string FullName, string Email, string Department,
     string Designation, string JobRole, string EmploymentType, string Location,
     SalaryStructureDto? SalaryStructure, DateTime JoinDate, int Role,
-    int PrimaryProjectId, int PrimaryTeamId, List<int> ProjectIds, List<int> TeamIds
+    int PrimaryProjectId, int PrimaryTeamId, List<int> ProjectIds, List<int> TeamIds,
+    int? BackupApproverId = null, bool AllowSelfApproval = false
 );
 
 public record UpdateEmployeeRequest(
     string EmployeeCode, string FullName, string Email, string Department,
     string Designation, string JobRole, string EmploymentType, string Location,
     SalaryStructureDto? SalaryStructure, DateTime JoinDate, int Role,
-    int PrimaryProjectId, int PrimaryTeamId, List<int> ProjectIds, List<int> TeamIds
+    int PrimaryProjectId, int PrimaryTeamId, List<int> ProjectIds, List<int> TeamIds,
+    int? BackupApproverId = null, bool AllowSelfApproval = false
 );
 
 public record SalaryStructureDto(
@@ -33,6 +35,8 @@ public record EmployeeDto(
     TeamDto? PrimaryTeam, int? PrimaryTeamId,
     List<TeamDto> Teams, List<LeaveBalanceDto> LeaveBalances,
     string? ApproverName,
+    int? BackupApproverId = null, string? BackupApproverName = null,
+    bool AllowSelfApproval = false,
     byte[]? RowVersion = null
 );
 

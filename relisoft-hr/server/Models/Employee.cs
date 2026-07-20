@@ -27,12 +27,15 @@ public class Employee : IHasRowVersion
     public DateTime JoinDate { get; set; }
     public int RoleId { get; set; }
     public int? PrimaryTeamId { get; set; }
+    public int? BackupApproverId { get; set; }
+    public bool AllowSelfApproval { get; set; }
     public DateTime CreatedOn { get; set; } = DateTime.UtcNow;
     public DateTime? UpdatedOn { get; set; }
     public byte[]? RowVersion { get; set; }
 
     public OrganizationRole? Role { get; set; }
     public Team? PrimaryTeam { get; set; }
+    public Employee? BackupApprover { get; set; }
     public SalaryStructure? SalaryStructure { get; set; }
     public ICollection<EmployeeProject> EmployeeProjects { get; set; } = new List<EmployeeProject>();
     public ICollection<EmployeeTeam> EmployeeTeams { get; set; } = new List<EmployeeTeam>();

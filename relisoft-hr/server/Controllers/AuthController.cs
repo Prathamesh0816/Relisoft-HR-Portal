@@ -36,7 +36,11 @@ public class AuthController : ControllerBase
 
         var emp = user.Employee!;
         var token = GenerateToken(emp);
-        var views = GetViewsForRole(emp.Role!.Name);
+        var isProjectDelegate = await _db.Projects.AnyAsync(project =>
+            project.ApprovalRoute == Models.ProjectApprovalRoute.Delegate &&
+            project.ApprovalDelegate != null &&
+            project.ApprovalDelegate.DelegateId == emp.Id);
+        var views = GetViewsForRole(emp.Role!.Name, isProjectDelegate);
 
         return Ok(new LoginResponse(
             emp.Id, emp.FullName, user.Username, emp.Role.Name, emp.Role.Label,
@@ -85,10 +89,10 @@ public class AuthController : ControllerBase
         return new JwtSecurityTokenHandler().WriteToken(token);
     }
 
-    private static string[] GetViewsForRole(string role)
+    private static string[] GetViewsForRole(string role, bool isProjectDelegate = false)
     {
         var common = new[] { "moodtracker", "skillsbragboard", "carpool", "bookings", "mentorship", "rewards", "expenses", "timesheets", "training", "loans", "shifts", "visitors", "surveys", "benefits", "notifications", "internalMobility", "compliance", "contractors", "resilienceDashboard", "workforceEmployees", "whatIfSimulator", "spofAnalysis", "skillGapAnalysis", "successionPlanning", "knowledgeConcentration", "workforceReadiness", "resilienceReport", "dataUpload", "resilienceAiChat", "governancePanel" };
-        return role switch
+        var views = role switch
         {
             "HRL2" or "HR" => new[] { "hrHome", "hrControl", "apply", "onboarding", "tickets",
                                "register", "projects", "balances", "directory", "review", "overview",
@@ -103,5 +107,8 @@ public class AuthController : ControllerBase
             _ => new[] { "apply", "onboarding", "tickets", "directory", "calendar", "candidateForm", "dashboard", "attendance", "knowledgebase" }
                   .Concat(common).ToArray()
         };
+        return isProjectDelegate && !views.Contains("review")
+            ? views.Prepend("review").ToArray()
+            : views;
     }
 }

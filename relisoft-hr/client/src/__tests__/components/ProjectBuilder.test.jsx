@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from 'vitest'
-import { render, screen } from '@testing-library/react'
+import { fireEvent, render, screen } from '@testing-library/react'
 import ProjectBuilder from '../../components/ProjectBuilder'
 
 vi.mock('../../api', () => ({
@@ -7,6 +7,7 @@ vi.mock('../../api', () => ({
   updateProject: vi.fn(),
   createTeam: vi.fn(),
   updateTeam: vi.fn(),
+  deleteTeam: vi.fn(),
   loadWorkspace: vi.fn(),
 }))
 
@@ -43,5 +44,26 @@ describe('ProjectBuilder', () => {
     expect(screen.getByRole('option', { name: 'Dev Delegate (EMP-006)' })).toBeInTheDocument()
     expect(screen.queryByRole('option', { name: 'Maya Manager (EMP-004)' })).not.toBeInTheDocument()
     expect(screen.queryByRole('option', { name: 'Former Employee (EMP-007)' })).not.toBeInTheDocument()
+  })
+
+  it('lets a manager configure a separate delegate for each managed project', async () => {
+    const originalUser = mockStore.currentUser
+    const originalProjects = mockStore.data.projects
+    mockStore.currentUser = { employeeId: 4, role: 'Manager' }
+    mockStore.data.projects = [
+      { id: 10, name: 'Project One', managerId: 4, managerName: 'Maya Manager', approvalRoute: 'Delegate', approvalDelegateEmployeeId: 6, approvalDelegateName: 'Dev Delegate', teams: [] },
+      { id: 11, name: 'Project Two', managerId: 4, managerName: 'Maya Manager', approvalRoute: 'ProjectManager', teams: [] },
+    ]
+
+    render(<ProjectBuilder />)
+
+    fireEvent.click(screen.getByRole('tab', { name: 'Delegation' }))
+    expect(await screen.findByText('Project approval delegation')).toBeInTheDocument()
+    expect(screen.getByRole('option', { name: 'Project One' })).toBeInTheDocument()
+    expect(screen.getByRole('option', { name: 'Project Two' })).toBeInTheDocument()
+    expect(screen.getByLabelText('Approval delegate')).toHaveValue('6')
+
+    mockStore.currentUser = originalUser
+    mockStore.data.projects = originalProjects
   })
 })

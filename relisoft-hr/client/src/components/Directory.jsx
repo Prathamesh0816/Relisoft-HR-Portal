@@ -20,8 +20,8 @@ function approverForEmployee(employee, data) {
   if (employee.role === 'Manager' || employee.role === 'ManagerL2') return data.employees.find((e) => e.role === 'HR' || e.role === 'HRL2')?.fullName || 'No HR found'
   const project = employee.primaryProject
   if (project?.approvalRoute === 'Delegate') return project.approvalDelegateName || project.managerName || 'No delegate assigned'
-  if (project?.approvalRoute === 'TeamLead') return employee.primaryTeam?.leadName || project.managerName || 'No primary team lead assigned'
-  return project?.managerName || employee.primaryTeam?.projectManagerName || 'No project manager assigned'
+  if (project?.approvalRoute === 'TeamLead') return employee.primaryTeam?.leadId !== employee.id ? employee.primaryTeam?.leadName || project.managerName || 'No primary team lead assigned' : 'No approver configured'
+  return project?.managerId !== employee.id ? project?.managerName || employee.primaryTeam?.projectManagerName || 'No project manager assigned' : 'No approver configured'
 }
 
 export default function Directory() {
@@ -75,7 +75,9 @@ export default function Directory() {
       primaryProjectId,
       projectIds: primaryProjectId && !projectIds.includes(primaryProjectId) ? [...projectIds, primaryProjectId] : projectIds,
       primaryTeamId: pt,
-      teamIds: pt && !teamIds.includes(pt) ? [...teamIds, pt] : teamIds
+      teamIds: pt && !teamIds.includes(pt) ? [...teamIds, pt] : teamIds,
+      backupApproverId: String(emp.backupApproverId || ''),
+      allowSelfApproval: Boolean(emp.allowSelfApproval)
     })
     setEditingId(emp.id)
   }
@@ -117,6 +119,14 @@ export default function Directory() {
     }
   })
 
+  const setEditFallbackMode = (mode) => setEditForm((form) => ({
+    ...form,
+    allowSelfApproval: mode === 'self',
+    backupApproverId: mode === 'employee'
+      ? String(form.backupApproverId || data.employees.find((employee) => employee.id !== editingId && employee.status !== 'Inactive' && employee.status !== 'Separated')?.id || '')
+      : ''
+  }))
+
   const saveEdit = async (e) => {
     e.preventDefault()
     if (!editForm) return
@@ -130,7 +140,9 @@ export default function Directory() {
         salaryStructure: ss?.fixedPay ? { fixedPay: Number(ss.fixedPay), variablePay: Number(ss.variablePay || 0), pf: Number(ss.pf || 0), gratuity: Number(ss.gratuity || 0), insurance: Number(ss.insurance || 0), otherDeductions: Number(ss.otherDeductions || 0) } : null, joinDate: editForm.joinDate,
         role: Number(selRole?.baseRoleId || editForm.role),
         primaryProjectId: Number(editForm.primaryProjectId), projectIds: editForm.projectIds.map(Number),
-        primaryTeamId: Number(editForm.primaryTeamId), teamIds: editForm.teamIds.map(Number)
+        primaryTeamId: Number(editForm.primaryTeamId), teamIds: editForm.teamIds.map(Number),
+        backupApproverId: editForm.backupApproverId ? Number(editForm.backupApproverId) : null,
+        allowSelfApproval: editForm.allowSelfApproval
       })
       setMessage({ type: 'success', text: 'Employee updated.' })
       setEditingId(null)
@@ -259,7 +271,7 @@ export default function Directory() {
                     <select value={editForm.primaryProjectId} onChange={(e) => setPrimaryProject(e.target.value)} required className="mt-1.5 w-full h-12 px-4 rounded-xl border border-navy/10 dark:border-white/10 bg-white dark:bg-[var(--bg-secondary)] focus:border-gold-1 focus:ring-4 focus:ring-gold-1/10 outline-none text-navy dark:text-white">
                       {data.projects.map((project) => <option key={project.id} value={project.id}>{project.name}</option>)}
                     </select>
-                    <p className="mt-1.5 text-xs text-navy/50 dark:text-white/50">Leave approval and reporting ownership follow this project.</p>
+                    <p className="mt-1.5 text-xs text-navy/50 dark:text-white/50">The approver always comes from this project, even when the employee joins secondary projects or teams.</p>
                   </div>
                   <div className="md:col-span-2">
                     <label className="text-xs font-bold text-navy/70 dark:text-white/70 uppercase">Primary team</label>
@@ -278,7 +290,7 @@ export default function Directory() {
                 <hr className="border-navy/10" />
                 <div className="grid md:grid-cols-2 gap-4">
                   <div>
-                    <div className="text-xs font-bold text-navy/50 dark:text-white/50 uppercase">Project memberships</div>
+                    <div className="text-xs font-bold text-navy/50 dark:text-white/50 uppercase">Primary and secondary projects</div>
                     <div className="mt-2 border-y border-navy/10 dark:border-white/10 divide-y divide-navy/10 dark:divide-white/10">
                       {data.projects.map((project) => {
                         const projectId = String(project.id)
@@ -299,16 +311,32 @@ export default function Directory() {
                       {(() => {
                         const role = data.roles.find((r) => String(r.id) === String(editForm.role))
                         const project = data.projects.find((item) => String(item.id) === editForm.primaryProjectId)
-                        const emp = { role: data.roles.find((r) => !r.isCustom && Number(r.baseRoleId) === Number(role?.baseRoleId))?.name || role?.name, primaryProject: project, primaryTeam: allTeams.find((t) => String(t.id) === String(editForm.primaryTeamId)) }
+                        const emp = { id: editingId, role: data.roles.find((r) => !r.isCustom && Number(r.baseRoleId) === Number(role?.baseRoleId))?.name || role?.name, primaryProject: project, primaryTeam: allTeams.find((t) => String(t.id) === String(editForm.primaryTeamId)) }
                         return approverForEmployee(emp, data)
                       })()}
                     </h3>
+                  </div>
+                  <div className="md:col-span-2 p-4 rounded-lg border border-navy/10 dark:border-white/10 bg-white dark:bg-[var(--bg-secondary)]">
+                    <div className="text-xs font-bold text-navy/50 dark:text-white/50 uppercase">If the primary approver is unavailable</div>
+                    <p className="mt-1 text-xs text-navy/50 dark:text-white/50">Assign another active employee or permit self approval.</p>
+                    <div className="grid md:grid-cols-2 gap-3 mt-3">
+                      <select value={editForm.allowSelfApproval ? 'self' : editForm.backupApproverId ? 'employee' : 'none'} onChange={(event) => setEditFallbackMode(event.target.value)} aria-label="Fallback approval option" className="w-full h-12 px-4 rounded-xl border border-navy/10 dark:border-white/10 bg-white dark:bg-[var(--bg-secondary)] text-navy dark:text-white">
+                        <option value="none">No fallback</option>
+                        <option value="employee">Select another approver</option>
+                        <option value="self">Self approval</option>
+                      </select>
+                      {!editForm.allowSelfApproval && editForm.backupApproverId && (
+                        <select value={editForm.backupApproverId} onChange={(event) => updateEdit('backupApproverId', event.target.value)} aria-label="Backup approver" required className="w-full h-12 px-4 rounded-xl border border-navy/10 dark:border-white/10 bg-white dark:bg-[var(--bg-secondary)] text-navy dark:text-white">
+                          {data.employees.filter((employee) => employee.id !== editingId && employee.status !== 'Inactive' && employee.status !== 'Separated').map((employee) => <option key={employee.id} value={employee.id}>{employee.fullName} - {employee.employeeCode}</option>)}
+                        </select>
+                      )}
+                    </div>
                   </div>
                 </div>
                 <hr className="border-navy/10" />
                 <div>
                   <h3 className="text-sm font-bold text-navy dark:text-white">Team memberships</h3>
-                  <p className="mt-1 text-xs text-navy/50 dark:text-white/50">Teams are available only within selected projects. The primary team cannot be removed.</p>
+                  <p className="mt-1 text-xs text-navy/50 dark:text-white/50">Choose any teams from the primary project or selected secondary projects. The primary team cannot be removed.</p>
                 </div>
                 <div className="grid md:grid-cols-2 gap-3">
                   {allTeams.filter((team) => editForm.projectIds.includes(String(team.projectId))).map((team) => {

@@ -10,7 +10,7 @@ The implemented backend is EF Core with SQL Server tables. `specs/database/schem
 - Business identifiers, one-per-owner records, and repeated membership/application records use unique indexes.
 - Historical employee records use restrictive foreign keys, while selected user-facing records use standardized soft deletion.
 - Shared mutable aggregates use SQL Server row-version concurrency tokens.
-- Project memberships and approval routing are explicit: every assigned employee has one primary project, with project-manager, primary-team-lead, and validated-delegate approval alternatives.
+- Project memberships and approval routing are explicit: every assigned employee has one primary project, with project-manager, primary-team-lead, and validated-delegate approval alternatives. HR may also configure a per-employee backup approver or self-approval fallback that is used only when the primary route has no active approver.
 
 ## Relationship Review
 
@@ -35,6 +35,7 @@ erDiagram
     Project ||--o{ EmployeeProject : ProjectId
     Employee ||--o{ EmployeeTeam : EmployeeId
     Team ||--o{ EmployeeTeam : TeamId
+    Employee ||--o{ Employee : BackupApproverId_nullable
     Employee ||--|| UserLogin : EmployeeId
     Employee ||--|| SalaryStructure : EmployeeId
     Employee ||--o{ ApprovalDelegate : ManagerId
@@ -48,6 +49,8 @@ erDiagram
         string Email
         int RoleId FK
         int PrimaryTeamId FK
+        int BackupApproverId FK
+        bool AllowSelfApproval
     }
     OrganizationRole {
         int Id PK
@@ -115,6 +118,7 @@ erDiagram
     LeaveType {
         int Id PK
         string Name
+        bool AccruesMonthly
         bool IsCompOff
         bool IsFloaterHoliday
     }

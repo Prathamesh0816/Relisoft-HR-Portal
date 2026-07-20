@@ -33,7 +33,7 @@ const mockStore = {
     projects: [{ id: 1, name: 'Test Project', teams: [{ id: 1, name: 'Frontend' }, { id: 2, name: 'Backend' }] }],
     leaveTypes: [
       { id: 1, name: 'Sick/Casual Leave', maxConsecutiveDays: 3, requiresAdvanceNotice: false },
-      { id: 2, name: 'Planned Leave', maxConsecutiveDays: 15, requiresAdvanceNotice: true, advanceNoticeDays: 3 },
+      { id: 2, name: 'Planned Leave', accruesMonthly: true, maxConsecutiveDays: 15, requiresAdvanceNotice: true, advanceNoticeDays: 3 },
     ],
     roles: [],
     hrPolicy: { allowHalfDayLeave: false, sandwichLeave: false },
@@ -64,6 +64,14 @@ describe('LeaveHome', () => {
     render(<LeaveHome />)
     await waitFor(() => {
       expect(screen.getByText(/apply for leave/i)).toBeInTheDocument()
+    })
+  })
+
+  it('initializes the form with the first valid leave type', async () => {
+    render(<LeaveHome />)
+
+    await waitFor(() => {
+      expect(mockStore.updateForm).toHaveBeenCalledWith('leaveForm', 'leaveTypeId', '1')
     })
   })
 

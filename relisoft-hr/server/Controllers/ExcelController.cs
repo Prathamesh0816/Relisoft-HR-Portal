@@ -2,6 +2,7 @@ using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using RelisoftHR.Data;
 using RelisoftHR.Models;
+using RelisoftHR.Services;
 using ClosedXML.Excel;
 
 namespace RelisoftHR.Controllers;
@@ -189,14 +190,15 @@ public class ExcelController : ControllerBase
             {
                 var balance = await _db.EmployeeLeaveBalances
                     .FirstOrDefaultAsync(lb => lb.EmployeeId == emp.Id && lb.LeaveTypeId == lt.Id);
+                var effectiveBalance = LeaveAccrualCalculator.Calculate(balance, emp, lt, DateTime.UtcNow);
 
                 ws.Cell(row, 1).Value = emp.EmployeeCode;
                 ws.Cell(row, 2).Value = emp.FullName;
                 ws.Cell(row, 3).Value = emp.Role?.Label ?? "";
                 ws.Cell(row, 4).Value = lt.Name;
-                ws.Cell(row, 5).Value = balance?.AllocatedLeaves ?? 0;
-                ws.Cell(row, 6).Value = balance?.UsedLeaves ?? 0;
-                ws.Cell(row, 7).Value = balance?.RemainingLeaves ?? 0;
+                ws.Cell(row, 5).Value = effectiveBalance.Allocated;
+                ws.Cell(row, 6).Value = effectiveBalance.Used;
+                ws.Cell(row, 7).Value = effectiveBalance.Remaining;
                 row++;
             }
         }
@@ -253,21 +255,22 @@ public class ExcelController : ControllerBase
 
                 if (balance == null)
                 {
-                    _db.EmployeeLeaveBalances.Add(new EmployeeLeaveBalance
+                    balance = new EmployeeLeaveBalance
                     {
                         EmployeeId = employee.Id,
                         LeaveTypeId = leaveType.Id,
                         AllocatedLeaves = allocated,
                         UsedLeaves = used,
                         RemainingLeaves = allocated - used
-                    });
+                    };
+                    LeaveAccrualCalculator.RefreshStoredRemaining(balance, employee, leaveType, DateTime.UtcNow);
+                    _db.EmployeeLeaveBalances.Add(balance);
                 }
                 else
                 {
                     balance.AllocatedLeaves = allocated;
                     balance.UsedLeaves = used;
-                    balance.RemainingLeaves = allocated - used;
-                    balance.UpdatedOn = DateTime.UtcNow;
+                    LeaveAccrualCalculator.RefreshStoredRemaining(balance, employee, leaveType, DateTime.UtcNow);
                 }
 
                 processed++;

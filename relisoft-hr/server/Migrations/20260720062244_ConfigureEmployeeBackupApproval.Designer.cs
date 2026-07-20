@@ -3,6 +3,7 @@ using System;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
 using Microsoft.EntityFrameworkCore.Metadata;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 using RelisoftHR.Data;
 
@@ -11,9 +12,11 @@ using RelisoftHR.Data;
 namespace RelisoftHR.Migrations
 {
     [DbContext(typeof(AppDbContext))]
-    partial class AppDbContextModelSnapshot : ModelSnapshot
+    [Migration("20260720062244_ConfigureEmployeeBackupApproval")]
+    partial class ConfigureEmployeeBackupApproval
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        /// <inheritdoc />
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder
@@ -2471,9 +2474,6 @@ namespace RelisoftHR.Migrations
 
                     SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("Id"));
 
-                    b.Property<bool>("AccruesMonthly")
-                        .HasColumnType("bit");
-
                     b.Property<int>("AdvanceNoticeDays")
                         .HasColumnType("int");
 
@@ -2521,7 +2521,6 @@ namespace RelisoftHR.Migrations
                         new
                         {
                             Id = 1,
-                            AccruesMonthly = false,
                             AdvanceNoticeDays = 0,
                             CarryForwardPct = 0m,
                             CompOffValidityDays = 0,
@@ -2537,7 +2536,6 @@ namespace RelisoftHR.Migrations
                         new
                         {
                             Id = 2,
-                            AccruesMonthly = true,
                             AdvanceNoticeDays = 3,
                             CarryForwardPct = 50m,
                             CompOffValidityDays = 0,
@@ -2553,7 +2551,6 @@ namespace RelisoftHR.Migrations
                         new
                         {
                             Id = 3,
-                            AccruesMonthly = false,
                             AdvanceNoticeDays = 30,
                             CarryForwardPct = 0m,
                             CompOffValidityDays = 0,
@@ -2569,7 +2566,6 @@ namespace RelisoftHR.Migrations
                         new
                         {
                             Id = 4,
-                            AccruesMonthly = false,
                             AdvanceNoticeDays = 7,
                             CarryForwardPct = 0m,
                             CompOffValidityDays = 0,
@@ -2585,7 +2581,6 @@ namespace RelisoftHR.Migrations
                         new
                         {
                             Id = 5,
-                            AccruesMonthly = false,
                             AdvanceNoticeDays = 0,
                             CarryForwardPct = 0m,
                             CompOffValidityDays = 0,
@@ -2601,7 +2596,6 @@ namespace RelisoftHR.Migrations
                         new
                         {
                             Id = 6,
-                            AccruesMonthly = false,
                             AdvanceNoticeDays = 0,
                             CarryForwardPct = 0m,
                             CompOffValidityDays = 30,
@@ -2617,7 +2611,6 @@ namespace RelisoftHR.Migrations
                         new
                         {
                             Id = 7,
-                            AccruesMonthly = false,
                             AdvanceNoticeDays = 7,
                             CarryForwardPct = 0m,
                             CompOffValidityDays = 0,
@@ -2633,7 +2626,6 @@ namespace RelisoftHR.Migrations
                         new
                         {
                             Id = 8,
-                            AccruesMonthly = false,
                             AdvanceNoticeDays = 15,
                             CarryForwardPct = 0m,
                             CompOffValidityDays = 0,
@@ -2649,7 +2641,6 @@ namespace RelisoftHR.Migrations
                         new
                         {
                             Id = 9,
-                            AccruesMonthly = false,
                             AdvanceNoticeDays = 0,
                             CarryForwardPct = 0m,
                             CompOffValidityDays = 0,

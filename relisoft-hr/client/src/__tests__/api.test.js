@@ -90,7 +90,7 @@ describe('API layer', () => {
   })
 
   it('getMyLeaveRequests calls GET endpoint', async () => {
-    mockGet.mockResolvedValue({ data: { requests: [{ id: 1 }] } })
+    mockGet.mockResolvedValue({ data: [{ id: 1 }] })
     const result = await api.getMyLeaveRequests(3)
     expect(mockGet).toHaveBeenCalledWith('/api/leave/employee/3/requests')
     expect(result.requests).toHaveLength(1)

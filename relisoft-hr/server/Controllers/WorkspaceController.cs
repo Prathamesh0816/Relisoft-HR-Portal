@@ -42,6 +42,7 @@ public class WorkspaceController : ControllerBase
             .Include(e => e.SalaryStructure)
             .Include(e => e.PrimaryTeam).ThenInclude(t => t!.Project)!.ThenInclude(p => p!.Manager)
             .Include(e => e.PrimaryTeam).ThenInclude(t => t!.Lead)
+            .Include(e => e.BackupApprover)
             .Include(e => e.EmployeeProjects).ThenInclude(ep => ep.Project)!.ThenInclude(p => p!.Manager)
             .Include(e => e.EmployeeProjects).ThenInclude(ep => ep.Project)!.ThenInclude(p => p!.ApprovalDelegate)!.ThenInclude(d => d!.Delegate)
             .Include(e => e.EmployeeTeams).ThenInclude(et => et.Team).ThenInclude(t => t!.Project)!.ThenInclude(p => p!.Manager)
@@ -59,9 +60,9 @@ public class WorkspaceController : ControllerBase
         var hrPolicy = await _db.HrPolicies.FirstOrDefaultAsync() ?? new HrPolicy();
 
         return Ok(new WorkspaceResponse(
-            employees.Select(e => MapEmployee(e)).ToList(),
+            employees.Select(e => MapEmployee(e, employees)).ToList(),
             projects.Select(p => MapProject(p)).ToList(),
-            leaveTypes.Select(lt => new LeaveTypeDto(lt.Id, lt.Name, lt.CarryForwardPct, lt.IsCompOff, lt.IsFloaterHoliday, lt.MaxFloaterPerYear, lt.CompOffValidityDays)).ToList(),
+            leaveTypes.Select(lt => new LeaveTypeDto(lt.Id, lt.Name, lt.CarryForwardPct, lt.IsCompOff, lt.IsFloaterHoliday, lt.MaxFloaterPerYear, lt.CompOffValidityDays, lt.AccruesMonthly)).ToList(),
             roles.Select(r => new RoleDto(r.Id, r.Name, r.Label, r.IsCustom, r.BaseRoleId)).ToList(),
             new HrPolicyDto(hrPolicy.AllowHalfDayLeave, hrPolicy.SandwichLeave, hrPolicy.RowVersion)
         ));
@@ -74,6 +75,8 @@ public class WorkspaceController : ControllerBase
         var assignmentError = await ValidateEmployeeAssignments(
             req.PrimaryProjectId, req.PrimaryTeamId, req.ProjectIds, req.TeamIds);
         if (assignmentError != null) return BadRequest(new { message = assignmentError });
+        var fallbackError = await ValidateBackupApproval(req.BackupApproverId, req.AllowSelfApproval);
+        if (fallbackError != null) return BadRequest(new { message = fallbackError });
 
         var employee = new Employee
         {
@@ -87,7 +90,9 @@ public class WorkspaceController : ControllerBase
             Location = req.Location,
             JoinDate = req.JoinDate,
             RoleId = req.Role,
-            PrimaryTeamId = req.PrimaryTeamId
+            PrimaryTeamId = req.PrimaryTeamId,
+            BackupApproverId = req.BackupApproverId,
+            AllowSelfApproval = req.AllowSelfApproval
         };
 
         _db.Employees.Add(employee);
@@ -142,6 +147,8 @@ public class WorkspaceController : ControllerBase
         var assignmentError = await ValidateEmployeeAssignments(
             req.PrimaryProjectId, req.PrimaryTeamId, req.ProjectIds, req.TeamIds);
         if (assignmentError != null) return BadRequest(new { message = assignmentError });
+        var fallbackError = await ValidateBackupApproval(req.BackupApproverId, req.AllowSelfApproval, id);
+        if (fallbackError != null) return BadRequest(new { message = fallbackError });
 
         var employee = await _db.Employees
             .Include(e => e.EmployeeProjects)
@@ -165,6 +172,8 @@ public class WorkspaceController : ControllerBase
         employee.JoinDate = req.JoinDate;
         employee.RoleId = req.Role;
         employee.PrimaryTeamId = req.PrimaryTeamId;
+        employee.BackupApproverId = req.BackupApproverId;
+        employee.AllowSelfApproval = req.AllowSelfApproval;
         employee.UpdatedOn = DateTime.UtcNow;
 
         if (req.SalaryStructure != null)
@@ -274,7 +283,11 @@ public class WorkspaceController : ControllerBase
         var project = await _db.Projects.FindAsync(id);
         if (project == null) return NotFound(new { message = "Project not found." });
         if (!CanManageProject(project)) return Forbid();
-        if (project.ManagerId != req.ManagerId && !CanAdministerProjects()) return Forbid();
+        var canAdminister = CanAdministerProjects();
+        if (!canAdminister &&
+            (project.ManagerId != req.ManagerId ||
+             !string.Equals(project.Name.Trim(), req.Name.Trim(), StringComparison.Ordinal)))
+            return Forbid();
         var validation = await ValidateProjectConfiguration(
             req.ManagerId, req.ApprovalRoute, req.DelegateEmployeeId);
         if (validation.Error != null) return BadRequest(new { message = validation.Error });
@@ -368,6 +381,25 @@ public class WorkspaceController : ControllerBase
         return Ok(new { message = "Team updated.", team.RowVersion });
     }
 
+    [HttpDelete("teams/{id}")]
+    public async Task<ActionResult> DeleteTeam(int id)
+    {
+        var team = await _db.Teams
+            .Include(item => item.Project)
+            .Include(item => item.EmployeeTeams)
+            .FirstOrDefaultAsync(item => item.Id == id);
+        if (team == null) return NotFound(new { message = "Team not found." });
+        if (team.Project == null || !CanManageProject(team.Project)) return Forbid();
+        if (await _db.Employees.AnyAsync(employee => employee.PrimaryTeamId == id))
+            return Conflict(new { message = "Reassign employees who use this as their primary team before removing it." });
+
+        HttpConcurrency.RequireIfMatch(Request, _db, team);
+        _db.EmployeeTeams.RemoveRange(team.EmployeeTeams);
+        _db.Teams.Remove(team);
+        await _db.SaveChangesAsync();
+        return Ok(new { message = "Team removed." });
+    }
+
     [HttpPut("hr-policy")]
     public async Task<ActionResult> UpdateHrPolicy(UpdateHrPolicyRequest req)
     {
@@ -406,6 +438,8 @@ public class WorkspaceController : ControllerBase
     public async Task<ActionResult> AddDelegate(ApprovalDelegateRequest req, [FromQuery] int managerId)
     {
         if (!await CanManageDelegate(managerId)) return Forbid();
+        if (!req.ProjectId.HasValue)
+            return BadRequest(new { message = "Select a project. Delegates are configured per project." });
         if (managerId == req.DelegateId)
             return BadRequest(new { message = "A manager cannot delegate approval to themselves." });
         if (!await _db.Employees.AnyAsync(e => e.Id == req.DelegateId && e.Status != "Inactive" && e.Status != "Separated"))
@@ -470,7 +504,7 @@ public class WorkspaceController : ControllerBase
         return Ok(new FloaterHolidayUsageDto(used, lt?.MaxFloaterPerYear ?? 2));
     }
 
-    private EmployeeDto MapEmployee(Employee e)
+    private EmployeeDto MapEmployee(Employee e, IReadOnlyCollection<Employee> employees)
     {
         var teams = e.EmployeeTeams.Select(et => new TeamDto(
             et.Team!.Id, et.Team.Name, et.Team.ProjectId,
@@ -511,11 +545,18 @@ public class WorkspaceController : ControllerBase
                 : null,
             e.PrimaryTeamId,
             teams,
-            e.LeaveBalances.Select(lb => new LeaveBalanceDto(
-                lb.Id, lb.LeaveTypeId, lb.LeaveType?.Name ?? "",
-                lb.AllocatedLeaves, lb.UsedLeaves, lb.RemainingLeaves
-            )).ToList(),
-            GetConfiguredApproverName(primaryProjectMembership?.Project, e.PrimaryTeam),
+            e.LeaveBalances.Select(lb =>
+            {
+                var leaveType = lb.LeaveType ?? new LeaveType { Id = lb.LeaveTypeId };
+                var effectiveBalance = LeaveAccrualCalculator.Calculate(lb, e, leaveType, DateTime.UtcNow);
+                return new LeaveBalanceDto(
+                    lb.Id, lb.LeaveTypeId, leaveType.Name,
+                    effectiveBalance.Allocated, effectiveBalance.Used, effectiveBalance.Remaining);
+            }).ToList(),
+            GetConfiguredApproverName(e, primaryProjectMembership?.Project, e.PrimaryTeam, employees),
+            e.BackupApproverId,
+            e.BackupApprover?.FullName,
+            e.AllowSelfApproval,
             e.RowVersion
         );
     }
@@ -540,16 +581,56 @@ public class WorkspaceController : ControllerBase
         );
     }
 
-    private static string? GetConfiguredApproverName(Project? project, Team? primaryTeam)
+    private static string? GetConfiguredApproverName(
+        Employee employee,
+        Project? project,
+        Team? primaryTeam,
+        IReadOnlyCollection<Employee> employees)
     {
-        if (project == null) return null;
-        return project.ApprovalRoute switch
+        var selected = project?.ApprovalRoute switch
         {
-            ProjectApprovalRoute.TeamLead => primaryTeam?.Lead?.FullName,
-            ProjectApprovalRoute.Delegate => project.ApprovalDelegate?.Delegate?.FullName,
-            _ => project.Manager?.FullName
-        } ?? project.Manager?.FullName ?? primaryTeam?.Lead?.FullName;
+            ProjectApprovalRoute.TeamLead => primaryTeam?.Lead,
+            ProjectApprovalRoute.Delegate => project.ApprovalDelegate?.Delegate,
+            _ => project?.Manager
+        };
+        if (IsAvailableApprover(selected, employee.Id)) return selected!.FullName;
+        if (employee.AllowSelfApproval) return $"{employee.FullName} (self approval)";
+        if (IsAvailableApprover(employee.BackupApprover, employee.Id))
+            return employee.BackupApprover!.FullName;
+
+        if (selected?.Id == employee.Id)
+        {
+            var organizationalFallback = GetOrganizationalFallback(employee, employees);
+            if (organizationalFallback != null) return organizationalFallback.FullName;
+        }
+
+        var primarySafetyNet = IsAvailableApprover(project?.Manager, employee.Id)
+            ? project?.Manager
+            : primaryTeam?.Lead;
+        if (IsAvailableApprover(primarySafetyNet, employee.Id)) return primarySafetyNet!.FullName;
+        return GetOrganizationalFallback(employee, employees)?.FullName;
     }
+
+    private static Employee? GetOrganizationalFallback(
+        Employee employee,
+        IReadOnlyCollection<Employee> employees)
+    {
+        var candidates = employees.Where(candidate => IsAvailableApprover(candidate, employee.Id));
+        return employee.Role?.Name switch
+        {
+            "OrganizationHead" => candidates.FirstOrDefault(candidate =>
+                candidate.Role?.Name == "HRL2" || candidate.Role?.Name == "HR"),
+            "HRL2" or "HR" => candidates.FirstOrDefault(candidate =>
+                candidate.Role?.Name == "OrganizationHead"),
+            "Manager" or "ManagerL2" => candidates.FirstOrDefault(candidate =>
+                candidate.Role?.Name == "HRL2" || candidate.Role?.Name == "OrganizationHead"),
+            _ => null
+        };
+    }
+
+    private static bool IsAvailableApprover(Employee? candidate, int employeeId) =>
+        candidate != null && candidate.Id != employeeId &&
+        candidate.Status != "Inactive" && candidate.Status != "Separated";
 
     private async Task<bool> IsEligibleProjectManager(int employeeId)
     {
@@ -559,6 +640,24 @@ public class WorkspaceController : ControllerBase
                 e.Status != "Inactive" && e.Status != "Separated" &&
                 (e.Role!.Name == "Manager" || e.Role.Name == "ManagerL2" ||
                  e.Role.Name == "OrganizationHead"));
+    }
+
+    private async Task<string?> ValidateBackupApproval(
+        int? backupApproverId,
+        bool allowSelfApproval,
+        int? employeeId = null)
+    {
+        if (allowSelfApproval && backupApproverId.HasValue)
+            return "Choose either a backup approver or self approval, not both.";
+        if (!backupApproverId.HasValue) return null;
+        if (employeeId.HasValue && backupApproverId == employeeId)
+            return "Choose self approval instead of selecting the employee as their own backup approver.";
+
+        return await _db.Employees.AnyAsync(employee =>
+            employee.Id == backupApproverId &&
+            employee.Status != "Inactive" && employee.Status != "Separated")
+            ? null
+            : "Select an active employee as backup approver.";
     }
 
     private async Task<string?> ValidateEmployeeAssignments(
