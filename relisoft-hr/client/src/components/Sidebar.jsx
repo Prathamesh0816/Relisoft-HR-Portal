@@ -77,6 +77,9 @@ export default function Sidebar({ onLogout }) {
         </div>
         <div className="pt-3 border-t border-navy/10 dark:border-white/10 space-y-2">
           <ThemeToggle />
+          <button onClick={() => setActiveView('settings')} className="w-full text-left px-3 py-2.5 rounded-xl text-sm font-bold border border-navy/10 dark:border-white/10 bg-white dark:bg-navy-dark/80 text-navy/70 dark:text-white/70 hover:bg-gold-50 dark:hover:bg-gold-900/20 hover:text-gold-1 dark:hover:text-gold-1 hover:border-gold-200 dark:hover:border-gold-800 transition-all flex items-center gap-2">
+            <svg size={14} width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="3"/><path d="M12 1v2M12 21v2M4.22 4.22l1.42 1.42M18.36 18.36l1.42 1.42M1 12h2M21 12h2M4.22 19.78l1.42-1.42M18.36 5.64l1.42-1.42"/></svg> Settings
+          </button>
           <button onClick={onLogout} className="w-full text-left px-3 py-2.5 rounded-xl text-sm font-bold border border-navy/10 dark:border-white/10 bg-white dark:bg-navy-dark/80 text-navy/70 dark:text-white/70 hover:bg-red-50 dark:hover:bg-red-900/20 hover:text-red-600 dark:hover:text-red-400 hover:border-red-200 dark:hover:border-red-800 transition-all flex items-center gap-2">
             <LogOut size={14} /> Logout
           </button>

@@ -13,6 +13,7 @@ public class AppDbContext : DbContext
     public DbSet<Team> Teams => Set<Team>();
     public DbSet<Project> Projects => Set<Project>();
     public DbSet<LeaveType> LeaveTypes => Set<LeaveType>();
+    public DbSet<Holiday> Holidays => Set<Holiday>();
     public DbSet<LeaveApplication> LeaveApplications => Set<LeaveApplication>();
     public DbSet<EmployeeLeaveBalance> EmployeeLeaveBalances => Set<EmployeeLeaveBalance>();
     public DbSet<EmployeeTeam> EmployeeTeams => Set<EmployeeTeam>();
@@ -502,6 +503,29 @@ public class AppDbContext : DbContext
             new UserLogin { Id = 7, EmployeeId = 7, Username = "prathamesh", PasswordHash = "$2a$11$1OmqZ7Lg1.9.5dC2qwF3He4EDiSghkDr94W1CrHjxUML9COevlnhy", CreatedOn = new DateTime(2026, 1, 1, 0, 0, 0, DateTimeKind.Utc) },
             new UserLogin { Id = 8, EmployeeId = 8, Username = "hr", PasswordHash = "$2a$11$1OmqZ7Lg1.9.5dC2qwF3He4EDiSghkDr94W1CrHjxUML9COevlnhy", CreatedOn = new DateTime(2026, 1, 1, 0, 0, 0, DateTimeKind.Utc) },
             new UserLogin { Id = 9, EmployeeId = 9, Username = "unnati", PasswordHash = "$2a$11$1OmqZ7Lg1.9.5dC2qwF3He4EDiSghkDr94W1CrHjxUML9COevlnhy", CreatedOn = new DateTime(2026, 1, 1, 0, 0, 0, DateTimeKind.Utc) }
+        );
+
+        modelBuilder.Entity<Holiday>().HasData(
+            new Holiday { Id = 1, Name = "New Year", Date = new DateOnly(2026, 1, 1), Type = "Fixed" },
+            new Holiday { Id = 2, Name = "Makra Sankrati / Pongal", Date = new DateOnly(2026, 1, 15), Type = "Optional" },
+            new Holiday { Id = 3, Name = "Republic Day", Date = new DateOnly(2026, 1, 26), Type = "Fixed" },
+            new Holiday { Id = 4, Name = "Holi", Date = new DateOnly(2026, 3, 3), Type = "Fixed" },
+            new Holiday { Id = 5, Name = "Gudhi Padwa", Date = new DateOnly(2026, 3, 19), Type = "Optional" },
+            new Holiday { Id = 6, Name = "Good Friday", Date = new DateOnly(2026, 4, 3), Type = "Optional" },
+            new Holiday { Id = 7, Name = "Ambedkar Jayanti / Baisakhi", Date = new DateOnly(2026, 4, 14), Type = "Optional" },
+            new Holiday { Id = 8, Name = "Labour Day / Maharashtra Day", Date = new DateOnly(2026, 5, 1), Type = "Fixed" },
+            new Holiday { Id = 9, Name = "Bakri Id", Date = new DateOnly(2026, 5, 28), Type = "Optional" },
+            new Holiday { Id = 10, Name = "Moharum", Date = new DateOnly(2026, 6, 26), Type = "Fixed" },
+            new Holiday { Id = 11, Name = "Eid E Milad", Date = new DateOnly(2026, 8, 26), Type = "Optional" },
+            new Holiday { Id = 12, Name = "Raksha Bandhan", Date = new DateOnly(2026, 8, 28), Type = "Optional" },
+            new Holiday { Id = 13, Name = "Janmashtami", Date = new DateOnly(2026, 9, 4), Type = "Optional" },
+            new Holiday { Id = 14, Name = "Ganesh Chaturthi", Date = new DateOnly(2026, 9, 14), Type = "Fixed" },
+            new Holiday { Id = 15, Name = "Gandhi Jayanthi", Date = new DateOnly(2026, 10, 2), Type = "Fixed" },
+            new Holiday { Id = 16, Name = "Dussera", Date = new DateOnly(2026, 10, 20), Type = "Fixed" },
+            new Holiday { Id = 17, Name = "Bhai Dooj", Date = new DateOnly(2026, 11, 11), Type = "Optional" },
+            new Holiday { Id = 18, Name = "Diwali (Bali Pratipada)", Date = new DateOnly(2026, 11, 10), Type = "Fixed" },
+            new Holiday { Id = 19, Name = "Guru Nanak Jayanti", Date = new DateOnly(2026, 11, 24), Type = "Optional" },
+            new Holiday { Id = 20, Name = "Christmas", Date = new DateOnly(2026, 12, 25), Type = "Fixed" }
         );
     }
 }

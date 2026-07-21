@@ -122,6 +122,24 @@ public static class DemoDataSeeder
         await db.SaveChangesAsync();
 
         // 9. Additional employees (checked individually so they survive re-seed)
+        if (!await db.Employees.AnyAsync(e => e.Id == 10))
+        {
+            var hash = "$2a$11$1OmqZ7Lg1.9.5dC2qwF3He4EDiSghkDr94W1CrHjxUML9COevlnhy";
+            db.Employees.AddRange(
+                new Employee { Id = 10, EmployeeCode = "EMP-010", FullName = "Bhushan Babras", Email = "bhushan.babras@relisofttechnologies.com", Department = "Engineering", Designation = "Software Engineer", JobRole = "Software Engineer", EmploymentType = "Full-time", Location = "Mumbai", JoinDate = new DateTime(2025, 1, 10), RoleId = 1, CreatedOn = utc },
+                new Employee { Id = 11, EmployeeCode = "EMP-011", FullName = "Sopan Bidgar", Email = "sopan.bidgar@relisofttechnologies.com", Department = "Engineering", Designation = "Software Engineer", JobRole = "Software Engineer", EmploymentType = "Full-time", Location = "Pune", JoinDate = new DateTime(2025, 2, 15), RoleId = 1, CreatedOn = utc },
+                new Employee { Id = 12, EmployeeCode = "EMP-012", FullName = "Supriya Gaikwad", Email = "supriya.gaikwad@relisofttechnologies.com", Department = "Engineering", Designation = "Software Engineer", JobRole = "Software Engineer", EmploymentType = "Full-time", Location = "Mumbai", JoinDate = new DateTime(2025, 3, 5), RoleId = 1, CreatedOn = utc }
+            );
+            await db.SaveChangesAsync();
+
+            db.UserLogins.AddRange(
+                new UserLogin { EmployeeId = 10, Username = "bhushan", PasswordHash = hash, CreatedOn = utc },
+                new UserLogin { EmployeeId = 11, Username = "sopan", PasswordHash = hash, CreatedOn = utc },
+                new UserLogin { EmployeeId = 12, Username = "supriya", PasswordHash = hash, CreatedOn = utc }
+            );
+            await db.SaveChangesAsync();
+        }
+
         if (!await db.Employees.AnyAsync(e => e.Id == 4))
         {
             var hash = "$2a$11$1OmqZ7Lg1.9.5dC2qwF3He4EDiSghkDr94W1CrHjxUML9COevlnhy"; // "password"

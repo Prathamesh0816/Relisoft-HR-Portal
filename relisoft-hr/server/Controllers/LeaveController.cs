@@ -739,4 +739,22 @@ public class LeaveController : ControllerBase
         }
         catch (Exception ex) { _logger.LogError(ex, "Failed to send comp-off transfer emails"); }
     }
+
+    [HttpGet("holidays")]
+    public async Task<ActionResult<List<HolidayDto>>> GetHolidays([FromQuery] int? year)
+    {
+        var y = year ?? DateTime.UtcNow.Year;
+        var holidays = await _db.Holidays
+            .AsNoTracking()
+            .Where(h => h.Date.Year == y)
+            .OrderBy(h => h.Date)
+            .ToListAsync();
+
+        return Ok(holidays.Select(h => new HolidayDto(
+            h.Id, h.Name,
+            h.Date.ToString("dd MMMM yyyy"),
+            h.Date.DayOfWeek.ToString(),
+            h.Type
+        )).ToList());
+    }
 }

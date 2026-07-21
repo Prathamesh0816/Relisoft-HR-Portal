@@ -28,6 +28,11 @@ export async function login(username, password) {
   return data
 }
 
+export async function changePassword(oldPassword, newPassword) {
+  const { data } = await api.post('/api/auth/change-password', { oldPassword, newPassword })
+  return data
+}
+
 export async function loadWorkspace() {
   const { data } = await api.get('/api/workspace')
   return data
@@ -83,6 +88,12 @@ export async function getLeaveCalendar(from, to) {
   if (from) params.append('from', from)
   if (to) params.append('to', to)
   const { data } = await api.get(`/api/leave/calendar?${params}`)
+  return data
+}
+
+export async function getHolidays(year) {
+  const params = year ? `?year=${year}` : ''
+  const { data } = await api.get(`/api/leave/holidays${params}`)
   return data
 }
 

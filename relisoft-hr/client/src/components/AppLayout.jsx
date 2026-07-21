@@ -54,6 +54,7 @@ import ResilienceReport from './ResilienceReport'
 import DataUpload from './DataUpload'
 import ResilienceAIChat from './ResilienceAIChat'
 import GovernancePanel from './GovernancePanel'
+import Settings from './Settings'
 import { useTheme } from '../ThemeContext'
 import { Menu } from 'lucide-react'
 
@@ -111,7 +112,8 @@ const meta = {
   resilienceReport: { label: 'Resilience', title: 'Resilience Report', subtitle: 'Downloadable workforce resilience report.' },
   dataUpload: { label: 'Resilience', title: 'Data Upload', subtitle: 'Upload workforce data for custom analysis.' },
   resilienceAiChat: { label: 'Resilience', title: 'AI Assistant', subtitle: 'Ask natural language questions about your workforce.' },
-  governancePanel: { label: 'Resilience', title: 'Governance Panel', subtitle: 'Human-in-the-loop feedback and override management.' }
+  governancePanel: { label: 'Resilience', title: 'Governance Panel', subtitle: 'Human-in-the-loop feedback and override management.' },
+  settings: { label: 'Account', title: 'Settings', subtitle: 'Manage your account settings and preferences.' }
 }
 
 export default function AppLayout({ onLogout }) {
@@ -196,6 +198,7 @@ export default function AppLayout({ onLogout }) {
               {activeView === 'dataUpload' && <DataUpload />}
               {activeView === 'resilienceAiChat' && <ResilienceAIChat />}
               {activeView === 'governancePanel' && <GovernancePanel />}
+              {activeView === 'settings' && <Settings />}
             </div>
           </section>
         </div>

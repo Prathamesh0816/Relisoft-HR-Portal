@@ -3,7 +3,7 @@
   "version": "1.0.0",
   "description": "ReliSoft HR - Complete HR Management System",
   "scripts": {
-    "server": "cd server && npm start",
+    "server": "cd server && dotnet run",
     "client": "cd client && npm run dev",
     "dev": "concurrently \"npm run server\" \"npm run client\"",
     "install-all": "npm install && cd server && npm install && cd ../client && npm install",

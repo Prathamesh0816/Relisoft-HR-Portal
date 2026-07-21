@@ -44,3 +44,5 @@ public record CalendarEvent(
     int Id, int EmployeeId, string EmployeeName, string EmployeeCode,
     string LeaveTypeName, DateTime FromDate, DateTime ToDate, decimal TotalDays
 );
+
+public record HolidayDto(int Id, string Name, string Date, string Day, string Type);

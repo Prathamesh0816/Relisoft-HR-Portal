@@ -1,3 +1,4 @@
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.IdentityModel.Tokens;
@@ -51,6 +52,27 @@ public class AuthController : ControllerBase
             new("rakesh", "OrganizationHead"),
             new("aradhana", "Employee")
         });
+    }
+
+    [Authorize]
+    [HttpPost("change-password")]
+    public async Task<ActionResult> ChangePassword(ChangePasswordRequest request)
+    {
+        var employeeIdClaim = User.FindFirstValue(ClaimTypes.NameIdentifier);
+        if (employeeIdClaim == null || !int.TryParse(employeeIdClaim, out var employeeId))
+            return Unauthorized(new { message = "Invalid token." });
+
+        var userLogin = await _db.UserLogins.FirstOrDefaultAsync(u => u.EmployeeId == employeeId);
+        if (userLogin == null)
+            return NotFound(new { message = "User not found." });
+
+        if (!BCrypt.Net.BCrypt.Verify(request.OldPassword, userLogin.PasswordHash))
+            return BadRequest(new { message = "Current password is incorrect." });
+
+        userLogin.PasswordHash = BCrypt.Net.BCrypt.HashPassword(request.NewPassword, 11);
+        await _db.SaveChangesAsync();
+
+        return Ok(new { message = "Password changed successfully." });
     }
 
     private string GenerateToken(Models.Employee employee)

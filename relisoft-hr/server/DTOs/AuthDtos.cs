@@ -13,3 +13,5 @@ public record LoginResponse(
 );
 
 public record DemoUserDto(string Username, string Role);
+
+public record ChangePasswordRequest(string OldPassword, string NewPassword);
