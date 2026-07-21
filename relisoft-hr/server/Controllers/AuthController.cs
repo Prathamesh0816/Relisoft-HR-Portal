@@ -101,21 +101,17 @@ public class AuthController : ControllerBase
 
     private static string[] GetViewsForRole(string role)
     {
-        var common = new[] { "moodtracker", "skillsbragboard", "carpool", "bookings", "mentorship", "rewards", "expenses", "timesheets", "training", "loans", "shifts", "visitors", "surveys", "benefits", "notifications", "internalMobility", "compliance", "contractors", "resilienceDashboard", "workforceEmployees", "whatIfSimulator", "spofAnalysis", "skillGapAnalysis", "successionPlanning", "knowledgeConcentration", "workforceReadiness", "resilienceReport", "dataUpload", "resilienceAiChat", "governancePanel" };
+        // Phase 1 — Core HR: login / employee registration, leaves, tickets, onboarding & offboarding
+        var phase1 = new[] { "register", "hrHome", "hrControl", "apply", "onboarding",
+                             "tickets", "balances", "review", "overview",
+                             "calendar", "candidateForm", "hrOnboard", "offboard",
+                             "directory", "settings" };
         return role switch
         {
-            "HRL2" or "HR" => new[] { "hrHome", "hrControl", "apply", "onboarding", "tickets",
-                               "register", "projects", "balances", "directory", "review", "overview",
-                               "calendar", "orgchart", "candidateForm", "hrOnboard", "offboard", "assets", "lifecycle", "hrdocs",
-                               "dashboard", "analytics", "attendance", "announcements", "knowledgebase" }
-                               .Concat(common).ToArray(),
-            "OrganizationHead" or "ManagerL2" or "Manager" => new[] { "overview", "review", "directory", "apply", "onboarding",
-                                                                  "tickets", "calendar", "orgchart", "dashboard", "attendance", "announcements", "knowledgebase" }
-                                                                  .Concat(common).ToArray(),
-            "TeamLead" => new[] { "review", "apply", "onboarding", "tickets", "directory", "calendar", "dashboard", "attendance", "announcements", "knowledgebase" }
-                           .Concat(common).ToArray(),
-            _ => new[] { "apply", "onboarding", "tickets", "directory", "calendar", "candidateForm", "dashboard", "attendance", "knowledgebase" }
-                  .Concat(common).ToArray()
+            "HRL2" or "HR" => phase1,
+            "OrganizationHead" or "ManagerL2" or "Manager" => new[] { "overview", "review", "directory", "apply", "onboarding", "tickets", "calendar", "settings" },
+            "TeamLead" => new[] { "review", "apply", "onboarding", "tickets", "directory", "calendar", "settings" },
+            _ => new[] { "apply", "onboarding", "tickets", "directory", "calendar", "candidateForm", "settings" }
         };
     }
 }
