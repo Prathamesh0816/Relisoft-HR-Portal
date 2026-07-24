@@ -1,8 +1,8 @@
 {
   "version": 2,
-  "dgSpecHash": "/yUAcyGiKow=",
+  "dgSpecHash": "dEYLN0TVQZk=",
   "success": true,
-  "projectFilePath": "C:\\relisoft\\github\\Relisoft-HR-Portal\\relisoft-hr\\server\\RelisoftHR.Tests\\RelisoftHR.Tests.csproj",
+  "projectFilePath": "C:\\relisoft\\hr portal\\Relisoft-HR-Portal\\relisoft-hr\\server\\RelisoftHR.Tests\\RelisoftHR.Tests.csproj",
   "expectedPackageFiles": [
     "C:\\Users\\abcom\\.nuget\\packages\\azure.core\\1.47.1\\azure.core.1.47.1.nupkg.sha512",
     "C:\\Users\\abcom\\.nuget\\packages\\azure.identity\\1.14.2\\azure.identity.1.14.2.nupkg.sha512",

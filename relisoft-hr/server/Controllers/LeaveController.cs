@@ -169,6 +169,10 @@ public class LeaveController : ControllerBase
     [HttpPost("reviewer/decision")]
     public async Task<ActionResult> MakeDecision(ReviewerDecisionRequest req)
     {
+        var authenticatedEmployeeId = GetAuthenticatedEmployeeId();
+        if (authenticatedEmployeeId == null) return Unauthorized(new { message = "Invalid token." });
+        if (authenticatedEmployeeId != req.ApproverId) return Forbid();
+
         var application = await _db.LeaveApplications
             .Include(l => l.Employee)
             .Include(l => l.LeaveType)
@@ -176,6 +180,11 @@ public class LeaveController : ControllerBase
         if (application == null) return NotFound(new { message = "Leave application not found." });
 
         var approver = await _db.Employees.Include(e => e.Role).FirstOrDefaultAsync(e => e.Id == req.ApproverId);
+        if (approver == null) return NotFound(new { message = "Approver not found." });
+
+        var managedEmployeeIds = await GetManagedEmployeeIds(approver);
+        if (!managedEmployeeIds.Contains(application.EmployeeId))
+            return Forbid();
 
         if (application.Status == "CancellationRequested")
         {
@@ -247,6 +256,15 @@ public class LeaveController : ControllerBase
         if (req.Action != "approve" && req.Action != "reject")
             return BadRequest(new { message = "Action must be 'approve' or 'reject'." });
 
+        var authenticatedEmployeeId = GetAuthenticatedEmployeeId();
+        if (authenticatedEmployeeId == null) return Unauthorized(new { message = "Invalid token." });
+        if (authenticatedEmployeeId != req.ApproverId) return Forbid();
+
+        var approver = await _db.Employees.Include(e => e.Role).FirstOrDefaultAsync(e => e.Id == req.ApproverId);
+        if (approver == null) return NotFound(new { message = "Approver not found." });
+
+        var managedEmployeeIds = await GetManagedEmployeeIds(approver);
+
         var results = new List<object>();
         var approvalsProcessed = 0;
         var errors = 0;
@@ -266,7 +284,12 @@ public class LeaveController : ControllerBase
                     continue;
                 }
 
-                var approver = await _db.Employees.FindAsync(req.ApproverId);
+                if (!managedEmployeeIds.Contains(application.EmployeeId))
+                {
+                    errors++;
+                    results.Add(new { LeaveId = leaveId, Success = false, Message = "Not authorized to manage this leave." });
+                    continue;
+                }
 
                 if (application.IsMedicalLeave && string.IsNullOrEmpty(application.MedicalCertificatePath) && req.Action == "approve")
                 {
@@ -597,9 +620,10 @@ public class LeaveController : ControllerBase
         if (reviewer.Role?.Name == "OrganizationHead" || reviewer.Role?.Name == "HRL2")
             return allEmployees.Select(e => e.Id).ToList();
 
-        var directTeam = await _db.Teams.Include(t => t.EmployeeTeams)
-            .FirstOrDefaultAsync(t => t.LeadId == reviewer.Id);
-        var directIds = directTeam?.EmployeeTeams.Select(et => et.EmployeeId).ToList() ?? new();
+        var directTeams = await _db.Teams.Include(t => t.EmployeeTeams)
+            .Where(t => t.LeadId == reviewer.Id)
+            .ToListAsync();
+        var directIds = directTeams.SelectMany(t => t.EmployeeTeams).Select(et => et.EmployeeId).Distinct().ToList();
 
         var myProjects = await _db.Projects
             .Include(p => p.Teams)
@@ -623,9 +647,10 @@ public class LeaveController : ControllerBase
         {
             foreach (var managerId in delegatedFromIds)
             {
-                var mgrTeam = await _db.Teams.Include(t => t.EmployeeTeams)
-                    .FirstOrDefaultAsync(t => t.LeadId == managerId);
-                if (mgrTeam != null)
+                var mgrTeams = await _db.Teams.Include(t => t.EmployeeTeams)
+                    .Where(t => t.LeadId == managerId)
+                    .ToListAsync();
+                foreach (var mgrTeam in mgrTeams)
                     delegatedIds.AddRange(mgrTeam.EmployeeTeams.Select(et => et.EmployeeId));
 
                 var mgrProjects = await _db.Projects
