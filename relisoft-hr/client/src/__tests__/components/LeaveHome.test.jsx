@@ -79,4 +79,30 @@ describe('LeaveHome', () => {
       expect(screen.getByText('No leave requests submitted yet.')).toBeInTheDocument()
     })
   })
+
+  it('renders the authenticated employees leave requests', async () => {
+    mockStore.myLeaves = {
+      employeeId: 1,
+      loading: false,
+      requests: [{
+        id: 42,
+        employeeId: 1,
+        leaveTypeName: 'Planned Leave',
+        approverName: 'Rakesh Patil',
+        status: 'Pending',
+        totalDays: 1,
+        fromDate: '2026-07-24T00:00:00',
+        toDate: '2026-07-24T00:00:00',
+        appliedOn: '2026-07-23T00:00:00',
+        reason: 'Family appointment',
+      }],
+    }
+
+    render(<LeaveHome />)
+
+    await waitFor(() => {
+      expect(screen.getByText('Family appointment')).toBeInTheDocument()
+    })
+    expect(mockGetMyLeaveRequests).toHaveBeenCalledWith(1)
+  })
 })

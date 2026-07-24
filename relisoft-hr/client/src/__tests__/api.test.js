@@ -61,6 +61,15 @@ describe('API layer', () => {
     expect(result.requests).toHaveLength(1)
   })
 
+  it('getMyLeaveRequests normalizes a raw request array', async () => {
+    mockGet.mockResolvedValue({ data: [{ id: 1, employeeId: 3 }] })
+
+    const result = await api.getMyLeaveRequests(3)
+
+    expect(mockGet).toHaveBeenCalledWith('/api/leave/employee/3/requests')
+    expect(result.requests).toEqual([{ id: 1, employeeId: 3 }])
+  })
+
   it('cancelLeave calls POST /api/leave/:id/cancel', async () => {
     mockPost.mockResolvedValue({ data: { message: 'Cancelled' } })
     const result = await api.cancelLeave(1, { employeeId: 3, reason: 'No longer needed' })

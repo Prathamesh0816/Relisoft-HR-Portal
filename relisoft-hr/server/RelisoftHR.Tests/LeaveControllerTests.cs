@@ -1,10 +1,12 @@
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.AspNetCore.Http;
 using Microsoft.Extensions.Logging.Abstractions;
 using Microsoft.Extensions.Configuration;
 using RelisoftHR.Controllers;
 using RelisoftHR.Data;
 using RelisoftHR.DTOs;
 using RelisoftHR.Services;
+using System.Security.Claims;
 
 namespace RelisoftHR.Tests;
 
@@ -23,9 +25,21 @@ public class LeaveControllerTests : IDisposable
         var notifSvc = new NotificationService(_db, new NullLogger<NotificationService>());
         var notif = new NotificationHelper(emailService, notifSvc, _db, notifLogger);
         _controller = new LeaveController(_db, emailService, notif, logger);
+        SetAuthenticatedEmployee(3);
     }
 
     public void Dispose() => _db.Dispose();
+
+    private void SetAuthenticatedEmployee(int employeeId)
+    {
+        var identity = new ClaimsIdentity(
+            new[] { new Claim(ClaimTypes.NameIdentifier, employeeId.ToString()) },
+            "TestAuth");
+        _controller.ControllerContext = new ControllerContext
+        {
+            HttpContext = new DefaultHttpContext { User = new ClaimsPrincipal(identity) }
+        };
+    }
 
     [Fact]
     public async Task ApplyLeave_SickLeave_ReturnsSuccess()
@@ -48,6 +62,49 @@ public class LeaveControllerTests : IDisposable
         var ok = Assert.IsType<OkObjectResult>(await _controller.GetEmployeeRequests(3));
         var requests = Assert.IsType<List<object>>(ok.Value);
         Assert.Single(requests);
+    }
+
+    [Fact]
+    public async Task GetEmployeeRequests_ReturnsOnlyAuthenticatedEmployeesRequests()
+    {
+        await _controller.ApplyLeave(new ApplyLeaveRequest(3, 1, new DateTime(2026, 7, 20), new DateTime(2026, 7, 20), false, "Mine"));
+        _db.LeaveApplications.Add(new RelisoftHR.Models.LeaveApplication
+        {
+            EmployeeId = 1,
+            LeaveTypeId = 1,
+            FromDate = new DateTime(2026, 7, 21),
+            ToDate = new DateTime(2026, 7, 21),
+            TotalDays = 1,
+            Reason = "Someone else's",
+            Status = "Pending"
+        });
+        await _db.SaveChangesAsync();
+
+        var ok = Assert.IsType<OkObjectResult>(await _controller.GetEmployeeRequests(3));
+        var requests = Assert.IsType<List<object>>(ok.Value);
+        var request = Assert.IsType<LeaveRequestDto>(Assert.Single(requests));
+        Assert.Equal(3, request.EmployeeId);
+    }
+
+    [Fact]
+    public async Task GetEmployeeRequests_ForDifferentEmployee_ReturnsForbidden()
+    {
+        Assert.IsType<ForbidResult>(await _controller.GetEmployeeRequests(1));
+    }
+
+    [Fact]
+    public async Task GetReviewerRequests_HrRetainsRoleBasedAccess()
+    {
+        await _controller.ApplyLeave(new ApplyLeaveRequest(3, 1, new DateTime(2026, 7, 20), new DateTime(2026, 7, 20), false, "Review me"));
+        SetAuthenticatedEmployee(1);
+
+        Assert.IsType<OkObjectResult>(await _controller.GetReviewerRequests(1));
+    }
+
+    [Fact]
+    public async Task GetReviewerRequests_CannotImpersonateAnotherReviewer()
+    {
+        Assert.IsType<ForbidResult>(await _controller.GetReviewerRequests(1));
     }
 
     [Fact]

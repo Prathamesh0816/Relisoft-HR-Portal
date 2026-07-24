@@ -1,13 +1,16 @@
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using RelisoftHR.Data;
 using RelisoftHR.DTOs;
 using RelisoftHR.Models;
 using RelisoftHR.Services;
+using System.Security.Claims;
 
 namespace RelisoftHR.Controllers;
 
 [ApiController]
+[Authorize]
 [Route("api/leave")]
 public class LeaveController : ControllerBase
 {
@@ -110,6 +113,10 @@ public class LeaveController : ControllerBase
     [HttpGet("employee/{employeeId}/requests")]
     public async Task<ActionResult> GetEmployeeRequests(int employeeId)
     {
+        var authenticatedEmployeeId = GetAuthenticatedEmployeeId();
+        if (authenticatedEmployeeId == null) return Unauthorized(new { message = "Invalid token." });
+        if (authenticatedEmployeeId != employeeId) return Forbid();
+
         var requests = await _db.LeaveApplications
             .Include(l => l.LeaveType)
             .Where(l => l.EmployeeId == employeeId)
@@ -122,6 +129,10 @@ public class LeaveController : ControllerBase
     [HttpGet("reviewer/{reviewerId}/requests")]
     public async Task<ActionResult> GetReviewerRequests(int reviewerId)
     {
+        var authenticatedEmployeeId = GetAuthenticatedEmployeeId();
+        if (authenticatedEmployeeId == null) return Unauthorized(new { message = "Invalid token." });
+        if (authenticatedEmployeeId != reviewerId) return Forbid();
+
         var reviewer = await _db.Employees.Include(e => e.Role).FirstOrDefaultAsync(e => e.Id == reviewerId);
         if (reviewer == null) return NotFound();
 
@@ -644,6 +655,12 @@ public class LeaveController : ControllerBase
             return employeeIds;
 
         return new List<int>();
+    }
+
+    private int? GetAuthenticatedEmployeeId()
+    {
+        var claim = User.FindFirstValue(ClaimTypes.NameIdentifier);
+        return int.TryParse(claim, out var employeeId) ? employeeId : null;
     }
 
     private static object MapRequest(LeaveApplication l)

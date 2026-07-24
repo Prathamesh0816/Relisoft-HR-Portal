@@ -29,6 +29,7 @@ public class AuthControllerTests
         var ok = Assert.IsType<OkObjectResult>(result.Result);
         var response = Assert.IsType<LoginResponse>(ok.Value);
         Assert.Equal("Preeti Patil", response.FullName);
+        Assert.Equal(1, response.EmployeeId);
         Assert.Equal("HRL2", response.Role);
         Assert.NotEmpty(response.Token);
     }

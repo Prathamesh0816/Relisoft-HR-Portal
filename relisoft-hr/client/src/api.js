@@ -55,7 +55,7 @@ export async function applyLeave(req) {
 
 export async function getMyLeaveRequests(employeeId) {
   const { data } = await api.get(`/api/leave/employee/${employeeId}/requests`)
-  return data
+  return Array.isArray(data) ? { requests: data } : data
 }
 
 export async function getReviewerRequests(reviewerId) {
