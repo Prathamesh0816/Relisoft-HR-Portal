@@ -103,9 +103,8 @@ export async function getOnboardingProfile(employeeId) {
 }
 
 export async function saveOnboardingProfile(formData) {
-  const { data } = await axios.post('/api/onboarding', formData, {
-    headers: { 'Content-Type': 'multipart/form-data' },
-    Authorization: `Bearer ${JSON.parse(localStorage.getItem('relisoft-hr-user') || '{}').token || ''}`
+  const { data } = await api.post('/api/onboarding', formData, {
+    headers: { 'Content-Type': 'multipart/form-data' }
   })
   return data
 }
@@ -206,12 +205,17 @@ export async function getCompOffTransfers(employeeId) {
 }
 
 export async function uploadMedicalCertificate(id, formData) {
-  const { data } = await axios.post(`/api/leave/${id}/upload-medical`, formData, {
-    headers: { 'Content-Type': 'multipart/form-data' },
-    Authorization: `Bearer ${JSON.parse(localStorage.getItem('relisoft-hr-user') || '{}').token || ''}`
+  const { data } = await api.post(`/api/leave/${id}/upload-medical`, formData, {
+    headers: { 'Content-Type': 'multipart/form-data' }
   })
   return data
 }
+
+export async function downloadMedicalCertificate(id) {
+  const { data } = await api.get(`/api/leave/${id}/download-medical`, { responseType: 'blob' })
+  return data
+}
+
 
 export async function checkAllBalances() {
   const { data } = await api.get('/api/leave/balance-check-all')
@@ -228,17 +232,15 @@ export async function downloadLeaveReport() {
 }
 
 export async function uploadExistingExcel(formData) {
-  const { data } = await axios.post('/api/excel/upload-existing-employees', formData, {
-    headers: { 'Content-Type': 'multipart/form-data' },
-    Authorization: `Bearer ${JSON.parse(localStorage.getItem('relisoft-hr-user') || '{}').token || ''}`
+  const { data } = await api.post('/api/excel/upload-existing-employees', formData, {
+    headers: { 'Content-Type': 'multipart/form-data' }
   })
   return data
 }
 
 export async function uploadLeaveExcel(formData) {
-  const { data } = await axios.post('/api/excel/upload-leave-balances', formData, {
-    headers: { 'Content-Type': 'multipart/form-data' },
-    Authorization: `Bearer ${JSON.parse(localStorage.getItem('relisoft-hr-user') || '{}').token || ''}`
+  const { data } = await api.post('/api/excel/upload-leave-balances', formData, {
+    headers: { 'Content-Type': 'multipart/form-data' }
   })
   return data
 }

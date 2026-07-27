@@ -63,4 +63,28 @@ describe('ReviewerInbox', () => {
       expect(screen.getByText('No pending leave requests are assigned to this reviewer right now.')).toBeInTheDocument()
     })
   })
+
+  it('alerts HR if an employee applied for Sick/Casual Leave for more than 3 days', async () => {
+    const alertSpy = vi.spyOn(window, 'alert').mockImplementation(() => {})
+    mockStore.currentUser.role = 'HR'
+    mockStore.reviewer = {
+      ...baseReviewer,
+      loading: false,
+      requests: [{
+        id: 42,
+        employeeName: 'Aradhana Shinde',
+        leaveTypeName: 'Sick/Casual Leave',
+        totalDays: 4,
+        status: 'Pending',
+      }]
+    }
+
+    render(<ReviewerInbox />)
+    
+    await waitFor(() => {
+      expect(alertSpy).toHaveBeenCalledWith('Aradhana Shinde has applied for sick/casual leave for more than 3 days')
+    })
+    
+    alertSpy.mockRestore()
+  })
 })

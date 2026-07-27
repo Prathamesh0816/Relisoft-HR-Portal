@@ -53,7 +53,19 @@ public class LeaveController : ControllerBase
         if (req.IsHalfDay) totalDays = Math.Max(1, totalDays * 0.5m);
 
         if (leaveType.MaxConsecutiveDays > 0 && totalDays > leaveType.MaxConsecutiveDays)
-            return BadRequest(new { message = $"This leave type allows a maximum of {leaveType.MaxConsecutiveDays} consecutive days." });
+        {
+            if (leaveType.Name == "Sick/Casual Leave")
+            {
+                if (!req.IsMedicalLeave)
+                {
+                    return BadRequest(new { message = "Medical certificate is required for Sick/Casual Leave exceeding 3 days." });
+                }
+            }
+            else
+            {
+                return BadRequest(new { message = $"This leave type allows a maximum of {leaveType.MaxConsecutiveDays} consecutive days." });
+            }
+        }
 
         if (leaveType.RequiresAdvanceNotice && leaveType.AdvanceNoticeDays > 0)
         {
@@ -62,7 +74,7 @@ public class LeaveController : ControllerBase
                 return BadRequest(new { message = $"This leave type requires {leaveType.AdvanceNoticeDays} day(s) advance notice. Earliest start date: {minStartDate:yyyy-MM-dd}." });
         }
 
-        var isMedical = totalDays > 3;
+        var isMedical = (leaveType.Name == "Sick/Casual Leave" && totalDays > 3) || req.IsMedicalLeave;
 
         if (leaveType.IsFloaterHoliday)
         {
@@ -515,9 +527,29 @@ public class LeaveController : ControllerBase
         await file.CopyToAsync(stream);
 
         application.MedicalCertificatePath = filePath;
+        application.IsMedicalLeave = true;
         await _db.SaveChangesAsync();
 
         return Ok(new { message = "Medical certificate uploaded." });
+    }
+
+    [HttpGet("{id}/download-medical")]
+    public async Task<ActionResult> DownloadMedicalCertificate(int id)
+    {
+        var application = await _db.LeaveApplications.FindAsync(id);
+        if (application == null || string.IsNullOrEmpty(application.MedicalCertificatePath))
+            return NotFound(new { message = "Medical certificate not found." });
+
+        var path = application.MedicalCertificatePath;
+        if (!System.IO.File.Exists(path)) return NotFound(new { message = "File not found on server." });
+
+        var contentType = "application/octet-stream";
+        var ext = Path.GetExtension(path).ToLowerInvariant();
+        if (ext == ".pdf") contentType = "application/pdf";
+        else if (ext == ".jpg" || ext == ".jpeg") contentType = "image/jpeg";
+        else if (ext == ".png") contentType = "image/png";
+
+        return PhysicalFile(path, contentType, Path.GetFileName(path));
     }
 
     [HttpGet("balance-check-all")]

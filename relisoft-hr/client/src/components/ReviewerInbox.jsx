@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
 import useStore from '../store'
-import { getReviewerRequests, makeDecision, loadWorkspace, uploadMedicalCertificate, getDelegates, addDelegate, removeDelegate } from '../api'
+import { getReviewerRequests, makeDecision, loadWorkspace, uploadMedicalCertificate, getDelegates, addDelegate, removeDelegate, downloadMedicalCertificate } from '../api'
 
 function statusClass(status) {
   const s = String(status || '').toLowerCase()
@@ -12,6 +12,7 @@ function statusClass(status) {
 export default function ReviewerInbox() {
   const { data, reviewer, currentUser, setReviewerId, setReviewerData, setData, setMessage } = useStore()
   const [decisionInFlight, setDecisionInFlight] = useState(null)
+  const [hasAlerted, setHasAlerted] = useState(false)
   const [delegates, setDelegates] = useState([])
   const [delegateForm, setDelegateForm] = useState({ delegateId: '', submitting: false })
   const [showDelegates, setShowDelegates] = useState(false)
@@ -45,6 +46,22 @@ export default function ReviewerInbox() {
       })
     }
   }, [reviewer.reviewerId])
+
+  useEffect(() => {
+    const isHr = currentUser?.role === 'HR' || currentUser?.role === 'HRL2'
+    if (isHr && !reviewer.loading && !hasAlerted) {
+      const names = new Set()
+      reviewer.requests?.forEach((req) => {
+        if (req.leaveTypeName === 'Sick/Casual Leave' && req.totalDays > 3) {
+          names.add(req.employeeName)
+        }
+      })
+      names.forEach((name) => {
+        alert(`${name} has applied for sick/casual leave for more than 3 days`)
+      })
+      setHasAlerted(true)
+    }
+  }, [reviewer.requests, reviewer.loading, currentUser, hasAlerted])
 
   const handleDecision = async (requestId, action) => {
     if (decisionInFlight) return
@@ -140,9 +157,30 @@ export default function ReviewerInbox() {
                     </div>
                   ))}
                 </div>
-                {req.isMedicalLeave && !req.medicalCertificatePath && (
+                 {req.isMedicalLeave && !req.medicalCertificatePath && (
                   <div className="p-3 rounded-xl border border-red-200 bg-red-50 dark:bg-red-900/30">
-                    <span className="text-xs font-bold text-red-700">Medical certificate required (leave &gt; 3 days). Employee must upload before approval.</span>
+                    <span className="text-xs font-bold text-red-700">Medical certificate required. Employee must upload before approval.</span>
+                  </div>
+                )}
+                {req.medicalCertificatePath && (
+                  <div className="p-3 rounded-xl border border-navy/10 dark:border-white/10 bg-amber-50/20 dark:bg-amber-900/10 flex items-center justify-between">
+                    <div className="flex items-center gap-2">
+                      <svg className="w-5 h-5 text-amber-600 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                      </svg>
+                      <span className="text-xs font-bold text-navy/70 dark:text-white/70">Medical certificate uploaded</span>
+                    </div>
+                    <button type="button" onClick={async () => {
+                      try {
+                        const blob = await downloadMedicalCertificate(req.id)
+                        const url = window.URL.createObjectURL(blob)
+                        window.open(url, '_blank')
+                      } catch (err) {
+                        alert('Failed to download certificate.')
+                      }
+                    }} className="text-xs font-bold text-gold-1 hover:underline outline-none">
+                      View Certificate
+                    </button>
                   </div>
                 )}
                 {decisionInFlight === req.id && (

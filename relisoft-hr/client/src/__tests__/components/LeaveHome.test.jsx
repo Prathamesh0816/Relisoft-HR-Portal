@@ -19,6 +19,7 @@ vi.mock('../../api', () => ({
   loadWorkspace: vi.fn().mockResolvedValue({}),
   getFloaterUsage: vi.fn().mockResolvedValue(null),
   uploadMedicalCertificate: vi.fn(),
+  downloadMedicalCertificate: vi.fn(),
   applyCompOff: vi.fn(),
   transferCompOff: vi.fn(),
 }))
