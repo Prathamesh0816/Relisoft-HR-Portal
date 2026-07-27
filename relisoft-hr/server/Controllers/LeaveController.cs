@@ -794,7 +794,7 @@ public class LeaveController : ControllerBase
 
         return Ok(holidays.Select(h => new HolidayDto(
             h.Id, h.Name,
-            h.Date.ToString("dd MMMM yyyy"),
+            h.Date.ToString("yyyy-MM-dd"),
             h.Date.DayOfWeek.ToString(),
             h.Type
         )).ToList());
