@@ -103,9 +103,9 @@ public class AuthController : ControllerBase
     {
         // Phase 1 — Core HR: login / employee registration, leaves, tickets, onboarding & offboarding
         var phase1 = new[] { "register", "hrHome", "hrControl", "apply", "onboarding",
-                             "tickets", "balances", "review", "overview",
-                             "calendar", "candidateForm", "hrOnboard", "offboard",
-                             "directory", "settings" };
+                     "tickets", "balances", "review", "overview",
+                     "calendar", "candidateForm", "hrOnboard", "offboard",
+                     "directory", "projects", "settings" };
         return role switch
         {
             "HRL2" or "HR" => phase1,

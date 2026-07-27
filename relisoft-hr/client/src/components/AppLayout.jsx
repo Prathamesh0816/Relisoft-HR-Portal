@@ -16,10 +16,12 @@ import OffboardingDashboard from './OffboardingDashboard'
 import HrHome from './HrHome'
 import HrControlPanel from './HrControlPanel'
 import Settings from './Settings'
+import ProjectBuilder from './ProjectBuilder'
 import { Menu, X } from 'lucide-react'
 
 const meta = {
   hrHome: { label: 'HR', title: 'Run HR operations in the right sequence', subtitle: 'Start with company-controlled onboarding and reviews, then move to your own tasks.' },
+  projects: { label: 'HR', title: 'Projects and teams', subtitle: 'Keep the project structure ready before HR attaches teams to employees.' },
   hrControl: { label: 'HR', title: 'Control leave policy', subtitle: 'Manage employee-facing leave options from one place.' },
   apply: { label: 'Employee', title: 'Plan time away with clarity', subtitle: 'Apply for leave, see who will approve it, and keep the request tidy.' },
   onboarding: { label: 'Employee', title: 'Complete onboarding part 2', subtitle: 'Employee side of onboarding for identity details and documents.' },
@@ -103,6 +105,7 @@ export default function AppLayout({ onLogout }) {
           {activeView === 'balances' && <HrBulkUploads />}
           {activeView === 'review' && <ReviewerInbox />}
           {activeView === 'directory' && <Directory />}
+          {activeView === 'projects' && <ProjectBuilder />}
           {activeView === 'overview' && <LeadershipOverview />}
           {activeView === 'calendar' && <LeaveCalendar />}
           {activeView === 'candidateForm' && <CandidateOnboarding />}
