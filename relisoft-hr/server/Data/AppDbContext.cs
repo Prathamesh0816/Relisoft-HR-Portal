@@ -132,6 +132,17 @@ public class AppDbContext : DbContext
             .HasForeignKey(ss => ss.EmployeeId)
             .OnDelete(DeleteBehavior.NoAction);
 
+        // NEW: manager relationship keyed on EmployeeCode
+        modelBuilder.Entity<Employee>()
+            .HasIndex(e => e.EmployeeCode)
+            .IsUnique();
+        modelBuilder.Entity<Employee>()
+            .HasOne(e => e.ReportingManager)
+            .WithMany()
+            .HasForeignKey(e => e.ManagerCode)
+            .HasPrincipalKey(e => e.EmployeeCode)
+            .OnDelete(DeleteBehavior.Restrict);
+
         modelBuilder.Entity<EmployeeLeaveBalance>()
             .HasIndex(elb => new { elb.EmployeeId, elb.LeaveTypeId }).IsUnique();
 
