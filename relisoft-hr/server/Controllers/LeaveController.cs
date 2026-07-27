@@ -676,6 +676,17 @@ public class LeaveController : ControllerBase
                         .Select(et => et.EmployeeId).Distinct().ToListAsync();
                     delegatedIds.AddRange(mgrEmpIds);
                 }
+
+                // NEW: delegating manager's direct reports via ManagerCode
+                var mgrEmployee = await _db.Employees.FindAsync(managerId);
+                if (mgrEmployee != null)
+                {
+                    var mgrDirectReportIds = await _db.Employees
+                        .Where(e => e.ManagerCode == mgrEmployee.EmployeeCode)
+                        .Select(e => e.Id)
+                        .ToListAsync();
+                    delegatedIds.AddRange(mgrDirectReportIds);
+                }
             }
         }
 

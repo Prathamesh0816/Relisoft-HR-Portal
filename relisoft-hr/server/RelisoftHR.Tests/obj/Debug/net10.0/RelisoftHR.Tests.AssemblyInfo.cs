@@ -14,7 +14,7 @@ using System.Reflection;
 [assembly: System.Reflection.AssemblyCompanyAttribute("RelisoftHR.Tests")]
 [assembly: System.Reflection.AssemblyConfigurationAttribute("Debug")]
 [assembly: System.Reflection.AssemblyFileVersionAttribute("1.0.0.0")]
-[assembly: System.Reflection.AssemblyInformationalVersionAttribute("1.0.0+eea14e275b3b4b0cfbf0d8f897e93db2162a1dc6")]
+[assembly: System.Reflection.AssemblyInformationalVersionAttribute("1.0.0+8c51a1acbfdf4b44887838ca07e4ea45ccbada2c")]
 [assembly: System.Reflection.AssemblyProductAttribute("RelisoftHR.Tests")]
 [assembly: System.Reflection.AssemblyTitleAttribute("RelisoftHR.Tests")]
 [assembly: System.Reflection.AssemblyVersionAttribute("1.0.0.0")]
