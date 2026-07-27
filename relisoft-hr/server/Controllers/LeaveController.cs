@@ -598,6 +598,11 @@ public class LeaveController : ControllerBase
 
     private async Task<Employee?> GetApprover(Employee employee)
     {
+        // NEW: route to the employee's direct manager first
+        var empWithManager = await _db.Employees.Include(e => e.ReportingManager).FirstOrDefaultAsync(e => e.Id == employee.Id);
+        if (empWithManager?.ReportingManager != null)
+            return empWithManager.ReportingManager;
+
         var empWithRole = await _db.Employees.Include(e => e.Role).FirstOrDefaultAsync(e => e.Id == employee.Id);
         if (empWithRole?.Role?.Name == "OrganizationHead" || empWithRole?.Role?.Name is "HRL2" or "HR")
             return await _db.Employees.FirstOrDefaultAsync(e => e.RoleId == 6);
@@ -635,7 +640,13 @@ public class LeaveController : ControllerBase
             ? await _db.EmployeeTeams.Where(et => projectTeamIds.Contains(et.TeamId)).Select(et => et.EmployeeId).Distinct().ToListAsync()
             : new();
 
-        var ownIds = directIds.Concat(projectEmployeeIds).Distinct().ToList();
+        // NEW: direct reports via ManagerCode -> EmployeeCode
+        var directReportIds = await _db.Employees
+            .Where(e => e.ManagerCode == reviewer.EmployeeCode)
+            .Select(e => e.Id)
+            .ToListAsync();
+
+        var ownIds = directIds.Concat(projectEmployeeIds).Concat(directReportIds).Distinct().ToList();
 
         var delegatedFromIds = await _db.ApprovalDelegates
             .Where(d => d.DelegateId == reviewer.Id)
