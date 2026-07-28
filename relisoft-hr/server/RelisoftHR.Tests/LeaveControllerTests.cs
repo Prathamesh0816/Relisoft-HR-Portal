@@ -177,6 +177,19 @@ public class LeaveControllerTests : IDisposable
     }
 
     [Fact]
+    public async Task ApplyLeave_DuplicateActiveRequest_IsRejected()
+    {
+        var request = new ApplyLeaveRequest(
+            3, 1, new DateTime(2026, 7, 20), new DateTime(2026, 7, 20), false, "First request");
+        Assert.IsType<OkObjectResult>(await _controller.ApplyLeave(request));
+
+        var duplicate = await _controller.ApplyLeave(request with { Reason = "Duplicate request" });
+
+        Assert.IsType<BadRequestObjectResult>(duplicate);
+        Assert.Single(_db.LeaveApplications);
+    }
+
+    [Fact]
     public async Task Calendar_AsEmployee_ReturnsOnlyOwnApprovedLeaves()
     {
         _db.LeaveApplications.AddRange(
@@ -202,6 +215,33 @@ public class LeaveControllerTests : IDisposable
 
         var calendarEvent = Assert.Single(events);
         Assert.Equal(3, calendarEvent.EmployeeId);
+    }
+
+    [Fact]
+    public async Task Calendar_DeduplicatesEquivalentApprovedRecords()
+    {
+        _db.LeaveApplications.AddRange(
+            new RelisoftHR.Models.LeaveApplication
+            {
+                EmployeeId = 3, LeaveTypeId = 1,
+                FromDate = new DateTime(2026, 7, 20), ToDate = new DateTime(2026, 7, 20),
+                TotalDays = 1, Status = "Approved", Reason = "Original"
+            },
+            new RelisoftHR.Models.LeaveApplication
+            {
+                EmployeeId = 3, LeaveTypeId = 1,
+                FromDate = new DateTime(2026, 7, 20), ToDate = new DateTime(2026, 7, 20),
+                TotalDays = 1, Status = "Approved", Reason = "Duplicate"
+            }
+        );
+        await _db.SaveChangesAsync();
+        SetAuthenticatedEmployee(3);
+
+        var ok = Assert.IsType<OkObjectResult>(await _controller.GetCalendar(new DateTime(2026, 7, 1), new DateTime(2026, 7, 31)));
+        var leavesProperty = ok.Value!.GetType().GetProperty("Leaves");
+        var events = Assert.IsType<List<CalendarEvent>>(leavesProperty?.GetValue(ok.Value));
+
+        Assert.Single(events);
     }
 
     [Fact]

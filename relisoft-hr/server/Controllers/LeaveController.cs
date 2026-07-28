@@ -83,6 +83,16 @@ public class LeaveController : ControllerBase
                 return BadRequest(new { message = $"Floater holiday limit ({leaveType.MaxFloaterPerYear}/year) reached." });
         }
 
+        var duplicateExists = await _db.LeaveApplications.AnyAsync(l =>
+            l.EmployeeId == req.EmployeeId &&
+            l.LeaveTypeId == req.LeaveTypeId &&
+            l.FromDate == req.StartDate &&
+            l.ToDate == req.EndDate &&
+            l.IsHalfDay == req.IsHalfDay &&
+            (l.Status == "Pending" || l.Status == "Approved" || l.Status == "CancellationRequested"));
+        if (duplicateExists)
+            return BadRequest(new { message = "An active leave request already exists for the same leave type and dates." });
+
         var balance = await _db.EmployeeLeaveBalances
             .FirstOrDefaultAsync(lb => lb.EmployeeId == req.EmployeeId && lb.LeaveTypeId == req.LeaveTypeId);
 
@@ -477,10 +487,13 @@ public class LeaveController : ControllerBase
             .OrderBy(l => l.FromDate)
             .ToListAsync();
 
-        var events = leaves.Select(l => new CalendarEvent(
-            l.Id, l.EmployeeId, l.Employee?.FullName ?? "", l.Employee?.EmployeeCode ?? "",
-            l.LeaveType?.Name ?? "", l.FromDate, l.ToDate, l.TotalDays
-        )).ToList();
+        var events = leaves
+            .GroupBy(l => new { l.EmployeeId, l.LeaveTypeId, l.FromDate, l.ToDate, l.TotalDays, l.IsHalfDay })
+            .Select(group => group.OrderBy(l => l.AppliedOn).ThenBy(l => l.Id).First())
+            .Select(l => new CalendarEvent(
+                l.Id, l.EmployeeId, l.Employee?.FullName ?? "", l.Employee?.EmployeeCode ?? "",
+                l.LeaveType?.Name ?? "", l.FromDate, l.ToDate, l.TotalDays
+            )).ToList();
 
         return Ok(new { Leaves = events, FromDate = fromDate, ToDate = toDate });
     }
