@@ -38,13 +38,14 @@ export default function LeaveHome() {
     if (!leaveForm.leaveTypeId || !currentUser?.employeeId) return
     const lt = data.leaveTypes.find((l) => String(l.id) === String(leaveForm.leaveTypeId))
     if (!lt) return
-    checkLeaveBalance(currentUser.employeeId, leaveForm.leaveTypeId).then(setBalanceInfo)
+    const leaveYear = leaveForm.startDate ? Number(leaveForm.startDate.slice(0, 4)) : new Date().getFullYear()
+    checkLeaveBalance(currentUser.employeeId, leaveForm.leaveTypeId, leaveYear).then(setBalanceInfo)
     if (lt.isFloaterHoliday) {
-      getFloaterUsage(currentUser.employeeId, new Date().getFullYear()).then(setFloaterUsage)
+      getFloaterUsage(currentUser.employeeId, leaveYear).then(setFloaterUsage)
     } else {
       setFloaterUsage(null)
     }
-  }, [leaveForm.leaveTypeId, currentUser?.employeeId])
+  }, [leaveForm.leaveTypeId, leaveForm.startDate, currentUser?.employeeId, data.leaveTypes])
 
   useEffect(() => {
     if (!balanceInfo || !leaveForm.startDate || !leaveForm.endDate || leaveForm.startDate > leaveForm.endDate) {
@@ -188,7 +189,7 @@ export default function LeaveHome() {
             <div>
               <label className="text-xs font-bold text-navy/70 dark:text-white/70 uppercase tracking-wider">Leave type</label>
               <select value={leaveForm.leaveTypeId} disabled={leaveForm.submitting} onChange={(e) => updateForm('leaveForm', 'leaveTypeId', e.target.value)} className="mt-1.5 w-full h-12 px-4 rounded-xl border border-navy/10 dark:border-white/10 bg-white dark:bg-[var(--bg-secondary)] focus:border-gold-1 focus:ring-4 focus:ring-gold-1/10 outline-none transition-all text-navy dark:text-white">
-                {data.leaveTypes.filter((lt) => !lt.isCompOff).map((lt) => <option key={lt.id} value={lt.id}>{lt.name}{lt.isFloaterHoliday ? ` (max ${lt.maxFloaterPerYear}/yr)` : ''}</option>)}
+                {data.leaveTypes.map((lt) => <option key={lt.id} value={lt.id}>{lt.name}{lt.isFloaterHoliday ? ` (max ${lt.maxFloaterPerYear}/yr)` : ''}</option>)}
               </select>
             </div>
             <div>

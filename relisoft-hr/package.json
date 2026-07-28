@@ -1,16 +1,22 @@
 {
   "name": "relisoft-hr",
   "version": "1.0.0",
+  "private": true,
   "description": "ReliSoft HR - Complete HR Management System",
   "scripts": {
-    "server": "cd server && dotnet run",
-    "client": "cd client && npm run dev",
-    "dev": "concurrently \"npm run server\" \"npm run client\"",
-    "install-all": "npm install && cd server && npm install && cd ../client && npm install",
-    "build": "cd client && npm run build"
+    "server": "dotnet run --project server/RelisoftHR.csproj",
+    "client": "npm run dev --prefix client",
+    "dev": "concurrently --names \"BACKEND,FRONTEND\" \"npm run server\" \"npm run client\"",
+    "install-all": "dotnet restore server/RelisoftHR.csproj && npm install --prefix client",
+    "database-update": "dotnet ef database update --project server/RelisoftHR.csproj --startup-project server/RelisoftHR.csproj",
+    "build:server": "dotnet build server/RelisoftHR.csproj",
+    "build:client": "npm run build --prefix client",
+    "build": "npm run build:server && npm run build:client"
   },
   "dependencies": {
-    "axios": "^1.18.1",
-    "concurrently": "^8.2.2"
+    "axios": "^1.18.1"
+  },
+  "devDependencies": {
+    "concurrently": "^9.2.4"
   }
 }

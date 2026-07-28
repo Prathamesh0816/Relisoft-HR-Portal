@@ -281,7 +281,7 @@ public class WorkspaceController : ControllerBase
     {
         var y = year;
         var used = await _db.LeaveApplications
-            .CountAsync(l => l.EmployeeId == employeeId && l.LeaveType!.IsFloaterHoliday && l.AppliedOn.Year == y && l.Status == "Approved");
+            .CountAsync(l => l.EmployeeId == employeeId && l.LeaveType!.IsFloaterHoliday && l.FromDate.Year == y && l.Status == "Approved");
         var lt = await _db.LeaveTypes.FirstOrDefaultAsync(l => l.IsFloaterHoliday);
         return Ok(new FloaterHolidayUsageDto(used, lt?.MaxFloaterPerYear ?? 2));
     }

@@ -70,6 +70,12 @@ describe('API layer', () => {
     expect(result.requests).toEqual([{ id: 1, employeeId: 3 }])
   })
 
+  it('checkLeaveBalance sends the selected leave year', async () => {
+    mockGet.mockResolvedValue({ data: { remaining: 2, isFloater: true } })
+    await api.checkLeaveBalance(3, 9, 2027)
+    expect(mockGet).toHaveBeenCalledWith('/api/leave/balance-check/3/9?year=2027')
+  })
+
   it('cancelLeave calls POST /api/leave/:id/cancel', async () => {
     mockPost.mockResolvedValue({ data: { message: 'Cancelled' } })
     const result = await api.cancelLeave(1, { employeeId: 3, reason: 'No longer needed' })
