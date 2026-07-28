@@ -38,13 +38,14 @@ export default function LeaveHome() {
     if (!leaveForm.leaveTypeId || !currentUser?.employeeId) return
     const lt = data.leaveTypes.find((l) => String(l.id) === String(leaveForm.leaveTypeId))
     if (!lt) return
-    checkLeaveBalance(currentUser.employeeId, leaveForm.leaveTypeId).then(setBalanceInfo)
+    const leaveYear = leaveForm.startDate ? Number(leaveForm.startDate.slice(0, 4)) : new Date().getFullYear()
+    checkLeaveBalance(currentUser.employeeId, leaveForm.leaveTypeId, leaveYear).then(setBalanceInfo)
     if (lt.isFloaterHoliday) {
-      getFloaterUsage(currentUser.employeeId, new Date().getFullYear()).then(setFloaterUsage)
+      getFloaterUsage(currentUser.employeeId, leaveYear).then(setFloaterUsage)
     } else {
       setFloaterUsage(null)
     }
-  }, [leaveForm.leaveTypeId, currentUser?.employeeId])
+  }, [leaveForm.leaveTypeId, leaveForm.startDate, currentUser?.employeeId, data.leaveTypes])
 
   useEffect(() => {
     if (!balanceInfo || !leaveForm.startDate || !leaveForm.endDate || leaveForm.startDate > leaveForm.endDate) {
