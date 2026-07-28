@@ -177,6 +177,34 @@ public class LeaveControllerTests : IDisposable
     }
 
     [Fact]
+    public async Task Calendar_AsEmployee_ReturnsOnlyOwnApprovedLeaves()
+    {
+        _db.LeaveApplications.AddRange(
+            new RelisoftHR.Models.LeaveApplication
+            {
+                EmployeeId = 3, LeaveTypeId = 1,
+                FromDate = new DateTime(2026, 7, 20), ToDate = new DateTime(2026, 7, 20),
+                TotalDays = 1, Status = "Approved", Reason = "My leave"
+            },
+            new RelisoftHR.Models.LeaveApplication
+            {
+                EmployeeId = 1, LeaveTypeId = 1,
+                FromDate = new DateTime(2026, 7, 21), ToDate = new DateTime(2026, 7, 21),
+                TotalDays = 1, Status = "Approved", Reason = "Another employee leave"
+            }
+        );
+        await _db.SaveChangesAsync();
+        SetAuthenticatedEmployee(3);
+
+        var ok = Assert.IsType<OkObjectResult>(await _controller.GetCalendar(new DateTime(2026, 7, 1), new DateTime(2026, 7, 31)));
+        var leavesProperty = ok.Value!.GetType().GetProperty("Leaves");
+        var events = Assert.IsType<List<CalendarEvent>>(leavesProperty?.GetValue(ok.Value));
+
+        var calendarEvent = Assert.Single(events);
+        Assert.Equal(3, calendarEvent.EmployeeId);
+    }
+
+    [Fact]
     public async Task ApplyFloaterHoliday_AnySelectedDate_IsNotLossOfPay()
     {
         var ok = Assert.IsType<OkObjectResult>(await _controller.ApplyLeave(new ApplyLeaveRequest(

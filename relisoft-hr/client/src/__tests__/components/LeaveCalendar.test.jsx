@@ -65,7 +65,7 @@ describe('LeaveCalendar', () => {
 
   it('shows a separate Fixed and Optional legend for the holiday list', () => {
     render(<LeaveCalendar />)
-    expect(screen.getByText('Calendar legend')).toBeInTheDocument()
+    expect(screen.getByLabelText('Calendar legend')).toBeInTheDocument()
     expect(screen.getByLabelText('Holiday type legend')).toBeInTheDocument()
     expect(screen.getByTestId('legend-fixed')).toHaveClass('bg-green-500')
     expect(screen.getByTestId('legend-optional')).toHaveClass('bg-amber-400')

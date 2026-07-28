@@ -452,14 +452,28 @@ public class LeaveController : ControllerBase
     [HttpGet("calendar")]
     public async Task<ActionResult> GetCalendar([FromQuery] DateTime? from, [FromQuery] DateTime? to)
     {
+        var authenticatedEmployeeId = GetAuthenticatedEmployeeId();
+        if (authenticatedEmployeeId == null) return Unauthorized(new { message = "Invalid token." });
+
+        var viewer = await _db.Employees
+            .AsNoTracking()
+            .Include(e => e.Role)
+            .FirstOrDefaultAsync(e => e.Id == authenticatedEmployeeId);
+        if (viewer == null) return Unauthorized(new { message = "Employee account not found." });
+
         var fromDate = from ?? new DateTime(DateTime.UtcNow.Year, DateTime.UtcNow.Month, 1);
         var toDate = to ?? fromDate.AddMonths(2).AddDays(-1);
 
-        var leaves = await _db.LeaveApplications
+        var query = _db.LeaveApplications
             .AsNoTracking()
             .Include(l => l.Employee)
             .Include(l => l.LeaveType)
-            .Where(l => l.Status == "Approved" && l.FromDate <= toDate && l.ToDate >= fromDate)
+            .Where(l => l.Status == "Approved" && l.FromDate <= toDate && l.ToDate >= fromDate);
+
+        if (viewer.Role?.Name == "Employee")
+            query = query.Where(l => l.EmployeeId == authenticatedEmployeeId.Value);
+
+        var leaves = await query
             .OrderBy(l => l.FromDate)
             .ToListAsync();
 
