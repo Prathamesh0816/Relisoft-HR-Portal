@@ -4,9 +4,9 @@ public record CreateEmployeeRequest(
     string EmployeeCode, string FullName, string Email, string Department,
     string Designation, string JobRole, string EmploymentType, string Location,
     SalaryStructureDto? SalaryStructure, DateTime JoinDate, int Role,
-    int PrimaryTeamId, List<int> TeamIds
+    int PrimaryTeamId, List<int> TeamIds,
+    int? ManagerId = null   // NEW
 );
-
 public record UpdateEmployeeRequest(
     string EmployeeCode, string FullName, string Email, string Department,
     string Designation, string JobRole, string EmploymentType, string Location,

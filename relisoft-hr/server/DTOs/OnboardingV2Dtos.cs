@@ -15,7 +15,8 @@ public record OnboardingStepDto(int Id, int ChecklistItemId, string ItemName, st
 public record CandidateOnboardingRequest(
     string FullName, string Email, string Department, string Designation,
     string JobRole, string Location, DateTime JoinDate, string? PanNumber,
-    string? AadhaarNumber, bool HasPriorExperience
+    string? AadhaarNumber, bool HasPriorExperience,
+    int? ManagerId = null   // NEW — the manager's Employee.Id, selected by name in the UI
 );
 
 public record EmployeeOffboardingDto(

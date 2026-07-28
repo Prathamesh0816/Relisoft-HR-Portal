@@ -46,12 +46,13 @@ export default function HrRegistration() {
           pf: Number(ss.pf || 0), gratuity: Number(ss.gratuity || 0),
           insurance: Number(ss.insurance || 0), otherDeductions: Number(ss.otherDeductions || 0)
         } : null,
-        joinDate: employeeForm.joinDate,
-        role: Number(baseRoleId),
-        primaryTeamId: Number(employeeForm.primaryTeamId),
-        teamIds: employeeForm.teamIds.map(Number)
+          joinDate: employeeForm.joinDate,
+          role: Number(baseRoleId),
+          primaryTeamId: Number(employeeForm.primaryTeamId),
+          teamIds: employeeForm.teamIds.map(Number),
+          managerId: employeeForm.managerId ? Number(employeeForm.managerId) : null   // NEW
       })
-      const defaults = { employeeCode: '', fullName: '', email: '', department: '', designation: '', jobRole: '', employmentType: 'Full-time', location: '', salaryStructure: { fixedPay: '', variablePay: '', pf: '', gratuity: '', insurance: '', otherDeductions: '' }, joinDate: new Date().toISOString().slice(0, 10), role: 1, primaryTeamId: String(teams[0]?.id || ''), teamIds: [String(teams[0]?.id || '')].filter(Boolean), submitting: false }
+        const defaults = { employeeCode: '', fullName: '', email: '', department: '', designation: '', jobRole: '', employmentType: 'Full-time', location: '', salaryStructure: { fixedPay: '', variablePay: '', pf: '', gratuity: '', insurance: '', otherDeductions: '' }, joinDate: new Date().toISOString().slice(0, 10), role: 1, primaryTeamId: String(teams[0]?.id || ''), teamIds: [String(teams[0]?.id || '')].filter(Boolean), submitting: false, managerId: '' }
       resetForm('employeeForm', defaults)
       setMessage({ type: 'success', text: `${res.message} Username: ${res.loginUsername} | Temporary password: ${res.temporaryPassword}` })
       const fresh = await loadWorkspace()
@@ -98,12 +99,19 @@ export default function HrRegistration() {
             <label className="text-xs font-bold text-navy/70 dark:text-white/70 uppercase tracking-wider">Location</label>
             <input value={employeeForm.location} disabled={employeeForm.submitting} onChange={(e) => updateForm('employeeForm', 'location', e.target.value)} placeholder="Bengaluru" required className="mt-1.5 w-full h-12 px-4 rounded-xl border border-navy/10 dark:border-white/10 bg-white dark:bg-[var(--bg-secondary)] focus:border-gold-1 focus:ring-4 focus:ring-gold-1/10 outline-none text-navy dark:text-white" />
           </div>
-          <div>
-            <label className="text-xs font-bold text-navy/70 dark:text-white/70 uppercase tracking-wider">System access</label>
-            <select value={employeeForm.role} disabled={employeeForm.submitting} onChange={(e) => updateForm('employeeForm', 'role', e.target.value)} className="mt-1.5 w-full h-12 px-4 rounded-xl border border-navy/10 dark:border-white/10 bg-white dark:bg-[var(--bg-secondary)] focus:border-gold-1 focus:ring-4 focus:ring-gold-1/10 outline-none text-navy dark:text-white">
-              {allRoles.map((r) => <option key={r.id} value={r.id}>{r.label || r.name}</option>)}
-            </select>
-          </div>
+                  <div>
+                      <label className="text-xs font-bold text-navy/70 dark:text-white/70 uppercase tracking-wider">System access</label>
+                      <select value={employeeForm.role} disabled={employeeForm.submitting} onChange={(e) => updateForm('employeeForm', 'role', e.target.value)} className="mt-1.5 w-full h-12 px-4 rounded-xl border border-navy/10 dark:border-white/10 bg-white dark:bg-[var(--bg-secondary)] focus:border-gold-1 focus:ring-4 focus:ring-gold-1/10 outline-none text-navy dark:text-white">
+                          {allRoles.map((r) => <option key={r.id} value={r.id}>{r.label || r.name}</option>)}
+                      </select>
+                  </div>
+                  <div>
+                      <label className="text-xs font-bold text-navy/70 dark:text-white/70 uppercase tracking-wider">Manager</label>
+                      <select value={employeeForm.managerId} disabled={employeeForm.submitting} onChange={(e) => updateForm('employeeForm', 'managerId', e.target.value)} className="mt-1.5 w-full h-12 px-4 rounded-xl border border-navy/10 dark:border-white/10 bg-white dark:bg-[var(--bg-secondary)] focus:border-gold-1 focus:ring-4 focus:ring-gold-1/10 outline-none text-navy dark:text-white">
+                          <option value="">No manager</option>
+                          {data.employees.map((emp) => <option key={emp.id} value={emp.id}>{emp.fullName}</option>)}
+                      </select>
+                  </div>
           <div className="md:col-span-2">
             <label className="text-xs font-bold text-navy/70 dark:text-white/70 uppercase tracking-wider mb-2 block">Salary structure (₹/annum)</label>
             <div className="grid md:grid-cols-3 gap-3">

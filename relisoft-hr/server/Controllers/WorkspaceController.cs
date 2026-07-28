@@ -45,6 +45,14 @@ public class WorkspaceController : ControllerBase
     [HttpPost("employees")]
     public async Task<ActionResult<CreateEmployeeResponse>> CreateEmployee(CreateEmployeeRequest req)
     {
+        // NEW: resolve the selected manager's EmployeeCode from their Id
+        string? managerCode = null;
+        if (req.ManagerId.HasValue)
+        {
+            var manager = await _db.Employees.FindAsync(req.ManagerId.Value);
+            managerCode = manager?.EmployeeCode;
+        }
+
         var employee = new Employee
         {
             EmployeeCode = req.EmployeeCode,
@@ -57,7 +65,8 @@ public class WorkspaceController : ControllerBase
             Location = req.Location,
             JoinDate = req.JoinDate,
             RoleId = req.Role,
-            PrimaryTeamId = req.PrimaryTeamId
+            PrimaryTeamId = req.PrimaryTeamId,
+            ManagerCode = managerCode   // NEW
         };
 
         _db.Employees.Add(employee);

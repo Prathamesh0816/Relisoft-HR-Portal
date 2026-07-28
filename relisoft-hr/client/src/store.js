@@ -14,12 +14,13 @@ const useStore = create((set, get) => ({
     hrPolicy: { allowHalfDayLeave: false, sandwichLeave: false }
   },
   authForm: { username: '', password: '' },
-  employeeForm: {
-    employeeCode: '', fullName: '', email: '', department: '', designation: '',
-    jobRole: '', employmentType: 'Full-time', location: '',
-    salaryStructure: { fixedPay: '', variablePay: '', pf: '', gratuity: '', insurance: '', otherDeductions: '' },
-    joinDate: new Date().toISOString().slice(0, 10), role: 1, primaryTeamId: '', teamIds: [], submitting: false
-  },
+    employeeForm: {
+        employeeCode: '', fullName: '', email: '', department: '', designation: '',
+        jobRole: '', employmentType: 'Full-time', location: '',
+        salaryStructure: { fixedPay: '', variablePay: '', pf: '', gratuity: '', insurance: '', otherDeductions: '' },
+        joinDate: new Date().toISOString().slice(0, 10), role: 1, primaryTeamId: '', teamIds: [], submitting: false,
+        managerId: ''   // NEW
+    },
   leaveForm: {
     employeeId: '', leaveTypeId: '', startDate: '', endDate: '', isHalfDay: false, reason: '', submitting: false,
     balanceCheck: null

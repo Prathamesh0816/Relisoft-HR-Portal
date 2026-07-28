@@ -49,6 +49,14 @@ public class OnboardingV2Controller : ControllerBase
     [HttpPost("candidate")]
     public async Task<ActionResult> SubmitCandidateForm(CandidateOnboardingRequest req)
     {
+        // NEW: resolve the selected manager's EmployeeCode from their Id
+        string? managerCode = null;
+        if (req.ManagerId.HasValue)
+        {
+            var manager = await _db.Employees.FindAsync(req.ManagerId.Value);
+            managerCode = manager?.EmployeeCode;
+        }
+
         var employee = new Employee
         {
             EmployeeCode = $"CAND-{DateTime.UtcNow:yyyyMMddHHmmss}",
@@ -61,7 +69,8 @@ public class OnboardingV2Controller : ControllerBase
             Status = "Onboarding",
             Location = req.Location ?? "",
             JoinDate = req.JoinDate,
-            RoleId = 1
+            RoleId = 1,
+            ManagerCode = managerCode   // NEW
         };
         _db.Employees.Add(employee);
         await _db.SaveChangesAsync();
