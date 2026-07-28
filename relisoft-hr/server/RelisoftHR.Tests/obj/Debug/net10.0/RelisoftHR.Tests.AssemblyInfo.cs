@@ -14,15 +14,7 @@ using System.Reflection;
 [assembly: System.Reflection.AssemblyCompanyAttribute("RelisoftHR.Tests")]
 [assembly: System.Reflection.AssemblyConfigurationAttribute("Debug")]
 [assembly: System.Reflection.AssemblyFileVersionAttribute("1.0.0.0")]
-<<<<<<< HEAD
-[assembly: System.Reflection.AssemblyInformationalVersionAttribute("1.0.0+eea14e275b3b4b0cfbf0d8f897e93db2162a1dc6")]
-=======
-<<<<<<< Updated upstream
-[assembly: System.Reflection.AssemblyInformationalVersionAttribute("1.0.0+2b58765688e3e7abc0f2d0875ba15cf1cc7258b4")]
-=======
-[assembly: System.Reflection.AssemblyInformationalVersionAttribute("1.0.0+8c51a1acbfdf4b44887838ca07e4ea45ccbada2c")]
->>>>>>> Stashed changes
->>>>>>> feature/compoff
+[assembly: System.Reflection.AssemblyInformationalVersionAttribute("1.0.0+e747df7c46cab09452a432cdb79b54acedc90756")]
 [assembly: System.Reflection.AssemblyProductAttribute("RelisoftHR.Tests")]
 [assembly: System.Reflection.AssemblyTitleAttribute("RelisoftHR.Tests")]
 [assembly: System.Reflection.AssemblyVersionAttribute("1.0.0.0")]
