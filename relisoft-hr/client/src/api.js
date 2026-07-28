@@ -185,8 +185,9 @@ export async function getFloaterUsage(employeeId, year) {
   return data
 }
 
-export async function checkLeaveBalance(employeeId, leaveTypeId) {
-  const { data } = await api.get(`/api/leave/balance-check/${employeeId}/${leaveTypeId}`)
+export async function checkLeaveBalance(employeeId, leaveTypeId, year) {
+  const params = year ? `?year=${year}` : ''
+  const { data } = await api.get(`/api/leave/balance-check/${employeeId}/${leaveTypeId}${params}`)
   return data
 }
 

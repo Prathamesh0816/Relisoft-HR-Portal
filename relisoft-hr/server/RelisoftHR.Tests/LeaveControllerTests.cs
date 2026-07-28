@@ -111,6 +111,7 @@ public class LeaveControllerTests : IDisposable
     public async Task MakeDecision_ApproveLeave_UpdatesStatus()
     {
         await _controller.ApplyLeave(new ApplyLeaveRequest(3, 1, new DateTime(2026, 7, 20), new DateTime(2026, 7, 20), false, "Sick"));
+        SetAuthenticatedEmployee(1);
 
         var ok = Assert.IsType<OkObjectResult>(await _controller.MakeDecision(new ReviewerDecisionRequest(
             LeaveApplicationId: 1, ApproverId: 1, Action: "approve"
@@ -125,6 +126,7 @@ public class LeaveControllerTests : IDisposable
     public async Task MakeDecision_RejectLeave_UpdatesStatus()
     {
         await _controller.ApplyLeave(new ApplyLeaveRequest(3, 1, new DateTime(2026, 7, 20), new DateTime(2026, 7, 20), false, "Sick"));
+        SetAuthenticatedEmployee(1);
 
         var ok = Assert.IsType<OkObjectResult>(await _controller.MakeDecision(new ReviewerDecisionRequest(
             LeaveApplicationId: 1, ApproverId: 1, Action: "reject", Reason: "Insufficient coverage"
@@ -140,6 +142,7 @@ public class LeaveControllerTests : IDisposable
     {
         await _controller.ApplyLeave(new ApplyLeaveRequest(3, 1, new DateTime(2026, 7, 20), new DateTime(2026, 7, 20), false, "Sick"));
         await _controller.ApplyLeave(new ApplyLeaveRequest(3, 1, new DateTime(2026, 7, 22), new DateTime(2026, 7, 22), false, "Doctor visit"));
+        SetAuthenticatedEmployee(1);
 
         var ok = Assert.IsType<OkObjectResult>(await _controller.BulkDecision(new BulkDecisionRequest(
             LeaveApplicationIds: new List<int> { 1, 2 },
@@ -161,8 +164,169 @@ public class LeaveControllerTests : IDisposable
     public async Task Calendar_ReturnsEvents()
     {
         await _controller.ApplyLeave(new ApplyLeaveRequest(3, 1, new DateTime(2026, 7, 20), new DateTime(2026, 7, 20), false, "Sick"));
+        var application = _db.LeaveApplications.Single();
+        SetAuthenticatedEmployee(1);
+        await _controller.MakeDecision(new ReviewerDecisionRequest(application.Id, 1, "approve"));
 
         var ok = Assert.IsType<OkObjectResult>(await _controller.GetCalendar(new DateTime(2026, 7, 1), new DateTime(2026, 7, 31)));
-        Assert.NotNull(ok.Value);
+        var leavesProperty = ok.Value!.GetType().GetProperty("Leaves");
+        var events = Assert.IsType<List<CalendarEvent>>(leavesProperty?.GetValue(ok.Value));
+        var calendarEvent = Assert.Single(events);
+        Assert.Equal(3, calendarEvent.EmployeeId);
+        Assert.Equal(new DateTime(2026, 7, 20), calendarEvent.FromDate);
+    }
+
+    [Fact]
+    public async Task ApplyLeave_DuplicateActiveRequest_IsRejected()
+    {
+        var request = new ApplyLeaveRequest(
+            3, 1, new DateTime(2026, 7, 20), new DateTime(2026, 7, 20), false, "First request");
+        Assert.IsType<OkObjectResult>(await _controller.ApplyLeave(request));
+
+        var duplicate = await _controller.ApplyLeave(request with { Reason = "Duplicate request" });
+
+        Assert.IsType<BadRequestObjectResult>(duplicate);
+        Assert.Single(_db.LeaveApplications);
+    }
+
+    [Fact]
+    public async Task Calendar_AsEmployee_ReturnsOnlyOwnApprovedLeaves()
+    {
+        _db.LeaveApplications.AddRange(
+            new RelisoftHR.Models.LeaveApplication
+            {
+                EmployeeId = 3, LeaveTypeId = 1,
+                FromDate = new DateTime(2026, 7, 20), ToDate = new DateTime(2026, 7, 20),
+                TotalDays = 1, Status = "Approved", Reason = "My leave"
+            },
+            new RelisoftHR.Models.LeaveApplication
+            {
+                EmployeeId = 1, LeaveTypeId = 1,
+                FromDate = new DateTime(2026, 7, 21), ToDate = new DateTime(2026, 7, 21),
+                TotalDays = 1, Status = "Approved", Reason = "Another employee leave"
+            }
+        );
+        await _db.SaveChangesAsync();
+        SetAuthenticatedEmployee(3);
+
+        var ok = Assert.IsType<OkObjectResult>(await _controller.GetCalendar(new DateTime(2026, 7, 1), new DateTime(2026, 7, 31)));
+        var leavesProperty = ok.Value!.GetType().GetProperty("Leaves");
+        var events = Assert.IsType<List<CalendarEvent>>(leavesProperty?.GetValue(ok.Value));
+
+        var calendarEvent = Assert.Single(events);
+        Assert.Equal(3, calendarEvent.EmployeeId);
+    }
+
+    [Fact]
+    public async Task Calendar_DeduplicatesEquivalentApprovedRecords()
+    {
+        _db.LeaveApplications.AddRange(
+            new RelisoftHR.Models.LeaveApplication
+            {
+                EmployeeId = 3, LeaveTypeId = 1,
+                FromDate = new DateTime(2026, 7, 20), ToDate = new DateTime(2026, 7, 20),
+                TotalDays = 1, Status = "Approved", Reason = "Original"
+            },
+            new RelisoftHR.Models.LeaveApplication
+            {
+                EmployeeId = 3, LeaveTypeId = 1,
+                FromDate = new DateTime(2026, 7, 20), ToDate = new DateTime(2026, 7, 20),
+                TotalDays = 1, Status = "Approved", Reason = "Duplicate"
+            }
+        );
+        await _db.SaveChangesAsync();
+        SetAuthenticatedEmployee(3);
+
+        var ok = Assert.IsType<OkObjectResult>(await _controller.GetCalendar(new DateTime(2026, 7, 1), new DateTime(2026, 7, 31)));
+        var leavesProperty = ok.Value!.GetType().GetProperty("Leaves");
+        var events = Assert.IsType<List<CalendarEvent>>(leavesProperty?.GetValue(ok.Value));
+
+        Assert.Single(events);
+    }
+
+    [Fact]
+    public async Task ApplyFloaterHoliday_AnySelectedDate_IsNotLossOfPay()
+    {
+        var ok = Assert.IsType<OkObjectResult>(await _controller.ApplyLeave(new ApplyLeaveRequest(
+            3, 9, new DateTime(2026, 7, 29), new DateTime(2026, 7, 29), false, "Selected floater date")));
+
+        var lossOfPay = ok.Value!.GetType().GetProperty("lossOfPay")?.GetValue(ok.Value);
+        Assert.Equal(false, lossOfPay);
+        Assert.False(_db.LeaveApplications.Single().LossOfPay);
+    }
+
+    [Fact]
+    public async Task ApplyFloaterHoliday_DateNeedNotBeInHolidayCalendar()
+    {
+        var result = await _controller.ApplyLeave(new ApplyLeaveRequest(
+            3, 9, new DateTime(2026, 7, 29), new DateTime(2026, 7, 29), false, "Employee-selected date"));
+
+        Assert.IsType<OkObjectResult>(result);
+        Assert.Single(_db.LeaveApplications);
+    }
+
+    [Fact]
+    public async Task ApplyFloaterHoliday_PendingRequestsReserveAnnualLimit()
+    {
+        Assert.IsType<OkObjectResult>(await _controller.ApplyLeave(new ApplyLeaveRequest(
+            3, 9, new DateTime(2026, 8, 28), new DateTime(2026, 8, 28), false, "First")));
+        Assert.IsType<OkObjectResult>(await _controller.ApplyLeave(new ApplyLeaveRequest(
+            3, 9, new DateTime(2026, 10, 20), new DateTime(2026, 10, 20), false, "Second")));
+
+        var third = await _controller.ApplyLeave(new ApplyLeaveRequest(
+            3, 9, new DateTime(2026, 8, 28), new DateTime(2026, 8, 28), false, "Third"));
+        Assert.IsType<BadRequestObjectResult>(third);
+        Assert.Equal(2, _db.LeaveApplications.Count());
+    }
+
+    [Fact]
+    public async Task ApproveFloaterHoliday_RechecksAnnualLimit()
+    {
+        _db.LeaveApplications.AddRange(
+            new RelisoftHR.Models.LeaveApplication { EmployeeId = 3, LeaveTypeId = 9, FromDate = new DateTime(2026, 8, 28), ToDate = new DateTime(2026, 8, 28), TotalDays = 1, Status = "Approved" },
+            new RelisoftHR.Models.LeaveApplication { EmployeeId = 3, LeaveTypeId = 9, FromDate = new DateTime(2026, 10, 20), ToDate = new DateTime(2026, 10, 20), TotalDays = 1, Status = "Approved" }
+        );
+        var pending = new RelisoftHR.Models.LeaveApplication { EmployeeId = 3, LeaveTypeId = 9, FromDate = new DateTime(2026, 8, 28), ToDate = new DateTime(2026, 8, 28), TotalDays = 1, Status = "Pending" };
+        _db.LeaveApplications.Add(pending);
+        await _db.SaveChangesAsync();
+        SetAuthenticatedEmployee(1);
+
+        var result = await _controller.MakeDecision(new ReviewerDecisionRequest(pending.Id, 1, "approve"));
+
+        Assert.IsType<BadRequestObjectResult>(result);
+        Assert.Equal("Pending", pending.Status);
+    }
+
+    [Fact]
+    public async Task CheckFloaterBalance_UsesSelectedLeaveYear()
+    {
+        _db.LeaveApplications.Add(new RelisoftHR.Models.LeaveApplication
+        {
+            EmployeeId = 3, LeaveTypeId = 9,
+            FromDate = new DateTime(2027, 1, 15), ToDate = new DateTime(2027, 1, 15),
+            TotalDays = 1, Status = "Approved", AppliedOn = new DateTime(2026, 12, 1)
+        });
+        await _db.SaveChangesAsync();
+
+        var ok = Assert.IsType<OkObjectResult>(await _controller.CheckBalance(3, 9, 2027));
+        var remaining = ok.Value!.GetType().GetProperty("remaining")?.GetValue(ok.Value);
+        Assert.Equal(1, remaining);
+    }
+
+    [Fact]
+    public async Task GetHolidays_ReturnsIsoDate()
+    {
+        _db.Holidays.Add(new RelisoftHR.Models.Holiday
+        {
+            Name = "Republic Day",
+            Date = new DateOnly(2026, 1, 26),
+            Type = "Fixed"
+        });
+        await _db.SaveChangesAsync();
+
+        var result = await _controller.GetHolidays(2026);
+        var ok = Assert.IsType<OkObjectResult>(result.Result);
+        var holidays = Assert.IsType<List<HolidayDto>>(ok.Value);
+        Assert.Contains(holidays, holiday => holiday.Name == "Republic Day" && holiday.Date == "2026-01-26");
     }
 }
