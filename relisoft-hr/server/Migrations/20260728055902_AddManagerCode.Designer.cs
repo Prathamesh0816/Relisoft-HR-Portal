@@ -3,6 +3,7 @@ using System;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
 using Microsoft.EntityFrameworkCore.Metadata;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 using RelisoftHR.Data;
 
@@ -11,9 +12,11 @@ using RelisoftHR.Data;
 namespace RelisoftHR.Migrations
 {
     [DbContext(typeof(AppDbContext))]
-    partial class AppDbContextModelSnapshot : ModelSnapshot
+    [Migration("20260728055902_AddManagerCode")]
+    partial class AddManagerCode
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        /// <inheritdoc />
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder
@@ -2257,26 +2260,11 @@ namespace RelisoftHR.Migrations
                     b.Property<DateTime?>("CancellationRequestedOn")
                         .HasColumnType("datetime2");
 
-                    b.Property<int?>("ConsumedByLeaveApplicationId")
-                        .HasColumnType("int");
-
-                    b.Property<DateTime?>("ConsumedOn")
-                        .HasColumnType("datetime2");
-
                     b.Property<int>("EmployeeId")
                         .HasColumnType("int");
 
-                    b.Property<DateTime?>("ExpiresOn")
-                        .HasColumnType("datetime2");
-
                     b.Property<DateTime>("FromDate")
                         .HasColumnType("datetime2");
-
-                    b.Property<bool>("IsCompOffConsumed")
-                        .HasColumnType("bit");
-
-                    b.Property<bool>("IsCompOffCredit")
-                        .HasColumnType("bit");
 
                     b.Property<bool>("IsHalfDay")
                         .HasColumnType("bit");
@@ -2307,9 +2295,6 @@ namespace RelisoftHR.Migrations
 
                     b.Property<decimal>("TotalDays")
                         .HasColumnType("decimal(18,2)");
-
-                    b.Property<DateTime?>("WorkedDate")
-                        .HasColumnType("datetime2");
 
                     b.HasKey("Id");
 

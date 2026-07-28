@@ -28,6 +28,19 @@ public class LeaveApplication
     public string? MedicalCertificatePath { get; set; }
     public bool LossOfPay { get; set; }
 
+    // Comp Off Credit Tracking
+    public bool IsCompOffCredit { get; set; } = false;
+
+    public DateTime? WorkedDate { get; set; }
+
+    public DateTime? ExpiresOn { get; set; }
+
+    public bool IsCompOffConsumed { get; set; } = false;
+
+    public DateTime? ConsumedOn { get; set; }
+
+    public int? ConsumedByLeaveApplicationId { get; set; }
+
     public string? CancellationReason { get; set; }
     public DateTime? CancellationRequestedOn { get; set; }
     public int? CancellationActionedById { get; set; }

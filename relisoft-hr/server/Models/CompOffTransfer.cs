@@ -9,7 +9,9 @@ public class CompOffTransfer
     public int Id { get; set; }
     public int FromEmployeeId { get; set; }
     public int ToEmployeeId { get; set; }
-    public decimal Days { get; set; }
+    public int CompOffCreditLeaveApplicationId { get; set; }
+    public DateTime WorkedDate { get; set; }
+    public DateTime ExpiresOn { get; set; }
     [MaxLength(500)]
     public string Reason { get; set; } = "";
     [Required, MaxLength(50)]
@@ -21,4 +23,6 @@ public class CompOffTransfer
     public Employee? FromEmployee { get; set; }
     [ForeignKey(nameof(ToEmployeeId))]
     public Employee? ToEmployee { get; set; }
+    [ForeignKey(nameof(CompOffCreditLeaveApplicationId))]
+    public LeaveApplication? CompOffCredit { get; set; }
 }

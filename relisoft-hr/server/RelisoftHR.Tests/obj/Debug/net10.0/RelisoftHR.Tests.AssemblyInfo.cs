@@ -13,7 +13,11 @@ using System.Reflection;
 [assembly: System.Reflection.AssemblyCompanyAttribute("RelisoftHR.Tests")]
 [assembly: System.Reflection.AssemblyConfigurationAttribute("Debug")]
 [assembly: System.Reflection.AssemblyFileVersionAttribute("1.0.0.0")]
+<<<<<<< Updated upstream
 [assembly: System.Reflection.AssemblyInformationalVersionAttribute("1.0.0+2b58765688e3e7abc0f2d0875ba15cf1cc7258b4")]
+=======
+[assembly: System.Reflection.AssemblyInformationalVersionAttribute("1.0.0+8c51a1acbfdf4b44887838ca07e4ea45ccbada2c")]
+>>>>>>> Stashed changes
 [assembly: System.Reflection.AssemblyProductAttribute("RelisoftHR.Tests")]
 [assembly: System.Reflection.AssemblyTitleAttribute("RelisoftHR.Tests")]
 [assembly: System.Reflection.AssemblyVersionAttribute("1.0.0.0")]
