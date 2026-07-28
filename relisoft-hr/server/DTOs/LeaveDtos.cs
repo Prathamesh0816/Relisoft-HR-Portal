@@ -12,7 +12,9 @@ public record LeaveRequestDto(
     string? ApproverName, DateTime AppliedOn, DateTime? ActionedOn,
     string? ApprovalReason, bool CanCancel, string? PrimaryTeamName,
     bool IsMedicalLeave, bool LossOfPay, string? MedicalCertificatePath,
-    string? CancellationReason = null, DateTime? CancellationRequestedOn = null
+    string? CancellationReason = null, DateTime? CancellationRequestedOn = null,
+    bool IsCompOffCredit = false, DateTime? WorkedDate = null,
+    DateTime? ExpiresOn = null, bool IsCompOffConsumed = false
 );
 
 public record ReviewerDecisionRequest(int LeaveApplicationId, int ApproverId, string Action, string? Reason = null);
@@ -33,11 +35,11 @@ public record CompOffRequestData(int EmployeeId, DateTime WorkedDate, string Rea
 
 public record FloaterHolidayUsageDto(int Used, int Max);
 
-public record CompOffTransferRequest(int FromEmployeeId, int ToEmployeeId, decimal Days, string Reason);
+public record CompOffTransferRequest(int FromEmployeeId, int ToEmployeeId, int CompOffCreditLeaveApplicationId, string Reason);
 public record CompOffTransferResponse(
     int Id, int FromEmployeeId, string FromEmployeeName, string FromEmployeeCode,
     int ToEmployeeId, string ToEmployeeName, string ToEmployeeCode,
-    decimal Days, string Reason, string Status, DateTime CreatedOn, DateTime? ActionedOn
+    DateTime WorkedDate, DateTime ExpiresOn, string Reason, string Status, DateTime CreatedOn, DateTime? ActionedOn
 );
 
 public record CalendarEvent(
