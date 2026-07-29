@@ -24,7 +24,6 @@ const sections = [
   },
   {
     label: 'Reviews',
-    roles: ['HRL2', 'HR', 'OrganizationHead', 'ManagerL2', 'Manager', 'TeamLead'],
     items: [
       { view: 'review', label: 'Leave Review', icon: ClipboardCheck },
     ]

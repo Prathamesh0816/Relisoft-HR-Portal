@@ -35,7 +35,7 @@ public class AuthController : ControllerBase
 
         var emp = user.Employee!;
         var token = GenerateToken(emp);
-        var views = GetViewsForRole(emp.Role!.Name);
+        var views = GetViewsForUser(emp.Role!.Name, user.Username);
 
         return Ok(new LoginResponse(
             emp.Id, emp.FullName, user.Username, emp.Role.Name, emp.Role.Label,
@@ -99,19 +99,26 @@ public class AuthController : ControllerBase
         return new JwtSecurityTokenHandler().WriteToken(token);
     }
 
-    private static string[] GetViewsForRole(string role)
+    private static string[] GetViewsForUser(string role, string username)
     {
         // Phase 1 — Core HR: login / employee registration, leaves, tickets, onboarding & offboarding
         var phase1 = new[] { "register", "hrHome", "hrControl", "apply", "onboarding",
-                             "tickets", "balances", "review", "overview",
-                             "calendar", "candidateForm", "hrOnboard", "offboard",
-                             "directory", "settings" };
-        return role switch
+                     "tickets", "balances", "review", "overview",
+                     "calendar", "candidateForm", "hrOnboard", "offboard",
+                     "directory", "projects", "settings" };
+        var views = role switch
         {
             "HRL2" or "HR" => phase1,
             "OrganizationHead" or "ManagerL2" or "Manager" => new[] { "overview", "review", "directory", "apply", "onboarding", "tickets", "calendar", "settings" },
             "TeamLead" => new[] { "review", "apply", "onboarding", "tickets", "directory", "calendar", "settings" },
             _ => new[] { "apply", "onboarding", "tickets", "directory", "calendar", "candidateForm", "settings" }
         };
+
+        // Aradhana is the employee-side demo reviewer. Keep her Employee role and
+        // grant only the review capability; the leave API still limits results to
+        // employees assigned to her through teams, reporting lines, or delegation.
+        return username.Equals("aradhana", StringComparison.OrdinalIgnoreCase)
+            ? views.Append("review").Distinct().ToArray()
+            : views;
     }
 }

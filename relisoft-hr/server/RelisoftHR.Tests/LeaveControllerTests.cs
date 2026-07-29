@@ -108,6 +108,51 @@ public class LeaveControllerTests : IDisposable
     }
 
     [Fact]
+    public async Task GetReviewerRequests_EmployeeReviewerSeesDirectReportsPendingLeave()
+    {
+        _db.Projects.Add(new RelisoftHR.Models.Project { Id = 1, Name = "Relisoft HR Portal" });
+        _db.Teams.Add(new RelisoftHR.Models.Team
+        {
+            Id = 1,
+            Name = "Backend",
+            ProjectId = 1,
+            LeadId = 3
+        });
+        _db.Employees.Add(new RelisoftHR.Models.Employee
+        {
+            Id = 10,
+            EmployeeCode = "EMP-010",
+            FullName = "Chirag Patil",
+            Email = "chirag.patil@relisofttechnologies.com",
+            Department = "Engineering",
+            Designation = "Software Engineer",
+            RoleId = 1,
+            PrimaryTeamId = 1
+        });
+        _db.LeaveApplications.Add(new RelisoftHR.Models.LeaveApplication
+        {
+            Id = 19,
+            EmployeeId = 10,
+            LeaveTypeId = 9,
+            FromDate = new DateTime(2026, 8, 13),
+            ToDate = new DateTime(2026, 8, 13),
+            TotalDays = 1,
+            Reason = "Floater holiday",
+            Status = "Pending"
+        });
+        await _db.SaveChangesAsync();
+
+        var ok = Assert.IsType<OkObjectResult>(await _controller.GetReviewerRequests(3));
+        var requestsProperty = ok.Value!.GetType().GetProperty("Requests");
+        var requests = Assert.IsType<List<object>>(requestsProperty?.GetValue(ok.Value));
+        var request = Assert.IsType<LeaveRequestDto>(Assert.Single(requests));
+
+        Assert.Equal(10, request.EmployeeId);
+        Assert.Equal("Chirag Patil", request.EmployeeName);
+        Assert.Equal("Pending", request.Status);
+    }
+
+    [Fact]
     public async Task MakeDecision_ApproveLeave_UpdatesStatus()
     {
         await _controller.ApplyLeave(new ApplyLeaveRequest(3, 1, new DateTime(2026, 7, 20), new DateTime(2026, 7, 20), false, "Sick"));

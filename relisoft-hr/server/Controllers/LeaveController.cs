@@ -690,6 +690,11 @@ public class LeaveController : ControllerBase
         if (empWithRole?.Role?.Name is "Manager" or "ManagerL2")
             return await _db.Employees.FirstOrDefaultAsync(e => e.RoleId == 7 || e.RoleId == 6);
 
+        var primaryTeam = employee.PrimaryTeamId.HasValue
+            ? await _db.Teams.Include(t => t.Lead).FirstOrDefaultAsync(t => t.Id == employee.PrimaryTeamId.Value)
+            : null;
+        if (primaryTeam?.Lead != null) return primaryTeam.Lead;
+
         var team = await _db.Teams.Include(t => t.Lead).FirstOrDefaultAsync(t => t.EmployeeTeams.Any(et => et.EmployeeId == employee.Id));
         if (team?.Lead != null) return team.Lead;
 
@@ -709,6 +714,14 @@ public class LeaveController : ControllerBase
             .Where(t => t.LeadId == reviewer.Id)
             .ToListAsync();
         var directIds = directTeams.SelectMany(t => t.EmployeeTeams).Select(et => et.EmployeeId).Distinct().ToList();
+        var directTeamIds = directTeams.Select(t => t.Id).ToList();
+        var primaryTeamEmployeeIds = directTeamIds.Any()
+            ? await _db.Employees
+                .Where(e => e.PrimaryTeamId.HasValue && directTeamIds.Contains(e.PrimaryTeamId.Value))
+                .Select(e => e.Id)
+                .ToListAsync()
+            : new();
+        var directlyAssignedIds = directIds.Concat(primaryTeamEmployeeIds).Distinct().ToList();
 
         var myProjects = await _db.Projects
             .Include(p => p.Teams)
@@ -720,7 +733,7 @@ public class LeaveController : ControllerBase
             ? await _db.EmployeeTeams.Where(et => projectTeamIds.Contains(et.TeamId)).Select(et => et.EmployeeId).Distinct().ToListAsync()
             : new();
 
-        var ownIds = directIds.Concat(projectEmployeeIds).Distinct().ToList();
+        var ownIds = directlyAssignedIds.Concat(projectEmployeeIds).Distinct().ToList();
 
         var delegatedFromIds = await _db.ApprovalDelegates
             .Where(d => d.DelegateId == reviewer.Id)
@@ -759,12 +772,14 @@ public class LeaveController : ControllerBase
             return employeeIds.Any() ? employeeIds : ownIds;
 
         if (reviewer.Role?.Name == "TeamLead")
-            return directIds;
+            return directlyAssignedIds;
 
         if (delegatedIds.Any())
             return employeeIds;
 
-        return new List<int>();
+        // Reviewer access is assignment based, not role-only. An Employee can
+        // be a valid approver when they lead another employee's primary team.
+        return ownIds;
     }
 
     private int? GetAuthenticatedEmployeeId()
