@@ -280,24 +280,39 @@ public class WorkspaceController : ControllerBase
             .ThenBy(l => l.AppliedOn)
             .ToListAsync();
 
-        return Ok(leaves.Select(l => new
+        var report = new List<object>();
+
+        foreach (var leave in leaves)
         {
-            l.Id,
-            EmployeeName = l.Employee?.FullName,
-            l.Employee?.EmployeeCode,
-            LeaveType = l.LeaveType?.Name,
-            l.FromDate,
-            l.ToDate,
-            l.TotalDays,
-            l.Status,
-            ApprovedBy = l.ApproverName,
+            decimal remainingLeaves = 0;
 
-            RemainingLeaves = l.Employee?.LeaveBalances
-        .FirstOrDefault(lb => lb.LeaveTypeId == l.LeaveTypeId)
-        ?.RemainingLeaves ?? 0,
+            var balance = await _leaveBalanceService.GetBalanceAsync(
+                leave.EmployeeId,
+                leave.LeaveTypeId
+            );
 
-            l.LossOfPay
-        }));
+            if (balance != null)
+            {
+                remainingLeaves = balance.RemainingLeaves;
+            }
+
+            report.Add(new
+            {
+                leave.Id,
+                EmployeeName = leave.Employee?.FullName,
+                leave.Employee?.EmployeeCode,
+                LeaveType = leave.LeaveType?.Name,
+                leave.FromDate,
+                leave.ToDate,
+                leave.TotalDays,
+                leave.Status,
+                ApprovedBy = leave.ApproverName,
+                RemainingLeaves = remainingLeaves,
+                leave.LossOfPay
+            });
+        }
+
+        return Ok(report);
     }
 
     [HttpGet("floater-usage/{employeeId}")]
