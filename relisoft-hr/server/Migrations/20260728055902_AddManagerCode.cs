@@ -10,17 +10,17 @@ namespace RelisoftHR.Migrations
         /// <inheritdoc />
         protected override void Up(MigrationBuilder migrationBuilder)
         {
-            migrationBuilder.AddColumn<string>(
-                name: "ManagerCode",
-                table: "Employees",
-                type: "nvarchar(50)",
-                maxLength: 50,
-                nullable: true);
+            // Some existing installations received ManagerCode before this migration
+            // was recorded. Keep this migration safe to run against both schemas.
+            migrationBuilder.Sql("""
+                IF COL_LENGTH(N'dbo.Employees', N'ManagerCode') IS NULL
+                    ALTER TABLE [Employees] ADD [ManagerCode] nvarchar(50) NULL;
+                """);
 
-            migrationBuilder.AddUniqueConstraint(
-                name: "AK_Employees_EmployeeCode",
-                table: "Employees",
-                column: "EmployeeCode");
+            migrationBuilder.Sql("""
+                IF NOT EXISTS (SELECT 1 FROM sys.key_constraints WHERE [name] = N'AK_Employees_EmployeeCode')
+                    ALTER TABLE [Employees] ADD CONSTRAINT [AK_Employees_EmployeeCode] UNIQUE ([EmployeeCode]);
+                """);
 
             migrationBuilder.UpdateData(
                  table: "Employees",
@@ -85,24 +85,17 @@ namespace RelisoftHR.Migrations
                 column: "ManagerCode",
                 value: "EMP-002"); // Unnati Gawali -> Rakesh Patil
 
-            migrationBuilder.CreateIndex(
-                name: "IX_Employees_EmployeeCode",
-                table: "Employees",
-                column: "EmployeeCode",
-                unique: true);
+            migrationBuilder.Sql("""
+                IF NOT EXISTS (SELECT 1 FROM sys.indexes WHERE object_id = OBJECT_ID(N'dbo.Employees') AND [name] = N'IX_Employees_EmployeeCode')
+                    CREATE UNIQUE INDEX [IX_Employees_EmployeeCode] ON [Employees] ([EmployeeCode]);
 
-            migrationBuilder.CreateIndex(
-                name: "IX_Employees_ManagerCode",
-                table: "Employees",
-                column: "ManagerCode");
+                IF NOT EXISTS (SELECT 1 FROM sys.indexes WHERE object_id = OBJECT_ID(N'dbo.Employees') AND [name] = N'IX_Employees_ManagerCode')
+                    CREATE INDEX [IX_Employees_ManagerCode] ON [Employees] ([ManagerCode]);
 
-            migrationBuilder.AddForeignKey(
-                name: "FK_Employees_Employees_ManagerCode",
-                table: "Employees",
-                column: "ManagerCode",
-                principalTable: "Employees",
-                principalColumn: "EmployeeCode",
-                onDelete: ReferentialAction.Restrict);
+                IF NOT EXISTS (SELECT 1 FROM sys.foreign_keys WHERE [name] = N'FK_Employees_Employees_ManagerCode')
+                    ALTER TABLE [Employees] ADD CONSTRAINT [FK_Employees_Employees_ManagerCode]
+                        FOREIGN KEY ([ManagerCode]) REFERENCES [Employees] ([EmployeeCode]) ON DELETE NO ACTION;
+                """);
         }
 
         /// <inheritdoc />
