@@ -63,4 +63,16 @@ describe('ReviewerInbox', () => {
       expect(screen.getByText('No pending leave requests are assigned to this reviewer right now.')).toBeInTheDocument()
     })
   })
+
+  it('initializes an employee who has the review capability as a reviewer', async () => {
+    mockStore.currentUser = { employeeId: 3, fullName: 'Aradhana Shinde', role: 'Employee', views: ['review'] }
+    mockStore.data.employees = [{ id: 3, fullName: 'Aradhana Shinde', role: 'Employee' }]
+    mockStore.reviewer = { ...baseReviewer, reviewerId: '' }
+
+    render(<ReviewerInbox />)
+
+    await waitFor(() => {
+      expect(mockStore.setReviewerId).toHaveBeenCalledWith('3')
+    })
+  })
 })

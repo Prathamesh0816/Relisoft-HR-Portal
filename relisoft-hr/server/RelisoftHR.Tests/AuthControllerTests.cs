@@ -56,6 +56,7 @@ public class AuthControllerTests
         var response = Assert.IsType<LoginResponse>(ok.Value);
         Assert.Equal("Employee", response.Role);
         Assert.Equal("Aradhana Shinde", response.FullName);
+        Assert.Contains("review", response.Views);
     }
 
     [Fact]

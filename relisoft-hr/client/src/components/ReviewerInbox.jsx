@@ -18,10 +18,12 @@ export default function ReviewerInbox() {
   const employee = data.employees.find((e) => String(e.id) === String(currentUser?.employeeId))
 
   useEffect(() => {
-    if (currentUser && ['HRL2', 'HR', 'OrganizationHead', 'Manager', 'ManagerL2', 'TeamLead'].includes(currentUser.role)) {
+    const canReview = currentUser?.views?.includes('review')
+      || ['HRL2', 'HR', 'OrganizationHead', 'Manager', 'ManagerL2', 'TeamLead'].includes(currentUser?.role)
+    if (currentUser && canReview) {
       setReviewerId(String(currentUser.employeeId))
     }
-    if (currentUser && !['HRL2', 'HR', 'OrganizationHead', 'Manager', 'ManagerL2', 'TeamLead'].includes(currentUser.role)) {
+    if (currentUser && !canReview) {
       getDelegates(currentUser.employeeId).then((d) => {
         const list = Array.isArray(d) ? d : d?.delegates || []
         if (list.length > 0) setReviewerId(String(currentUser.employeeId))
