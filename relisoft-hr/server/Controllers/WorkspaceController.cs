@@ -3,6 +3,7 @@ using Microsoft.EntityFrameworkCore;
 using RelisoftHR.Data;
 using RelisoftHR.DTOs;
 using RelisoftHR.Models;
+using RelisoftHR.Services;
 
 namespace RelisoftHR.Controllers;
 
@@ -11,8 +12,13 @@ namespace RelisoftHR.Controllers;
 public class WorkspaceController : ControllerBase
 {
     private readonly AppDbContext _db;
+    private readonly ILeaveBalanceService _leaveBalanceService;
 
-    public WorkspaceController(AppDbContext db) => _db = db;
+    public WorkspaceController(AppDbContext db, ILeaveBalanceService leaveBalanceService)
+    {
+        _db = db;
+        _leaveBalanceService = leaveBalanceService;
+    }
 
     [HttpGet]
     public async Task<ActionResult<WorkspaceResponse>> GetWorkspace()
@@ -32,9 +38,13 @@ public class WorkspaceController : ControllerBase
         var leaveTypes = await _db.LeaveTypes.Where(lt => lt.IsActive).OrderBy(lt => lt.SortOrder).ToListAsync();
         var roles = await _db.OrganizationRoles.ToListAsync();
         var hrPolicy = await _db.HrPolicies.FirstOrDefaultAsync() ?? new HrPolicy();
+        var employeeDtos = new List<EmployeeDto>();
+        var plannedLeaveTypeId = leaveTypes.SingleOrDefault(leaveType => leaveType.Name == "Planned Leave")?.Id;
+        foreach (var employee in employees)
+            employeeDtos.Add(await MapEmployeeAsync(employee, plannedLeaveTypeId));
 
         return Ok(new WorkspaceResponse(
-            employees.Select(e => MapEmployee(e)).ToList(),
+            employeeDtos,
             projects.Select(p => MapProject(p)).ToList(),
             leaveTypes.Select(lt => new LeaveTypeDto(lt.Id, lt.Name, lt.CarryForwardPct, lt.IsCompOff, lt.IsFloaterHoliday, lt.MaxFloaterPerYear, lt.CompOffValidityDays)).ToList(),
             roles.Select(r => new RoleDto(r.Id, r.Name, r.Label, r.IsCustom, r.BaseRoleId)).ToList(),
@@ -277,7 +287,7 @@ public class WorkspaceController : ControllerBase
         return Ok(new FloaterHolidayUsageDto(used, lt?.MaxFloaterPerYear ?? 2));
     }
 
-    private EmployeeDto MapEmployee(Employee e)
+    private async Task<EmployeeDto> MapEmployeeAsync(Employee e, int? plannedLeaveTypeId)
     {
         var teams = e.EmployeeTeams.Select(et => new TeamDto(
             et.Team!.Id, et.Team.Name, et.Team.ProjectId,
@@ -293,6 +303,25 @@ public class WorkspaceController : ControllerBase
                 e.SalaryStructure.Insurance, e.SalaryStructure.OtherDeductions);
         }
 
+        var leaveBalances = e.LeaveBalances.Select(lb => new LeaveBalanceDto(
+            lb.Id, lb.LeaveTypeId, lb.LeaveType?.Name ?? "",
+            lb.AllocatedLeaves, lb.UsedLeaves, lb.RemainingLeaves
+        )).ToList();
+
+        if (plannedLeaveTypeId.HasValue)
+        {
+            var plannedBalance = await _leaveBalanceService.GetBalanceAsync(e.Id, plannedLeaveTypeId.Value);
+            if (plannedBalance != null)
+            {
+                var existingIndex = leaveBalances.FindIndex(balance => balance.LeaveTypeId == plannedLeaveTypeId.Value);
+                var dynamicBalance = new LeaveBalanceDto(plannedBalance.Id, plannedBalance.LeaveTypeId,
+                    plannedBalance.LeaveTypeName, plannedBalance.AllocatedLeaves, plannedBalance.UsedLeaves,
+                    plannedBalance.RemainingLeaves);
+                if (existingIndex >= 0) leaveBalances[existingIndex] = dynamicBalance;
+                else leaveBalances.Add(dynamicBalance);
+            }
+        }
+
         return new EmployeeDto(
             e.Id, e.EmployeeCode, e.FullName, e.Email, e.Department,
             e.Designation, e.JobRole, e.EmploymentType, e.Status, e.Location,
@@ -305,10 +334,7 @@ public class WorkspaceController : ControllerBase
                 : null,
             e.PrimaryTeamId,
             teams,
-            e.LeaveBalances.Select(lb => new LeaveBalanceDto(
-                lb.Id, lb.LeaveTypeId, lb.LeaveType?.Name ?? "",
-                lb.AllocatedLeaves, lb.UsedLeaves, lb.RemainingLeaves
-            )).ToList(),
+            leaveBalances,
             null
         );
     }

@@ -2,7 +2,7 @@ namespace RelisoftHR.DTOs;
 
 public record ApplyLeaveRequest(
     int EmployeeId, int LeaveTypeId, DateTime StartDate, DateTime EndDate,
-    bool IsHalfDay, string Reason, bool IsMedicalLeave = false
+    bool IsHalfDay, string Reason, bool IsMedicalLeave = false, bool ConfirmLossOfPay = false
 );
 
 public record LeaveRequestDto(
