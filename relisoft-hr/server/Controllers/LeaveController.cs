@@ -823,6 +823,33 @@ public class LeaveController : ControllerBase
         )).ToList());
     }
 
+    [HttpGet("comp-off/available-credits/{employeeId}")]
+    public async Task<ActionResult> GetAvailableCompOffCredits(int employeeId)
+    {
+        var compOffType = await _db.LeaveTypes.FirstOrDefaultAsync(lt => lt.IsCompOff);
+        if (compOffType == null)
+            return Ok(new List<object>());
+
+        var credits = await _db.LeaveApplications
+            .Where(l => l.EmployeeId == employeeId &&
+                        l.LeaveTypeId == compOffType.Id &&
+                        l.IsCompOffCredit &&
+                        !l.IsCompOffConsumed &&
+                        l.Status == "Approved" &&
+                        l.ExpiresOn != null && l.ExpiresOn > DateTime.UtcNow)
+            .OrderBy(l => l.WorkedDate)
+            .Select(l => new
+            {
+                l.Id,
+                l.WorkedDate,
+                l.ExpiresOn,
+                l.AppliedOn
+            })
+            .ToListAsync();
+
+        return Ok(credits);
+    }
+
     [HttpPost("{id}/upload-medical")]
     public async Task<ActionResult> UploadMedicalCertificate(int id, IFormFile file)
     {

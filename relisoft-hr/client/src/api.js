@@ -206,6 +206,11 @@ export async function getCompOffTransfers(employeeId) {
   return data
 }
 
+export async function getAvailableCompOffCredits(employeeId) {
+  const { data } = await api.get(`/api/leave/comp-off/available-credits/${employeeId}`)
+  return data
+}
+
 export async function uploadMedicalCertificate(id, formData) {
   const { data } = await axios.post(`/api/leave/${id}/upload-medical`, formData, {
     headers: { 'Content-Type': 'multipart/form-data' },

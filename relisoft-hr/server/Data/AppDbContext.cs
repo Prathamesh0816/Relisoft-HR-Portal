@@ -482,7 +482,7 @@ public class AppDbContext : DbContext
             new LeaveType { Id = 3, Name = "Maternity Leave", SortOrder = 3, MaxConsecutiveDays = 180, RequiresAdvanceNotice = true, AdvanceNoticeDays = 30 },
             new LeaveType { Id = 4, Name = "Paternity Leave", SortOrder = 4, MaxConsecutiveDays = 15, RequiresAdvanceNotice = true, AdvanceNoticeDays = 7 },
             new LeaveType { Id = 5, Name = "Bereavement Leave", SortOrder = 5, MaxConsecutiveDays = 3, RequiresAdvanceNotice = false },
-            new LeaveType { Id = 6, Name = "Compensatory Off", SortOrder = 6, IsCompOff = true, CompOffValidityDays = 30, MaxConsecutiveDays = 1, RequiresAdvanceNotice = false },
+            new LeaveType { Id = 6, Name = "Compensatory Off", SortOrder = 6, IsCompOff = true, CompOffValidityDays = 60, MaxConsecutiveDays = 1, RequiresAdvanceNotice = false },
             new LeaveType { Id = 7, Name = "Marriage Leave", SortOrder = 7, MaxConsecutiveDays = 5, RequiresAdvanceNotice = true, AdvanceNoticeDays = 7 },
             new LeaveType { Id = 8, Name = "Special Leave", SortOrder = 8, MaxConsecutiveDays = 30, RequiresAdvanceNotice = true, AdvanceNoticeDays = 15 },
             new LeaveType { Id = 9, Name = "Floater Holiday", SortOrder = 9, IsFloaterHoliday = true, MaxFloaterPerYear = 2, MaxConsecutiveDays = 1, RequiresAdvanceNotice = false }
@@ -492,7 +492,8 @@ public class AppDbContext : DbContext
             new HrPolicy { Id = 1, AllowHalfDayLeave = false, UpdatedOn = new DateTime(2026, 1, 1, 0, 0, 0, DateTimeKind.Utc) }
         );
 
-        new Employee { Id = 1, EmployeeCode = "EMP-001", FullName = "Preeti Patil", /* ...unchanged... */ RoleId = 7, ManagerCode = "EMP-002", CreatedOn = new DateTime(2026, 1, 1, 0, 0, 0, DateTimeKind.Utc) },
+        modelBuilder.Entity<Employee>().HasData(
+            new Employee { Id = 1, EmployeeCode = "EMP-001", FullName = "Preeti Patil", /* ...unchanged... */ RoleId = 7, ManagerCode = "EMP-002", CreatedOn = new DateTime(2026, 1, 1, 0, 0, 0, DateTimeKind.Utc) },
             new Employee { Id = 2, EmployeeCode = "EMP-002", FullName = "Rakesh Patil", /* ...unchanged... */ RoleId = 6, CreatedOn = new DateTime(2026, 1, 1, 0, 0, 0, DateTimeKind.Utc) }, // no ManagerCode
             new Employee { Id = 3, EmployeeCode = "EMP-003", FullName = "Aradhana Shinde", /* ...unchanged... */ RoleId = 1, ManagerCode = "EMP-004", CreatedOn = new DateTime(2026, 1, 1, 0, 0, 0, DateTimeKind.Utc) },
             new Employee { Id = 4, EmployeeCode = "EMP-004", FullName = "Arif Nadeem Mirza", /* ...unchanged... */ RoleId = 8, CreatedOn = new DateTime(2026, 1, 1, 0, 0, 0, DateTimeKind.Utc) }, // no ManagerCode
@@ -501,6 +502,7 @@ public class AppDbContext : DbContext
             new Employee { Id = 7, EmployeeCode = "EMP-007", FullName = "Prathamesh Katikar", /* ...unchanged... */ RoleId = 1, ManagerCode = "EMP-004", CreatedOn = new DateTime(2026, 1, 1, 0, 0, 0, DateTimeKind.Utc) },
             new Employee { Id = 8, EmployeeCode = "EMP-008", FullName = "Super HR", /* ...unchanged... */ RoleId = 7, ManagerCode = "EMP-002", CreatedOn = new DateTime(2026, 1, 1, 0, 0, 0, DateTimeKind.Utc) },
             new Employee { Id = 9, EmployeeCode = "EMP-009", FullName = "Unnati Gawali", /* ...unchanged... */ RoleId = 3, ManagerCode = "EMP-002", CreatedOn = new DateTime(2026, 1, 1, 0, 0, 0, DateTimeKind.Utc) }
+        );
 
         modelBuilder.Entity<UserLogin>().HasData(
             new UserLogin { Id = 1, EmployeeId = 1, Username = "preeti", PasswordHash = "$2a$11$1OmqZ7Lg1.9.5dC2qwF3He4EDiSghkDr94W1CrHjxUML9COevlnhy", CreatedOn = new DateTime(2026, 1, 1, 0, 0, 0, DateTimeKind.Utc) },
