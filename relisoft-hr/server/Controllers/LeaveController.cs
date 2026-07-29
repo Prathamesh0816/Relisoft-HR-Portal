@@ -18,13 +18,15 @@ public class LeaveController : ControllerBase
     private readonly IEmailService _emailService;
     private readonly NotificationHelper _notif;
     private readonly ILogger<LeaveController> _logger;
+    private readonly ILeaveBalanceService _leaveBalanceService;
 
-    public LeaveController(AppDbContext db, IEmailService emailService, NotificationHelper notif, ILogger<LeaveController> logger)
+    public LeaveController(AppDbContext db, IEmailService emailService, NotificationHelper notif, ILogger<LeaveController> logger, ILeaveBalanceService leaveBalanceService)
     {
         _db = db;
         _emailService = emailService;
         _notif = notif;
         _logger = logger;
+        _leaveBalanceService = leaveBalanceService;
     }
 
     [HttpPost("apply-leave")]
@@ -36,21 +38,27 @@ public class LeaveController : ControllerBase
         var leaveType = await _db.LeaveTypes.FindAsync(req.LeaveTypeId);
         if (leaveType == null) return NotFound(new { message = "Leave type not found." });
 
+<<<<<<< HEAD
+        if (req.StartDate.Date > req.EndDate.Date)
+            return BadRequest(new { message = "The leave start date must be on or before the end date." });
+
         var hrPolicy = await _db.HrPolicies.FirstOrDefaultAsync();
         bool sandwichLeave = hrPolicy?.SandwichLeave ?? false;
 
         decimal totalDays = (req.EndDate - req.StartDate).Days + 1;
 
         if (!sandwichLeave)
+=======
+        decimal totalDays;
+        try
+>>>>>>> 4bd3f2fd340b327cf3556100a231ae964258cf76
         {
-            int workingDays = 0;
-            for (var d = req.StartDate; d <= req.EndDate; d = d.AddDays(1))
-                if (d.DayOfWeek != DayOfWeek.Saturday && d.DayOfWeek != DayOfWeek.Sunday)
-                    workingDays++;
-            if (workingDays > 0) totalDays = workingDays;
+            totalDays = LeaveDurationCalculator.CalculateInclusive(req.StartDate, req.EndDate, req.IsHalfDay);
         }
-
-        if (req.IsHalfDay) totalDays = Math.Max(1, totalDays * 0.5m);
+        catch (ArgumentException exception)
+        {
+            return BadRequest(new { message = exception.Message });
+        }
 
         if (leaveType.MaxConsecutiveDays > 0 && totalDays > leaveType.MaxConsecutiveDays)
             return BadRequest(new { message = $"This leave type allows a maximum of {leaveType.MaxConsecutiveDays} consecutive days." });
@@ -64,19 +72,107 @@ public class LeaveController : ControllerBase
 
         var isMedical = totalDays > 3;
 
+        if (leaveType.IsCompOff)
+        {
+            await ExpireCompOffCredits();
+            if (totalDays > 1)
+                return BadRequest(new { message = "Comp off leave can only be applied for 1 day at a time." });
+
+            var adjacentLeave = await _db.LeaveApplications.AnyAsync(l =>
+                l.EmployeeId == req.EmployeeId &&
+                l.LeaveTypeId == req.LeaveTypeId &&
+                !l.IsCompOffCredit &&
+                l.Status != "Cancelled" && l.Status != "Rejected" &&
+                l.FromDate <= req.StartDate.AddDays(1) && l.ToDate >= req.StartDate.AddDays(-1));
+            if (adjacentLeave)
+                return BadRequest(new { message = "Consecutive Comp Off leave requests are not allowed." });
+
+            var oldestCredit = await _db.LeaveApplications
+                .Where(l => l.EmployeeId == req.EmployeeId &&
+                            l.LeaveTypeId == req.LeaveTypeId &&
+                            l.IsCompOffCredit &&
+                            !l.IsCompOffConsumed &&
+                            l.Status == "Approved" &&
+                            l.ExpiresOn != null && l.ExpiresOn > DateTime.UtcNow)
+                .OrderBy(l => l.WorkedDate)
+                .FirstOrDefaultAsync();
+
+            if (oldestCredit == null)
+                return BadRequest(new { message = "No available, unexpired Comp Off credit. Please earn Comp Off first." });
+
+            oldestCredit.IsCompOffConsumed = true;
+            oldestCredit.ConsumedOn = DateTime.UtcNow;
+
+            var compOffApp = new LeaveApplication
+            {
+                EmployeeId = req.EmployeeId,
+                LeaveTypeId = req.LeaveTypeId,
+                FromDate = req.StartDate,
+                ToDate = req.EndDate,
+                IsHalfDay = req.IsHalfDay,
+                TotalDays = totalDays,
+                Reason = req.Reason,
+                Status = "Pending",
+                CanCancel = true,
+                IsMedicalLeave = false,
+                LossOfPay = false
+            };
+
+            _db.LeaveApplications.Add(compOffApp);
+            await _db.SaveChangesAsync();
+
+            oldestCredit.ConsumedByLeaveApplicationId = compOffApp.Id;
+            await _db.SaveChangesAsync();
+
+            var compOffApprover = await GetApprover(employee);
+            _ = SendEmailLeaveSubmitted(employee, leaveType, compOffApp, compOffApprover?.FullName ?? "Manager");
+
+            return Ok(new
+            {
+                message = "Comp off leave applied successfully.",
+                compOffApp.Id,
+                lossOfPay = false,
+                isMedicalLeave = false
+            });
+        }
+
         if (leaveType.IsFloaterHoliday)
         {
-            var used = await _db.LeaveApplications
-                .CountAsync(l => l.EmployeeId == req.EmployeeId && l.LeaveTypeId == req.LeaveTypeId && l.Status == "Approved" && l.AppliedOn.Year == DateTime.UtcNow.Year);
-            if (used >= leaveType.MaxFloaterPerYear)
+            if (req.StartDate.Date != req.EndDate.Date)
+                return BadRequest(new { message = "A floater holiday request must be for one date only." });
+            if (req.IsHalfDay)
+                return BadRequest(new { message = "Floater holidays must be requested as a full day." });
+
+            var reserved = await _db.LeaveApplications.CountAsync(l =>
+                l.EmployeeId == req.EmployeeId &&
+                l.LeaveTypeId == req.LeaveTypeId &&
+                l.FromDate.Year == req.StartDate.Year &&
+                (l.Status == "Pending" || l.Status == "Approved" || l.Status == "CancellationRequested"));
+            if (reserved >= leaveType.MaxFloaterPerYear)
                 return BadRequest(new { message = $"Floater holiday limit ({leaveType.MaxFloaterPerYear}/year) reached." });
         }
+
+<<<<<<< HEAD
+        var duplicateExists = await _db.LeaveApplications.AnyAsync(l =>
+            l.EmployeeId == req.EmployeeId &&
+            l.LeaveTypeId == req.LeaveTypeId &&
+            l.FromDate == req.StartDate &&
+            l.ToDate == req.EndDate &&
+            l.IsHalfDay == req.IsHalfDay &&
+            (l.Status == "Pending" || l.Status == "Approved" || l.Status == "CancellationRequested"));
+        if (duplicateExists)
+            return BadRequest(new { message = "An active leave request already exists for the same leave type and dates." });
 
         var balance = await _db.EmployeeLeaveBalances
             .FirstOrDefaultAsync(lb => lb.EmployeeId == req.EmployeeId && lb.LeaveTypeId == req.LeaveTypeId);
 
-        bool lossOfPay = balance != null && totalDays > balance.RemainingLeaves;
-        if (balance == null) lossOfPay = true;
+        bool lossOfPay = !leaveType.IsFloaterHoliday && (balance == null || totalDays > balance.RemainingLeaves);
+=======
+        var validation = await _leaveBalanceService.ValidateLeaveBalanceAsync(req.EmployeeId, req.LeaveTypeId, req.StartDate, totalDays);
+        if (!validation.HasSufficientBalance && !req.ConfirmLossOfPay)
+            return Conflict(validation);
+        var lossOfPay = validation.LopDays > 0;
+>>>>>>> 4bd3f2fd340b327cf3556100a231ae964258cf76
 
         var application = new LeaveApplication
         {
@@ -90,10 +186,13 @@ public class LeaveController : ControllerBase
             Status = "Pending",
             CanCancel = true,
             IsMedicalLeave = isMedical,
-            LossOfPay = lossOfPay
+            LossOfPay = lossOfPay,
+            LopDays = validation.LopDays,
+            PaidLeaveDays = validation.PaidLeaveDays
         };
 
         _db.LeaveApplications.Add(application);
+        AddHistory(application, "Leave Applied", req.EmployeeId, req.Reason);
         await _db.SaveChangesAsync();
 
         var approver = await GetApprover(employee);
@@ -106,6 +205,7 @@ public class LeaveController : ControllerBase
                 : "Leave applied successfully.",
             application.Id,
             lossOfPay,
+            lopDays = validation.LopDays,
             isMedicalLeave = isMedical
         });
     }
@@ -188,6 +288,14 @@ public class LeaveController : ControllerBase
 
         if (application.Status == "CancellationRequested")
         {
+            await using var transaction = _db.Database.IsRelational()
+                ? await _db.Database.BeginTransactionAsync(System.Data.IsolationLevel.Serializable)
+                : null;
+
+            await _db.Entry(application).ReloadAsync();
+            if (application.Status != "CancellationRequested")
+                return Conflict(new { message = "This cancellation request has already been actioned." });
+
             var isApproved = req.Action.Equals("cancel_approve", StringComparison.OrdinalIgnoreCase);
             application.Status = isApproved ? "Cancelled" : "Approved";
             application.CancellationActionedById = req.ApproverId;
@@ -195,20 +303,65 @@ public class LeaveController : ControllerBase
             application.ApprovalReason = req.Reason;
             application.ActionedOn = DateTime.UtcNow;
 
-            if (isApproved)
+            if (isApproved && application.CancellationBalanceRestoredOn == null)
             {
                 application.CanCancel = false;
-                var balance = await _db.EmployeeLeaveBalances
-                    .FirstOrDefaultAsync(lb => lb.EmployeeId == application.EmployeeId && lb.LeaveTypeId == application.LeaveTypeId);
-                if (balance != null)
+<<<<<<< HEAD
+                if (application.IsCompOffCredit)
+=======
+                if (!await _leaveBalanceService.IsPlannedLeaveAsync(application.LeaveTypeId))
+>>>>>>> 4bd3f2fd340b327cf3556100a231ae964258cf76
                 {
-                    balance.UsedLeaves -= application.TotalDays;
-                    balance.RemainingLeaves = balance.AllocatedLeaves - balance.UsedLeaves;
-                    balance.UpdatedOn = DateTime.UtcNow;
+                    var balance = await _db.EmployeeLeaveBalances
+                        .FirstOrDefaultAsync(lb => lb.EmployeeId == application.EmployeeId && lb.LeaveTypeId == application.LeaveTypeId);
+                    if (balance != null)
+                    {
+<<<<<<< HEAD
+                        balance.AllocatedLeaves -= 1;
+                        balance.RemainingLeaves = balance.AllocatedLeaves - balance.UsedLeaves;
+                        balance.UpdatedOn = DateTime.UtcNow;
+                    }
                 }
+                else if (application.LeaveType?.IsCompOff == true)
+                {
+                    var reservedCredit = await _db.LeaveApplications
+                        .FirstOrDefaultAsync(l => l.ConsumedByLeaveApplicationId == application.Id);
+                    if (reservedCredit != null)
+                    {
+                        reservedCredit.IsCompOffConsumed = false;
+                        reservedCredit.ConsumedOn = null;
+                        reservedCredit.ConsumedByLeaveApplicationId = null;
+                    }
+
+                    var balance = await _db.EmployeeLeaveBalances
+                        .FirstOrDefaultAsync(lb => lb.EmployeeId == application.EmployeeId && lb.LeaveTypeId == application.LeaveTypeId);
+                    if (balance != null)
+                    {
+                        balance.UsedLeaves -= application.TotalDays;
+                        balance.RemainingLeaves = balance.AllocatedLeaves - balance.UsedLeaves;
+                        balance.UpdatedOn = DateTime.UtcNow;
+                    }
+                }
+                else if (application.LeaveType?.IsFloaterHoliday != true)
+                {
+                    var balance = await _db.EmployeeLeaveBalances
+                        .FirstOrDefaultAsync(lb => lb.EmployeeId == application.EmployeeId && lb.LeaveTypeId == application.LeaveTypeId);
+                    if (balance != null)
+                    {
+                        balance.UsedLeaves -= application.TotalDays;
+=======
+                        balance.UsedLeaves = Math.Max(0, balance.UsedLeaves - (application.PaidLeaveDays ?? application.TotalDays));
+>>>>>>> 4bd3f2fd340b327cf3556100a231ae964258cf76
+                        balance.RemainingLeaves = balance.AllocatedLeaves - balance.UsedLeaves;
+                        balance.UpdatedOn = DateTime.UtcNow;
+                    }
+                }
+                application.CancellationBalanceRestoredOn = DateTime.UtcNow;
             }
 
+            AddHistory(application, isApproved ? "Cancellation Approved" : "Cancellation Rejected", req.ApproverId, req.Reason);
             await _db.SaveChangesAsync();
+            if (transaction != null) await transaction.CommitAsync();
             _ = SendEmailCancellationDecision(application, isApproved, req.Reason);
 
             return Ok(new { message = isApproved ? "Cancellation approved. Leave cancelled." : "Cancellation rejected. Leave remains approved." });
@@ -217,25 +370,104 @@ public class LeaveController : ControllerBase
         if (application.IsMedicalLeave && string.IsNullOrEmpty(application.MedicalCertificatePath))
             return BadRequest(new { message = "Medical certificate required before approval." });
 
+        if (application.Status != "Pending")
+            return BadRequest(new { message = $"This leave request is already {application.Status.ToLowerInvariant()}." });
+
         var isApprove = req.Action.Equals("approve", StringComparison.OrdinalIgnoreCase);
+
+<<<<<<< HEAD
+        if (isApprove)
+        {
+            if (application.LeaveType?.IsFloaterHoliday == true)
+            {
+                var approved = await _db.LeaveApplications.CountAsync(l =>
+                    l.Id != application.Id &&
+                    l.EmployeeId == application.EmployeeId &&
+                    l.LeaveTypeId == application.LeaveTypeId &&
+                    l.FromDate.Year == application.FromDate.Year &&
+                    l.Status == "Approved");
+                if (approved >= application.LeaveType.MaxFloaterPerYear)
+                    return BadRequest(new { message = $"Floater holiday limit ({application.LeaveType.MaxFloaterPerYear}/year) reached." });
+            }
+            else if (application.IsCompOffCredit)
+            {
+                var balance = await _db.EmployeeLeaveBalances
+                    .FirstOrDefaultAsync(lb => lb.EmployeeId == application.EmployeeId && lb.LeaveTypeId == application.LeaveTypeId);
+                if (balance == null)
+                {
+                    balance = new EmployeeLeaveBalance
+                    {
+                        EmployeeId = application.EmployeeId,
+                        LeaveTypeId = application.LeaveTypeId,
+                        AllocatedLeaves = 1,
+                        UsedLeaves = 0,
+                        RemainingLeaves = 1
+                    };
+                    _db.EmployeeLeaveBalances.Add(balance);
+                }
+                else
+                {
+                    balance.AllocatedLeaves += 1;
+                    balance.RemainingLeaves = balance.AllocatedLeaves - balance.UsedLeaves;
+                    balance.UpdatedOn = DateTime.UtcNow;
+                }
+            }
+            else if (application.LeaveType?.IsCompOff == true)
+            {
+                var balance = await _db.EmployeeLeaveBalances
+                    .FirstOrDefaultAsync(lb => lb.EmployeeId == application.EmployeeId && lb.LeaveTypeId == application.LeaveTypeId);
+                if (balance != null)
+                {
+                    balance.UsedLeaves += application.TotalDays;
+                    balance.RemainingLeaves = balance.AllocatedLeaves - balance.UsedLeaves;
+                    balance.UpdatedOn = DateTime.UtcNow;
+                }
+            }
+            else
+            {
+                var balance = await _db.EmployeeLeaveBalances
+                    .FirstOrDefaultAsync(lb => lb.EmployeeId == application.EmployeeId && lb.LeaveTypeId == application.LeaveTypeId);
+                if (balance != null)
+                {
+                    balance.UsedLeaves += application.TotalDays;
+                    balance.RemainingLeaves = balance.AllocatedLeaves - balance.UsedLeaves;
+                    balance.UpdatedOn = DateTime.UtcNow;
+                }
+            }
+        }
+        else if (!isApprove && application.LeaveType?.IsCompOff == true && !application.IsCompOffCredit)
+        {
+            var reservedCredit = await _db.LeaveApplications
+                .FirstOrDefaultAsync(l => l.ConsumedByLeaveApplicationId == application.Id);
+            if (reservedCredit != null)
+            {
+                reservedCredit.IsCompOffConsumed = false;
+                reservedCredit.ConsumedOn = null;
+                reservedCredit.ConsumedByLeaveApplicationId = null;
+            }
+        }
+
+        application.Status = isApprove ? "Approved" : "Rejected";
+        application.ApproverId = req.ApproverId;
+        application.ApproverName = approver.FullName;
+        application.ActionedOn = DateTime.UtcNow;
+        application.CanCancel = false;
+        application.ApprovalReason = req.Reason;
+=======
+        // Calculate the paid/LOP split while this request is still Pending. Planned
+        // Leave balances are snapshot-derived from approved requests, so changing the
+        // status first would make the request consume its own provisional paid value.
+        if (isApprove)
+            await ApplyApprovedLeaveBalanceAsync(application);
+
         application.Status = isApprove ? "Approved" : "Rejected";
         application.ApproverId = req.ApproverId;
         application.ApproverName = approver?.FullName;
         application.ActionedOn = DateTime.UtcNow;
         application.CanCancel = false;
         application.ApprovalReason = req.Reason;
-
-        if (isApprove)
-        {
-            var balance = await _db.EmployeeLeaveBalances
-                .FirstOrDefaultAsync(lb => lb.EmployeeId == application.EmployeeId && lb.LeaveTypeId == application.LeaveTypeId);
-            if (balance != null)
-            {
-                balance.UsedLeaves += application.TotalDays;
-                balance.RemainingLeaves = balance.AllocatedLeaves - balance.UsedLeaves;
-                balance.UpdatedOn = DateTime.UtcNow;
-            }
-        }
+        AddHistory(application, isApprove ? "Leave Approved" : "Leave Rejected", req.ApproverId, req.Reason);
+>>>>>>> 4bd3f2fd340b327cf3556100a231ae964258cf76
 
         await _db.SaveChangesAsync();
 
@@ -299,24 +531,110 @@ public class LeaveController : ControllerBase
                 }
 
                 var isApprove = req.Action.Equals("approve", StringComparison.OrdinalIgnoreCase);
+
+<<<<<<< HEAD
+                if (application.Status != "Pending")
+                {
+                    errors++;
+                    results.Add(new { LeaveId = leaveId, Success = false, Message = $"Leave is already {application.Status.ToLowerInvariant()}." });
+                    continue;
+                }
+
+                if (isApprove)
+                {
+                    if (application.LeaveType?.IsFloaterHoliday == true)
+                    {
+                        var approved = await _db.LeaveApplications.CountAsync(l =>
+                            l.Id != application.Id &&
+                            l.EmployeeId == application.EmployeeId &&
+                            l.LeaveTypeId == application.LeaveTypeId &&
+                            l.FromDate.Year == application.FromDate.Year &&
+                            l.Status == "Approved");
+                        if (approved >= application.LeaveType.MaxFloaterPerYear)
+                        {
+                            errors++;
+                            results.Add(new { LeaveId = leaveId, Success = false, Message = "Floater holiday limit reached." });
+                            continue;
+                        }
+                    }
+                    else if (application.IsCompOffCredit)
+                    {
+                        var balance = await _db.EmployeeLeaveBalances
+                            .FirstOrDefaultAsync(lb => lb.EmployeeId == application.EmployeeId && lb.LeaveTypeId == application.LeaveTypeId);
+                        if (balance == null)
+                        {
+                            balance = new EmployeeLeaveBalance
+                            {
+                                EmployeeId = application.EmployeeId,
+                                LeaveTypeId = application.LeaveTypeId,
+                                AllocatedLeaves = 1,
+                                UsedLeaves = 0,
+                                RemainingLeaves = 1
+                            };
+                            _db.EmployeeLeaveBalances.Add(balance);
+                        }
+                        else
+                        {
+                            balance.AllocatedLeaves += 1;
+                            balance.RemainingLeaves = balance.AllocatedLeaves - balance.UsedLeaves;
+                            balance.UpdatedOn = DateTime.UtcNow;
+                        }
+                    }
+                    else if (application.LeaveType?.IsCompOff == true)
+                    {
+                        var balance = await _db.EmployeeLeaveBalances
+                            .FirstOrDefaultAsync(lb => lb.EmployeeId == application.EmployeeId && lb.LeaveTypeId == application.LeaveTypeId);
+                        if (balance != null)
+                        {
+                            balance.UsedLeaves += application.TotalDays;
+                            balance.RemainingLeaves = balance.AllocatedLeaves - balance.UsedLeaves;
+                            balance.UpdatedOn = DateTime.UtcNow;
+                        }
+                    }
+                    else
+                    {
+                        var balance = await _db.EmployeeLeaveBalances
+                            .FirstOrDefaultAsync(lb => lb.EmployeeId == application.EmployeeId && lb.LeaveTypeId == application.LeaveTypeId);
+                        if (balance != null)
+                        {
+                            balance.UsedLeaves += application.TotalDays;
+                            balance.RemainingLeaves = balance.AllocatedLeaves - balance.UsedLeaves;
+                            balance.UpdatedOn = DateTime.UtcNow;
+                        }
+                    }
+                }
+                else if (!isApprove && application.LeaveType?.IsCompOff == true && !application.IsCompOffCredit)
+                {
+                    var reservedCredit = await _db.LeaveApplications
+                        .FirstOrDefaultAsync(l => l.ConsumedByLeaveApplicationId == application.Id);
+                    if (reservedCredit != null)
+                    {
+                        reservedCredit.IsCompOffConsumed = false;
+                        reservedCredit.ConsumedOn = null;
+                        reservedCredit.ConsumedByLeaveApplicationId = null;
+                    }
+                }
+
+                application.Status = isApprove ? "Approved" : "Rejected";
+                application.ApproverId = req.ApproverId;
+                application.ApproverName = approver.FullName;
+                application.ActionedOn = DateTime.UtcNow;
+                application.CanCancel = false;
+                application.ApprovalReason = req.Reason;
+=======
+                // See the single-decision path above: Planned Leave validation must
+                // run before this request is visible to the approved-leave snapshot.
+                if (isApprove)
+                    await ApplyApprovedLeaveBalanceAsync(application);
+
                 application.Status = isApprove ? "Approved" : "Rejected";
                 application.ApproverId = req.ApproverId;
                 application.ApproverName = approver?.FullName;
                 application.ActionedOn = DateTime.UtcNow;
                 application.CanCancel = false;
                 application.ApprovalReason = req.Reason;
-
-                if (isApprove)
-                {
-                    var balance = await _db.EmployeeLeaveBalances
-                        .FirstOrDefaultAsync(lb => lb.EmployeeId == application.EmployeeId && lb.LeaveTypeId == application.LeaveTypeId);
-                    if (balance != null)
-                    {
-                        balance.UsedLeaves += application.TotalDays;
-                        balance.RemainingLeaves = balance.AllocatedLeaves - balance.UsedLeaves;
-                        balance.UpdatedOn = DateTime.UtcNow;
-                    }
-                }
+                AddHistory(application, isApprove ? "Leave Approved" : "Leave Rejected", req.ApproverId, req.Reason);
+>>>>>>> 4bd3f2fd340b327cf3556100a231ae964258cf76
 
                 await _db.SaveChangesAsync();
 
@@ -363,6 +681,7 @@ public class LeaveController : ControllerBase
         application.Status = "CancellationRequested";
         application.CancellationReason = string.IsNullOrWhiteSpace(req.Reason) ? "No reason provided" : req.Reason.Trim();
         application.CancellationRequestedOn = DateTime.UtcNow;
+        AddHistory(application, "Cancellation Requested", req.EmployeeId, application.CancellationReason);
         await _db.SaveChangesAsync();
 
         _ = SendEmailCancellationRequested(application);
@@ -379,6 +698,17 @@ public class LeaveController : ControllerBase
         if (application == null || application.EmployeeId != req.EmployeeId)
             return NotFound(new { message = "Leave application not found." });
 
+        if (application.Status == "CancellationRequested")
+        {
+            application.Status = "Approved";
+            application.CancellationActionedById = req.EmployeeId;
+            application.CancellationActionedOn = DateTime.UtcNow;
+            application.ApprovalReason = string.IsNullOrWhiteSpace(req.Reason) ? "Cancellation request withdrawn by employee" : "Cancellation request withdrawn: " + req.Reason.Trim();
+            AddHistory(application, "Cancellation Withdrawn", req.EmployeeId, req.Reason);
+            await _db.SaveChangesAsync();
+            return Ok(new { message = "Cancellation request withdrawn. Leave remains approved." });
+        }
+
         if (application.Status != "Pending")
             return BadRequest(new { message = $"Leave is {application.Status.ToLowerInvariant()} and cannot be withdrawn directly. Use cancellation request for approved leaves." });
 
@@ -386,6 +716,19 @@ public class LeaveController : ControllerBase
         application.CanCancel = false;
         application.ActionedOn = DateTime.UtcNow;
         application.ApprovalReason = string.IsNullOrWhiteSpace(req.Reason) ? "Withdrawn by employee" : "Withdrawn by employee: " + req.Reason.Trim();
+        AddHistory(application, "Leave Withdrawn", req.EmployeeId, req.Reason);
+
+        if (application.LeaveType?.IsCompOff == true && !application.IsCompOffCredit)
+        {
+            var reservedCredit = await _db.LeaveApplications
+                .FirstOrDefaultAsync(l => l.ConsumedByLeaveApplicationId == application.Id);
+            if (reservedCredit != null)
+            {
+                reservedCredit.IsCompOffConsumed = false;
+                reservedCredit.ConsumedOn = null;
+                reservedCredit.ConsumedByLeaveApplicationId = null;
+            }
+        }
 
         await _db.SaveChangesAsync();
 
@@ -395,21 +738,38 @@ public class LeaveController : ControllerBase
     [HttpGet("calendar")]
     public async Task<ActionResult> GetCalendar([FromQuery] DateTime? from, [FromQuery] DateTime? to)
     {
+        var authenticatedEmployeeId = GetAuthenticatedEmployeeId();
+        if (authenticatedEmployeeId == null) return Unauthorized(new { message = "Invalid token." });
+
+        var viewer = await _db.Employees
+            .AsNoTracking()
+            .Include(e => e.Role)
+            .FirstOrDefaultAsync(e => e.Id == authenticatedEmployeeId);
+        if (viewer == null) return Unauthorized(new { message = "Employee account not found." });
+
         var fromDate = from ?? new DateTime(DateTime.UtcNow.Year, DateTime.UtcNow.Month, 1);
         var toDate = to ?? fromDate.AddMonths(2).AddDays(-1);
 
-        var leaves = await _db.LeaveApplications
+        var query = _db.LeaveApplications
             .AsNoTracking()
             .Include(l => l.Employee)
             .Include(l => l.LeaveType)
-            .Where(l => l.Status == "Approved" && l.FromDate <= toDate && l.ToDate >= fromDate)
+            .Where(l => l.Status == "Approved" && l.FromDate <= toDate && l.ToDate >= fromDate);
+
+        if (viewer.Role?.Name == "Employee")
+            query = query.Where(l => l.EmployeeId == authenticatedEmployeeId.Value);
+
+        var leaves = await query
             .OrderBy(l => l.FromDate)
             .ToListAsync();
 
-        var events = leaves.Select(l => new CalendarEvent(
-            l.Id, l.EmployeeId, l.Employee?.FullName ?? "", l.Employee?.EmployeeCode ?? "",
-            l.LeaveType?.Name ?? "", l.FromDate, l.ToDate, l.TotalDays
-        )).ToList();
+        var events = leaves
+            .GroupBy(l => new { l.EmployeeId, l.LeaveTypeId, l.FromDate, l.ToDate, l.TotalDays, l.IsHalfDay })
+            .Select(group => group.OrderBy(l => l.AppliedOn).ThenBy(l => l.Id).First())
+            .Select(l => new CalendarEvent(
+                l.Id, l.EmployeeId, l.Employee?.FullName ?? "", l.Employee?.EmployeeCode ?? "",
+                l.LeaveType?.Name ?? "", l.FromDate, l.ToDate, l.TotalDays
+            )).ToList();
 
         return Ok(new { Leaves = events, FromDate = fromDate, ToDate = toDate });
     }
@@ -433,7 +793,11 @@ public class LeaveController : ControllerBase
             TotalDays = 1,
             Reason = req.Reason,
             Status = "Pending",
-            CanCancel = true
+            CanCancel = true,
+            IsCompOffCredit = true,
+            WorkedDate = req.WorkedDate,
+            ExpiresOn = req.WorkedDate.AddDays(compOffType.CompOffValidityDays),
+            IsCompOffConsumed = false
         };
 
         _db.LeaveApplications.Add(application);
@@ -450,61 +814,74 @@ public class LeaveController : ControllerBase
         if (fromEmp == null || toEmp == null)
             return NotFound(new { message = "Employee not found." });
 
+        if (req.FromEmployeeId == req.ToEmployeeId)
+            return BadRequest(new { message = "Cannot transfer Comp Off to yourself." });
+
         var compOffType = await _db.LeaveTypes.FirstOrDefaultAsync(lt => lt.IsCompOff);
         if (compOffType == null)
             return NotFound(new { message = "Comp off leave type not configured." });
 
-        var balance = await _db.EmployeeLeaveBalances
-            .FirstOrDefaultAsync(lb => lb.EmployeeId == req.FromEmployeeId && lb.LeaveTypeId == compOffType.Id);
+        var credit = await _db.LeaveApplications.FirstOrDefaultAsync(l =>
+            l.Id == req.CompOffCreditLeaveApplicationId &&
+            l.EmployeeId == req.FromEmployeeId &&
+            l.IsCompOffCredit &&
+            !l.IsCompOffConsumed &&
+            l.Status == "Approved" &&
+            l.ExpiresOn != null && l.ExpiresOn > DateTime.UtcNow);
 
-        if (balance == null || balance.RemainingLeaves < req.Days)
-            return BadRequest(new { message = "Insufficient comp off balance." });
+        if (credit == null)
+            return BadRequest(new { message = "Invalid or unavailable Comp Off credit." });
 
-        if (req.Days <= 0)
-            return BadRequest(new { message = "Transfer days must be positive." });
+        credit.EmployeeId = req.ToEmployeeId;
 
         var transfer = new CompOffTransfer
         {
             FromEmployeeId = req.FromEmployeeId,
             ToEmployeeId = req.ToEmployeeId,
-            Days = req.Days,
+            CompOffCreditLeaveApplicationId = credit.Id,
+            WorkedDate = credit.WorkedDate!.Value,
+            ExpiresOn = credit.ExpiresOn!.Value,
             Reason = req.Reason,
             Status = "Approved",
             ActionedOn = DateTime.UtcNow
         };
 
-        balance.RemainingLeaves -= req.Days;
-        balance.UsedLeaves += req.Days;
-        balance.UpdatedOn = DateTime.UtcNow;
+        var fromBalance = await _db.EmployeeLeaveBalances
+            .FirstOrDefaultAsync(lb => lb.EmployeeId == req.FromEmployeeId && lb.LeaveTypeId == compOffType.Id);
+        if (fromBalance != null)
+        {
+            fromBalance.UsedLeaves += 1;
+            fromBalance.RemainingLeaves = fromBalance.AllocatedLeaves - fromBalance.UsedLeaves;
+            fromBalance.UpdatedOn = DateTime.UtcNow;
+        }
 
         var toBalance = await _db.EmployeeLeaveBalances
             .FirstOrDefaultAsync(lb => lb.EmployeeId == req.ToEmployeeId && lb.LeaveTypeId == compOffType.Id);
-
         if (toBalance == null)
         {
             toBalance = new EmployeeLeaveBalance
             {
                 EmployeeId = req.ToEmployeeId,
                 LeaveTypeId = compOffType.Id,
-                AllocatedLeaves = req.Days,
+                AllocatedLeaves = 1,
                 UsedLeaves = 0,
-                RemainingLeaves = req.Days
+                RemainingLeaves = 1
             };
             _db.EmployeeLeaveBalances.Add(toBalance);
         }
         else
         {
-            toBalance.AllocatedLeaves += req.Days;
-            toBalance.RemainingLeaves += req.Days;
+            toBalance.AllocatedLeaves += 1;
+            toBalance.RemainingLeaves = toBalance.AllocatedLeaves - toBalance.UsedLeaves;
             toBalance.UpdatedOn = DateTime.UtcNow;
         }
 
         _db.CompOffTransfers.Add(transfer);
         await _db.SaveChangesAsync();
 
-        _ = SendCompOffTransferEmails(fromEmp, toEmp, req.Days, req.Reason);
+        _ = SendCompOffTransferEmails(fromEmp, toEmp, 1, req.Reason);
 
-        return Ok(new { message = $"{req.Days} comp off day(s) transferred to {toEmp.FullName}.", transfer.Id });
+        return Ok(new { message = $"Comp off transferred to {toEmp.FullName}.", transfer.Id });
     }
 
     [HttpGet("comp-off/transfers/{employeeId}")]
@@ -513,6 +890,7 @@ public class LeaveController : ControllerBase
         var transfers = await _db.CompOffTransfers
             .Include(t => t.FromEmployee)
             .Include(t => t.ToEmployee)
+            .Include(t => t.CompOffCredit)
             .Where(t => t.FromEmployeeId == employeeId || t.ToEmployeeId == employeeId)
             .OrderByDescending(t => t.CreatedOn)
             .ToListAsync();
@@ -520,8 +898,35 @@ public class LeaveController : ControllerBase
         return Ok(transfers.Select(t => new CompOffTransferResponse(
             t.Id, t.FromEmployeeId, t.FromEmployee?.FullName ?? "", t.FromEmployee?.EmployeeCode ?? "",
             t.ToEmployeeId, t.ToEmployee?.FullName ?? "", t.ToEmployee?.EmployeeCode ?? "",
-            t.Days, t.Reason, t.Status, t.CreatedOn, t.ActionedOn
+            t.WorkedDate, t.ExpiresOn, t.Reason, t.Status, t.CreatedOn, t.ActionedOn
         )).ToList());
+    }
+
+    [HttpGet("comp-off/available-credits/{employeeId}")]
+    public async Task<ActionResult> GetAvailableCompOffCredits(int employeeId)
+    {
+        var compOffType = await _db.LeaveTypes.FirstOrDefaultAsync(lt => lt.IsCompOff);
+        if (compOffType == null)
+            return Ok(new List<object>());
+
+        var credits = await _db.LeaveApplications
+            .Where(l => l.EmployeeId == employeeId &&
+                        l.LeaveTypeId == compOffType.Id &&
+                        l.IsCompOffCredit &&
+                        !l.IsCompOffConsumed &&
+                        l.Status == "Approved" &&
+                        l.ExpiresOn != null && l.ExpiresOn > DateTime.UtcNow)
+            .OrderBy(l => l.WorkedDate)
+            .Select(l => new
+            {
+                l.Id,
+                l.WorkedDate,
+                l.ExpiresOn,
+                l.AppliedOn
+            })
+            .ToListAsync();
+
+        return Ok(credits);
     }
 
     [HttpPost("{id}/upload-medical")]
@@ -554,8 +959,7 @@ public class LeaveController : ControllerBase
         {
             foreach (var lt in leaveTypes)
             {
-                var balance = await _db.EmployeeLeaveBalances
-                    .FirstOrDefaultAsync(lb => lb.EmployeeId == emp.Id && lb.LeaveTypeId == lt.Id);
+                var balance = await _leaveBalanceService.GetBalanceAsync(emp.Id, lt.Id);
                 result.Add(new
                 {
                     emp.EmployeeCode,
@@ -574,19 +978,19 @@ public class LeaveController : ControllerBase
     }
 
     [HttpGet("balance-check/{employeeId}/{leaveTypeId}")]
-    public async Task<ActionResult> CheckBalance(int employeeId, int leaveTypeId)
+    public async Task<ActionResult> CheckBalance(int employeeId, int leaveTypeId, [FromQuery] int? year = null)
     {
-        var balance = await _db.EmployeeLeaveBalances
-            .FirstOrDefaultAsync(lb => lb.EmployeeId == employeeId && lb.LeaveTypeId == leaveTypeId);
         var leaveType = await _db.LeaveTypes.FindAsync(leaveTypeId);
 
         if (leaveType?.IsFloaterHoliday == true)
         {
+            var leaveYear = year ?? DateTime.UtcNow.Year;
             var used = await _db.LeaveApplications
-                .CountAsync(l => l.EmployeeId == employeeId && l.LeaveTypeId == leaveTypeId && l.Status == "Approved" && l.AppliedOn.Year == DateTime.UtcNow.Year);
+                .CountAsync(l => l.EmployeeId == employeeId && l.LeaveTypeId == leaveTypeId && l.Status == "Approved" && l.FromDate.Year == leaveYear);
             return Ok(new { remaining = leaveType.MaxFloaterPerYear - used, max = leaveType.MaxFloaterPerYear, isFloater = true });
         }
 
+        var balance = await _leaveBalanceService.GetBalanceAsync(employeeId, leaveTypeId);
         return Ok(new
         {
             remaining = balance?.RemainingLeaves ?? 0,
@@ -676,6 +1080,17 @@ public class LeaveController : ControllerBase
                         .Select(et => et.EmployeeId).Distinct().ToListAsync();
                     delegatedIds.AddRange(mgrEmpIds);
                 }
+
+                // NEW: delegating manager's direct reports via ManagerCode
+                var mgrEmployee = await _db.Employees.FindAsync(managerId);
+                if (mgrEmployee != null)
+                {
+                    var mgrDirectReportIds = await _db.Employees
+                        .Where(e => e.ManagerCode == mgrEmployee.EmployeeCode)
+                        .Select(e => e.Id)
+                        .ToListAsync();
+                    delegatedIds.AddRange(mgrDirectReportIds);
+                }
             }
         }
 
@@ -699,6 +1114,32 @@ public class LeaveController : ControllerBase
         return int.TryParse(claim, out var employeeId) ? employeeId : null;
     }
 
+    private async Task ExpireCompOffCredits()
+    {
+        var now = DateTime.UtcNow;
+        var expiredCredits = await _db.LeaveApplications
+            .Where(l => l.IsCompOffCredit &&
+                        !l.IsCompOffConsumed &&
+                        l.Status == "Approved" &&
+                        l.ExpiresOn != null && l.ExpiresOn <= now)
+            .ToListAsync();
+
+        foreach (var credit in expiredCredits)
+        {
+            var balance = await _db.EmployeeLeaveBalances
+                .FirstOrDefaultAsync(lb => lb.EmployeeId == credit.EmployeeId && lb.LeaveTypeId == credit.LeaveTypeId);
+            if (balance != null && balance.AllocatedLeaves > 0)
+            {
+                balance.AllocatedLeaves -= 1;
+                balance.RemainingLeaves = balance.AllocatedLeaves - balance.UsedLeaves;
+                balance.UpdatedOn = now;
+            }
+        }
+
+        if (expiredCredits.Any())
+            await _db.SaveChangesAsync();
+    }
+
     private static object MapRequest(LeaveApplication l)
     {
         return new LeaveRequestDto(
@@ -707,8 +1148,46 @@ public class LeaveController : ControllerBase
             l.FromDate, l.ToDate, l.TotalDays, l.IsHalfDay, l.Reason ?? "", l.Status,
             l.ApproverName, l.AppliedOn, l.ActionedOn, l.ApprovalReason, l.CanCancel,
             l.Employee?.PrimaryTeam?.Name, l.IsMedicalLeave, l.LossOfPay, l.MedicalCertificatePath,
-            l.CancellationReason, l.CancellationRequestedOn
+            l.CancellationReason, l.CancellationRequestedOn,
+            l.IsCompOffCredit, l.WorkedDate, l.ExpiresOn, l.IsCompOffConsumed
         );
+    }
+
+    private void AddHistory(LeaveApplication application, string eventType, int? actorEmployeeId, string? notes)
+    {
+        _db.LeaveApplicationHistories.Add(new LeaveApplicationHistory
+        {
+            LeaveApplication = application,
+            EventType = eventType,
+            ActorEmployeeId = actorEmployeeId,
+            Notes = string.IsNullOrWhiteSpace(notes) ? null : notes.Trim(),
+            OccurredOn = DateTime.UtcNow
+        });
+    }
+
+    /// <summary>
+    /// Applies an approved application's calculated paid duration exactly once to
+    /// stored balances. Planned Leave remains snapshot-derived in
+    /// <see cref="LeaveBalanceService"/>.
+    /// </summary>
+    private async Task ApplyApprovedLeaveBalanceAsync(LeaveApplication application)
+    {
+        var validation = await _leaveBalanceService.ValidateLeaveBalanceAsync(
+            application.EmployeeId, application.LeaveTypeId, application.FromDate, application.TotalDays);
+        application.PaidLeaveDays = validation.PaidLeaveDays;
+        application.LopDays = validation.LopDays;
+        application.LossOfPay = validation.LopDays > 0;
+
+        if (await _leaveBalanceService.IsPlannedLeaveAsync(application.LeaveTypeId))
+            return;
+
+        var balance = await _db.EmployeeLeaveBalances
+            .FirstOrDefaultAsync(lb => lb.EmployeeId == application.EmployeeId && lb.LeaveTypeId == application.LeaveTypeId);
+        if (balance == null) return;
+
+        balance.UsedLeaves += application.PaidLeaveDays ?? application.TotalDays;
+        balance.RemainingLeaves = Math.Max(0, balance.AllocatedLeaves - balance.UsedLeaves);
+        balance.UpdatedOn = DateTime.UtcNow;
     }
 
     private async Task SendEmailLeaveSubmitted(Employee employee, LeaveType leaveType, LeaveApplication app, string approverName)
@@ -805,7 +1284,7 @@ public class LeaveController : ControllerBase
 
         return Ok(holidays.Select(h => new HolidayDto(
             h.Id, h.Name,
-            h.Date.ToString("dd MMMM yyyy"),
+            h.Date.ToString("yyyy-MM-dd"),
             h.Date.DayOfWeek.ToString(),
             h.Type
         )).ToList());

@@ -42,7 +42,8 @@ public static class TestDbContext
 
         db.LeaveTypes.AddRange(
             new LeaveType { Id = 1, Name = "Sick/Casual Leave", SortOrder = 1, MaxConsecutiveDays = 3, RequiresAdvanceNotice = false },
-            new LeaveType { Id = 2, Name = "Planned Leave", SortOrder = 2, CarryForwardPct = 50, MaxConsecutiveDays = 15, RequiresAdvanceNotice = true, AdvanceNoticeDays = 3 }
+            new LeaveType { Id = 2, Name = "Planned Leave", SortOrder = 2, CarryForwardPct = 50, MaxConsecutiveDays = 15, RequiresAdvanceNotice = true, AdvanceNoticeDays = 3 },
+            new LeaveType { Id = 9, Name = "Floater Holiday", SortOrder = 9, IsFloaterHoliday = true, MaxFloaterPerYear = 2, MaxConsecutiveDays = 1 }
         );
 
         db.HrPolicies.Add(new HrPolicy { Id = 1, AllowHalfDayLeave = false, UpdatedOn = utc });

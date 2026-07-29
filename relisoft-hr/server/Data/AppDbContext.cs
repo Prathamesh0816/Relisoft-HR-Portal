@@ -15,6 +15,7 @@ public class AppDbContext : DbContext
     public DbSet<LeaveType> LeaveTypes => Set<LeaveType>();
     public DbSet<Holiday> Holidays => Set<Holiday>();
     public DbSet<LeaveApplication> LeaveApplications => Set<LeaveApplication>();
+    public DbSet<LeaveApplicationHistory> LeaveApplicationHistories => Set<LeaveApplicationHistory>();
     public DbSet<EmployeeLeaveBalance> EmployeeLeaveBalances => Set<EmployeeLeaveBalance>();
     public DbSet<EmployeeTeam> EmployeeTeams => Set<EmployeeTeam>();
     public DbSet<EmployeeOnboardingProfile> EmployeeOnboardingProfiles => Set<EmployeeOnboardingProfile>();
@@ -145,6 +146,14 @@ public class AppDbContext : DbContext
 
         modelBuilder.Entity<EmployeeLeaveBalance>()
             .HasIndex(elb => new { elb.EmployeeId, elb.LeaveTypeId }).IsUnique();
+
+        modelBuilder.Entity<LeaveApplicationHistory>()
+            .HasOne(history => history.LeaveApplication)
+            .WithMany(application => application.History)
+            .HasForeignKey(history => history.LeaveApplicationId)
+            .OnDelete(DeleteBehavior.Cascade);
+        modelBuilder.Entity<LeaveApplicationHistory>()
+            .HasIndex(history => new { history.LeaveApplicationId, history.OccurredOn });
 
         modelBuilder.Entity<UserLogin>()
             .HasIndex(ul => ul.Username).IsUnique();
@@ -482,7 +491,7 @@ public class AppDbContext : DbContext
             new LeaveType { Id = 3, Name = "Maternity Leave", SortOrder = 3, MaxConsecutiveDays = 180, RequiresAdvanceNotice = true, AdvanceNoticeDays = 30 },
             new LeaveType { Id = 4, Name = "Paternity Leave", SortOrder = 4, MaxConsecutiveDays = 15, RequiresAdvanceNotice = true, AdvanceNoticeDays = 7 },
             new LeaveType { Id = 5, Name = "Bereavement Leave", SortOrder = 5, MaxConsecutiveDays = 3, RequiresAdvanceNotice = false },
-            new LeaveType { Id = 6, Name = "Compensatory Off", SortOrder = 6, IsCompOff = true, CompOffValidityDays = 30, MaxConsecutiveDays = 1, RequiresAdvanceNotice = false },
+            new LeaveType { Id = 6, Name = "Compensatory Off", SortOrder = 6, IsCompOff = true, CompOffValidityDays = 60, MaxConsecutiveDays = 1, RequiresAdvanceNotice = false },
             new LeaveType { Id = 7, Name = "Marriage Leave", SortOrder = 7, MaxConsecutiveDays = 5, RequiresAdvanceNotice = true, AdvanceNoticeDays = 7 },
             new LeaveType { Id = 8, Name = "Special Leave", SortOrder = 8, MaxConsecutiveDays = 30, RequiresAdvanceNotice = true, AdvanceNoticeDays = 15 },
             new LeaveType { Id = 9, Name = "Floater Holiday", SortOrder = 9, IsFloaterHoliday = true, MaxFloaterPerYear = 2, MaxConsecutiveDays = 1, RequiresAdvanceNotice = false }
@@ -493,16 +502,16 @@ public class AppDbContext : DbContext
         );
 
         modelBuilder.Entity<Employee>().HasData(
-            new Employee { Id = 1, EmployeeCode = "EMP-001", FullName = "Preeti Patil", Email = "preeti.patil@relisofttechnologies.com", Department = "HR", Designation = "HR Lead", JobRole = "HR Lead", EmploymentType = "Full-time", Location = "Mumbai", JoinDate = new DateTime(2024, 1, 15), RoleId = 7, CreatedOn = new DateTime(2026, 1, 1, 0, 0, 0, DateTimeKind.Utc) },
-            new Employee { Id = 2, EmployeeCode = "EMP-002", FullName = "Rakesh Patil", Email = "rakesh.patil@relisofttechnologies.com", Department = "Management", Designation = "CEO", JobRole = "CEO", EmploymentType = "Full-time", Location = "Mumbai", JoinDate = new DateTime(2023, 6, 1), RoleId = 6, CreatedOn = new DateTime(2026, 1, 1, 0, 0, 0, DateTimeKind.Utc) },
-            new Employee { Id = 3, EmployeeCode = "EMP-003", FullName = "Aradhana Shinde", Email = "aradhana.shinde@relisofttechnologies.com", Department = "Engineering", Designation = "Software Engineer", JobRole = "Software Engineer", EmploymentType = "Full-time", Location = "Mumbai", JoinDate = new DateTime(2025, 3, 10), RoleId = 1, CreatedOn = new DateTime(2026, 1, 1, 0, 0, 0, DateTimeKind.Utc) },
-            new Employee { Id = 4, EmployeeCode = "EMP-004", FullName = "Arif Nadeem Mirza", Email = "arif.nadeem.mirza@relisofttechnologies.com", Department = "Data Operations", Designation = "Technical Manager L2", JobRole = "Technical Delivery", EmploymentType = "Full-time", Location = "Pune", JoinDate = new DateTime(2025, 6, 12), RoleId = 8, CreatedOn = new DateTime(2026, 1, 1, 0, 0, 0, DateTimeKind.Utc) },
-            new Employee { Id = 5, EmployeeCode = "EMP-005", FullName = "Girish Patil", Email = "girish.patil@relisofttechnologies.com", Department = "Data Operations", Designation = "Technical Manager L2", JobRole = "Technical Delivery", EmploymentType = "Full-time", Location = "Bengaluru", JoinDate = new DateTime(2025, 8, 20), RoleId = 8, CreatedOn = new DateTime(2026, 1, 1, 0, 0, 0, DateTimeKind.Utc) },
-            new Employee { Id = 6, EmployeeCode = "EMP-006", FullName = "Shreerang Joshi", Email = "shreerang.joshi@relisofttechnologies.com", Department = "Quality Engineering", Designation = "Technical Manager L1", JobRole = "Quality Lead (All Areas)", EmploymentType = "Full-time", Location = "Pune", JoinDate = new DateTime(2024, 11, 1), RoleId = 5, CreatedOn = new DateTime(2026, 1, 1, 0, 0, 0, DateTimeKind.Utc) },
-            new Employee { Id = 7, EmployeeCode = "EMP-007", FullName = "Prathamesh Katikar", Email = "prathamesh.katikar@relisofttechnologies.com", Department = "Quality Engineering", Designation = "Quality Engineer", JobRole = "Quality Engineer (TLM / LQM)", EmploymentType = "Full-time", Location = "Mumbai", JoinDate = new DateTime(2026, 3, 1), RoleId = 1, CreatedOn = new DateTime(2026, 1, 1, 0, 0, 0, DateTimeKind.Utc) },
-            new Employee { Id = 8, EmployeeCode = "EMP-008", FullName = "Super HR", Email = "hr@relisofttechnologies.com", Department = "HR", Designation = "Super HR", JobRole = "Super HR", EmploymentType = "Full-time", Location = "Mumbai", JoinDate = new DateTime(2024, 6, 1), RoleId = 7, CreatedOn = new DateTime(2026, 1, 1, 0, 0, 0, DateTimeKind.Utc) },
-            new Employee { Id = 9, EmployeeCode = "EMP-009", FullName = "Unnati Gawali", Email = "unnati.gawali@relisofttechnologies.com", Department = "HR", Designation = "HR Executive", JobRole = "HR Executive", EmploymentType = "Full-time", Location = "Mumbai", JoinDate = new DateTime(2025, 9, 1), RoleId = 3, CreatedOn = new DateTime(2026, 1, 1, 0, 0, 0, DateTimeKind.Utc) }
-        );
+              new Employee { Id = 1, EmployeeCode = "EMP-001", FullName = "Preeti Patil", Email = "preeti.patil@relisofttechnologies.com", Department = "HR", Designation = "HR Lead", JobRole = "HR Lead", EmploymentType = "Full-time", Location = "Mumbai", JoinDate = new DateTime(2024, 1, 15), RoleId = 7, ManagerCode = "EMP-002", CreatedOn = new DateTime(2026, 1, 1, 0, 0, 0, DateTimeKind.Utc) },
+              new Employee { Id = 2, EmployeeCode = "EMP-002", FullName = "Rakesh Patil", Email = "rakesh.patil@relisofttechnologies.com", Department = "Management", Designation = "CEO", JobRole = "CEO", EmploymentType = "Full-time", Location = "Mumbai", JoinDate = new DateTime(2023, 6, 1), RoleId = 6, CreatedOn = new DateTime(2026, 1, 1, 0, 0, 0, DateTimeKind.Utc) },
+              new Employee { Id = 3, EmployeeCode = "EMP-003", FullName = "Aradhana Shinde", Email = "aradhana.shinde@relisofttechnologies.com", Department = "Engineering", Designation = "Software Engineer", JobRole = "Software Engineer", EmploymentType = "Full-time", Location = "Mumbai", JoinDate = new DateTime(2025, 3, 10), RoleId = 1, ManagerCode = "EMP-004", CreatedOn = new DateTime(2026, 1, 1, 0, 0, 0, DateTimeKind.Utc) },
+              new Employee { Id = 4, EmployeeCode = "EMP-004", FullName = "Arif Nadeem Mirza", Email = "arif.nadeem.mirza@relisofttechnologies.com", Department = "Data Operations", Designation = "Technical Manager L2", JobRole = "Technical Delivery", EmploymentType = "Full-time", Location = "Pune", JoinDate = new DateTime(2025, 6, 12), RoleId = 8, CreatedOn = new DateTime(2026, 1, 1, 0, 0, 0, DateTimeKind.Utc) },
+              new Employee { Id = 5, EmployeeCode = "EMP-005", FullName = "Girish Patil", Email = "girish.patil@relisofttechnologies.com", Department = "Data Operations", Designation = "Technical Manager L2", JobRole = "Technical Delivery", EmploymentType = "Full-time", Location = "Bengaluru", JoinDate = new DateTime(2025, 8, 20), RoleId = 8, ManagerCode = "EMP-004", CreatedOn = new DateTime(2026, 1, 1, 0, 0, 0, DateTimeKind.Utc) },
+              new Employee { Id = 6, EmployeeCode = "EMP-006", FullName = "Shreerang Joshi", Email = "shreerang.joshi@relisofttechnologies.com", Department = "Quality Engineering", Designation = "Technical Manager L1", JobRole = "Quality Lead (All Areas)", EmploymentType = "Full-time", Location = "Pune", JoinDate = new DateTime(2024, 11, 1), RoleId = 5, ManagerCode = "EMP-004", CreatedOn = new DateTime(2026, 1, 1, 0, 0, 0, DateTimeKind.Utc) },
+              new Employee { Id = 7, EmployeeCode = "EMP-007", FullName = "Prathamesh Katikar", Email = "prathamesh.katikar@relisofttechnologies.com", Department = "Quality Engineering", Designation = "Quality Engineer", JobRole = "Quality Engineer (TLM / LQM)", EmploymentType = "Full-time", Location = "Mumbai", JoinDate = new DateTime(2026, 3, 1), RoleId = 1, ManagerCode = "EMP-004", CreatedOn = new DateTime(2026, 1, 1, 0, 0, 0, DateTimeKind.Utc) },
+              new Employee { Id = 8, EmployeeCode = "EMP-008", FullName = "Super HR", Email = "hr@relisofttechnologies.com", Department = "HR", Designation = "Super HR", JobRole = "Super HR", EmploymentType = "Full-time", Location = "Mumbai", JoinDate = new DateTime(2024, 6, 1), RoleId = 7, ManagerCode = "EMP-002", CreatedOn = new DateTime(2026, 1, 1, 0, 0, 0, DateTimeKind.Utc) },
+              new Employee { Id = 9, EmployeeCode = "EMP-009", FullName = "Unnati Gawali", Email = "unnati.gawali@relisofttechnologies.com", Department = "HR", Designation = "HR Executive", JobRole = "HR Executive", EmploymentType = "Full-time", Location = "Mumbai", JoinDate = new DateTime(2025, 9, 1), RoleId = 3, ManagerCode = "EMP-002", CreatedOn = new DateTime(2026, 1, 1, 0, 0, 0, DateTimeKind.Utc) }
+          );
 
         modelBuilder.Entity<UserLogin>().HasData(
             new UserLogin { Id = 1, EmployeeId = 1, Username = "preeti", PasswordHash = "$2a$11$1OmqZ7Lg1.9.5dC2qwF3He4EDiSghkDr94W1CrHjxUML9COevlnhy", CreatedOn = new DateTime(2026, 1, 1, 0, 0, 0, DateTimeKind.Utc) },

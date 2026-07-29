@@ -27,14 +27,31 @@ public class LeaveApplication
     public bool IsMedicalLeave { get; set; }
     public string? MedicalCertificatePath { get; set; }
     public bool LossOfPay { get; set; }
+    public decimal LopDays { get; set; }
+    public decimal? PaidLeaveDays { get; set; }
+
+    // Comp Off Credit Tracking
+    public bool IsCompOffCredit { get; set; } = false;
+
+    public DateTime? WorkedDate { get; set; }
+
+    public DateTime? ExpiresOn { get; set; }
+
+    public bool IsCompOffConsumed { get; set; } = false;
+
+    public DateTime? ConsumedOn { get; set; }
+
+    public int? ConsumedByLeaveApplicationId { get; set; }
 
     public string? CancellationReason { get; set; }
     public DateTime? CancellationRequestedOn { get; set; }
     public int? CancellationActionedById { get; set; }
     public DateTime? CancellationActionedOn { get; set; }
+    public DateTime? CancellationBalanceRestoredOn { get; set; }
 
     [ForeignKey(nameof(EmployeeId))]
     public Employee? Employee { get; set; }
     [ForeignKey(nameof(LeaveTypeId))]
     public LeaveType? LeaveType { get; set; }
+    public ICollection<LeaveApplicationHistory> History { get; set; } = new List<LeaveApplicationHistory>();
 }

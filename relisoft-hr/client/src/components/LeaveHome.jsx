@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react'
 import useStore from '../store'
-import { applyLeave, getMyLeaveRequests, cancelLeave, requestCancellation, loadWorkspace, checkLeaveBalance, applyCompOff, getFloaterUsage, uploadMedicalCertificate, transferCompOff, getCompOffTransfers } from '../api'
+import { applyLeave, getMyLeaveRequests, cancelLeave, requestCancellation, loadWorkspace, checkLeaveBalance, applyCompOff, getFloaterUsage, uploadMedicalCertificate, transferCompOff, getCompOffTransfers, getAvailableCompOffCredits } from '../api'
 
 function statusClass(status) {
   const s = String(status || '').toLowerCase()
@@ -21,9 +21,11 @@ export default function LeaveHome() {
   const [medicalFile, setMedicalFile] = useState(null)
   const [medicalUploading, setMedicalUploading] = useState(false)
   const [medicalLeaveId, setMedicalLeaveId] = useState(null)
-  const [transferForm, setTransferForm] = useState({ toEmployeeId: '', days: '', reason: '', submitting: false })
+  const [transferForm, setTransferForm] = useState({ toEmployeeId: '', compOffCreditLeaveApplicationId: '', reason: '', submitting: false })
   const [transfers, setTransfers] = useState([])
   const [showTransferForm, setShowTransferForm] = useState(false)
+  const [availableCredits, setAvailableCredits] = useState([])
+  const [loadingCredits, setLoadingCredits] = useState(false)
 
   useEffect(() => {
     if (currentUser?.employeeId) {
@@ -38,13 +40,14 @@ export default function LeaveHome() {
     if (!leaveForm.leaveTypeId || !currentUser?.employeeId) return
     const lt = data.leaveTypes.find((l) => String(l.id) === String(leaveForm.leaveTypeId))
     if (!lt) return
-    checkLeaveBalance(currentUser.employeeId, leaveForm.leaveTypeId).then(setBalanceInfo)
+    const leaveYear = leaveForm.startDate ? Number(leaveForm.startDate.slice(0, 4)) : new Date().getFullYear()
+    checkLeaveBalance(currentUser.employeeId, leaveForm.leaveTypeId, leaveYear).then(setBalanceInfo)
     if (lt.isFloaterHoliday) {
-      getFloaterUsage(currentUser.employeeId, new Date().getFullYear()).then(setFloaterUsage)
+      getFloaterUsage(currentUser.employeeId, leaveYear).then(setFloaterUsage)
     } else {
       setFloaterUsage(null)
     }
-  }, [leaveForm.leaveTypeId, currentUser?.employeeId])
+  }, [leaveForm.leaveTypeId, leaveForm.startDate, currentUser?.employeeId, data.leaveTypes])
 
   useEffect(() => {
     if (!balanceInfo || !leaveForm.startDate || !leaveForm.endDate || leaveForm.startDate > leaveForm.endDate) {
@@ -55,19 +58,34 @@ export default function LeaveHome() {
     setShowLossOfPay(days > (balanceInfo?.remaining ?? 999))
   }, [leaveForm.startDate, leaveForm.endDate, balanceInfo])
 
+  useEffect(() => {
+    if (!showTransferForm || !currentUser?.employeeId) { setAvailableCredits([]); return }
+    setLoadingCredits(true)
+    getAvailableCompOffCredits(currentUser.employeeId)
+      .then(setAvailableCredits)
+      .catch(() => setAvailableCredits([]))
+      .finally(() => setLoadingCredits(false))
+  }, [showTransferForm, currentUser?.employeeId])
+
   const handleSubmit = async (e) => {
     e.preventDefault()
     if (leaveForm.submitting) return
     setSubmitting('leaveForm', true)
     try {
-      const res = await applyLeave({
+      const request = {
         employeeId: Number(leaveForm.employeeId || currentUser?.employeeId),
         leaveTypeId: Number(leaveForm.leaveTypeId),
         startDate: leaveForm.startDate,
         endDate: leaveForm.endDate,
         isHalfDay: leaveForm.isHalfDay,
         reason: leaveForm.reason
-      })
+      }
+      let res
+      try { res = await applyLeave(request) } catch (err) {
+        const warning = err.response?.data
+        if (err.response?.status !== 409 || !window.confirm(`Insufficient Leave Balance\n\n${warning.warningMessage}\n\nDo you want to continue?`)) throw err
+        res = await applyLeave({ ...request, confirmLossOfPay: true })
+      }
       resetForm('leaveForm', { employeeId: String(currentUser?.employeeId || ''), leaveTypeId: leaveForm.leaveTypeId, startDate: '', endDate: '', isHalfDay: false, reason: '', submitting: false, balanceCheck: null })
       setBalanceInfo(null)
       setMessage({ type: res.lossOfPay ? 'warning' : 'success', text: res.message })
@@ -127,11 +145,11 @@ export default function LeaveHome() {
       await transferCompOff({
         fromEmployeeId: Number(currentUser?.employeeId),
         toEmployeeId: Number(transferForm.toEmployeeId),
-        days: Number(transferForm.days),
+        compOffCreditLeaveApplicationId: Number(transferForm.compOffCreditLeaveApplicationId),
         reason: transferForm.reason
       })
       setMessage({ type: 'success', text: 'Comp off transferred.' })
-      setTransferForm({ toEmployeeId: '', days: '', reason: '', submitting: false })
+      setTransferForm({ toEmployeeId: '', compOffCreditLeaveApplicationId: '', reason: '', submitting: false })
       setShowTransferForm(false)
       const t = await getCompOffTransfers(currentUser?.employeeId)
       setTransfers(Array.isArray(t) ? t : t?.transfers || [])
@@ -188,7 +206,7 @@ export default function LeaveHome() {
             <div>
               <label className="text-xs font-bold text-navy/70 dark:text-white/70 uppercase tracking-wider">Leave type</label>
               <select value={leaveForm.leaveTypeId} disabled={leaveForm.submitting} onChange={(e) => updateForm('leaveForm', 'leaveTypeId', e.target.value)} className="mt-1.5 w-full h-12 px-4 rounded-xl border border-navy/10 dark:border-white/10 bg-white dark:bg-[var(--bg-secondary)] focus:border-gold-1 focus:ring-4 focus:ring-gold-1/10 outline-none transition-all text-navy dark:text-white">
-                {data.leaveTypes.filter((lt) => !lt.isCompOff).map((lt) => <option key={lt.id} value={lt.id}>{lt.name}{lt.isFloaterHoliday ? ` (max ${lt.maxFloaterPerYear}/yr)` : ''}</option>)}
+                {data.leaveTypes.map((lt) => <option key={lt.id} value={lt.id}>{lt.name}{lt.isFloaterHoliday ? ` (max ${lt.maxFloaterPerYear}/yr)` : ''}</option>)}
               </select>
             </div>
             <div>
@@ -324,7 +342,7 @@ export default function LeaveHome() {
           {showTransferForm && (
             <form onSubmit={handleTransfer} className="mt-4 space-y-4">
               <h3 className="font-heading font-bold text-navy dark:text-white">Transfer comp off days</h3>
-              <p className="text-muted dark:text-white/60 text-xs">Send your earned comp off days to a colleague.</p>
+              <p className="text-muted dark:text-white/60 text-xs">Select a comp off credit to transfer to a colleague.</p>
               <div className="grid md:grid-cols-3 gap-4">
                 <div>
                   <label className="text-xs font-bold text-navy/70 dark:text-white/70 uppercase tracking-wider">Recipient</label>
@@ -336,15 +354,20 @@ export default function LeaveHome() {
                   </select>
                 </div>
                 <div>
-                  <label className="text-xs font-bold text-navy/70 dark:text-white/70 uppercase tracking-wider">Days</label>
-                  <input type="number" min="0.5" max="30" step="0.5" value={transferForm.days} disabled={transferForm.submitting} onChange={(e) => setTransferForm((f) => ({ ...f, days: e.target.value }))} required className="mt-1.5 w-full h-12 px-4 rounded-xl border border-navy/10 dark:border-white/10 bg-white dark:bg-[var(--bg-secondary)] text-navy dark:text-white" />
+                  <label className="text-xs font-bold text-navy/70 dark:text-white/70 uppercase tracking-wider">Available credit</label>
+                  <select value={transferForm.compOffCreditLeaveApplicationId} disabled={transferForm.submitting || loadingCredits} onChange={(e) => setTransferForm((f) => ({ ...f, compOffCreditLeaveApplicationId: e.target.value }))} required className="mt-1.5 w-full h-12 px-4 rounded-xl border border-navy/10 dark:border-white/10 bg-white dark:bg-[var(--bg-secondary)] text-navy dark:text-white">
+                    <option value="">{loadingCredits ? 'Loading...' : availableCredits.length === 0 ? 'No credits available' : 'Select a credit'}</option>
+                    {availableCredits.map((c) => (
+                      <option key={c.id} value={c.id}>Worked: {new Date(c.workedDate).toLocaleDateString()} (expires {new Date(c.expiresOn).toLocaleDateString()})</option>
+                    ))}
+                  </select>
                 </div>
                 <div className="md:col-span-3">
                   <label className="text-xs font-bold text-navy/70 dark:text-white/70 uppercase tracking-wider">Reason</label>
                   <textarea value={transferForm.reason} disabled={transferForm.submitting} onChange={(e) => setTransferForm((f) => ({ ...f, reason: e.target.value }))} placeholder="Why are you transferring comp off?" required className="mt-1.5 w-full h-20 px-4 py-3 rounded-xl border border-navy/10 dark:border-white/10 bg-white dark:bg-[var(--bg-secondary)] text-navy dark:text-white resize-vertical" />
                 </div>
               </div>
-              <button type="submit" disabled={transferForm.submitting} className="gold-button px-6 py-3 rounded-xl font-bold text-sm">{transferForm.submitting ? 'Transferring...' : 'Transfer comp off'}</button>
+              <button type="submit" disabled={transferForm.submitting || !transferForm.compOffCreditLeaveApplicationId} className="gold-button px-6 py-3 rounded-xl font-bold text-sm">{transferForm.submitting ? 'Transferring...' : 'Transfer comp off'}</button>
             </form>
           )}
           {transfers.length > 0 && (
@@ -356,7 +379,7 @@ export default function LeaveHome() {
                     <span className="font-bold text-navy dark:text-white">{t.fromEmployeeName}</span>
                     <span className="text-muted mx-1">→</span>
                     <span className="font-bold text-navy dark:text-white">{t.toEmployeeName}</span>
-                    <span className="text-muted ml-2">{t.days} day(s)</span>
+                    <span className="text-muted ml-2">(worked {new Date(t.workedDate).toLocaleDateString()})</span>
                   </div>
                   <span className={`px-2 py-0.5 rounded text-[10px] font-bold ${t.status === 'Approved' ? 'bg-emerald-50 text-emerald-700' : 'bg-amber-50 text-amber-700'}`}>{t.status}</span>
                 </div>
