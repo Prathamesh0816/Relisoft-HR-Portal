@@ -1,3 +1,4 @@
+import LeaveReports from './LeaveReports'
 import { useState } from 'react'
 import useStore from '../store'
 import Sidebar from './Sidebar'
@@ -29,6 +30,7 @@ const meta = {
   register: { label: 'HR', title: 'Complete company onboarding part 1', subtitle: 'Capture official employee records and trigger the onboarding invite.' },
   balances: { label: 'HR', title: 'Maintain leave ledgers', subtitle: 'Upload and adjust leave balances for the live workforce.' },
   review: { label: 'Reviewer', title: 'Review employee leave requests', subtitle: 'See pending leave requests routed to you.' },
+  leaveReports: {label: 'Reports', title: 'Generate Leave Reports', subtitle: 'Generate monthly and yearly leave reports with employee, team and project filters.'},
   directory: { label: 'Directory', title: 'Read the organization at a glance', subtitle: 'See primary teams, approvers, and growth across the directory.' },
   overview: { label: 'Leadership', title: 'Read the organization at a glance', subtitle: 'Track headcount, team ownership, and approval coverage.' },
   calendar: { label: 'Calendar', title: 'Leave calendar across the organization', subtitle: 'Month-wise view of leave activity and holidays.' },
@@ -104,6 +106,7 @@ export default function AppLayout({ onLogout }) {
           {activeView === 'register' && <HrRegistration />}
           {activeView === 'balances' && <HrBulkUploads />}
           {activeView === 'review' && <ReviewerInbox />}
+          {activeView === 'leaveReports' && <LeaveReports />}
           {activeView === 'directory' && <Directory />}
           {activeView === 'projects' && <ProjectBuilder />}
           {activeView === 'overview' && <LeadershipOverview />}

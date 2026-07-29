@@ -273,6 +273,7 @@ public class WorkspaceController : ControllerBase
         var y = year ?? DateTime.UtcNow.Year;
         var leaves = await _db.LeaveApplications
             .Include(l => l.Employee)
+                 .ThenInclude(e => e.LeaveBalances)
             .Include(l => l.LeaveType)
             .Where(l => l.AppliedOn.Year == y)
             .OrderBy(l => l.Employee!.FullName)
@@ -281,8 +282,21 @@ public class WorkspaceController : ControllerBase
 
         return Ok(leaves.Select(l => new
         {
-            l.Id, EmployeeName = l.Employee?.FullName, l.Employee?.EmployeeCode,
-            LeaveType = l.LeaveType?.Name, l.FromDate, l.ToDate, l.TotalDays, l.Status, l.LossOfPay
+            l.Id,
+            EmployeeName = l.Employee?.FullName,
+            l.Employee?.EmployeeCode,
+            LeaveType = l.LeaveType?.Name,
+            l.FromDate,
+            l.ToDate,
+            l.TotalDays,
+            l.Status,
+            ApprovedBy = l.ApproverName,
+
+            RemainingLeaves = l.Employee?.LeaveBalances
+        .FirstOrDefault(lb => lb.LeaveTypeId == l.LeaveTypeId)
+        ?.RemainingLeaves ?? 0,
+
+            l.LossOfPay
         }));
     }
 
