@@ -15,6 +15,7 @@ public class AppDbContext : DbContext
     public DbSet<LeaveType> LeaveTypes => Set<LeaveType>();
     public DbSet<Holiday> Holidays => Set<Holiday>();
     public DbSet<LeaveApplication> LeaveApplications => Set<LeaveApplication>();
+    public DbSet<LeaveApplicationHistory> LeaveApplicationHistories => Set<LeaveApplicationHistory>();
     public DbSet<EmployeeLeaveBalance> EmployeeLeaveBalances => Set<EmployeeLeaveBalance>();
     public DbSet<EmployeeTeam> EmployeeTeams => Set<EmployeeTeam>();
     public DbSet<EmployeeOnboardingProfile> EmployeeOnboardingProfiles => Set<EmployeeOnboardingProfile>();
@@ -145,6 +146,14 @@ public class AppDbContext : DbContext
 
         modelBuilder.Entity<EmployeeLeaveBalance>()
             .HasIndex(elb => new { elb.EmployeeId, elb.LeaveTypeId }).IsUnique();
+
+        modelBuilder.Entity<LeaveApplicationHistory>()
+            .HasOne(history => history.LeaveApplication)
+            .WithMany(application => application.History)
+            .HasForeignKey(history => history.LeaveApplicationId)
+            .OnDelete(DeleteBehavior.Cascade);
+        modelBuilder.Entity<LeaveApplicationHistory>()
+            .HasIndex(history => new { history.LeaveApplicationId, history.OccurredOn });
 
         modelBuilder.Entity<UserLogin>()
             .HasIndex(ul => ul.Username).IsUnique();

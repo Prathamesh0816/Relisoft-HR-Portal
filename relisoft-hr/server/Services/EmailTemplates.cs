@@ -63,7 +63,9 @@ body {{ margin:0; padding:0; font-family:'Inter',Arial,sans-serif; background:#f
 
     private static string DecisionEmail(LeaveApplication leave, string statusText, string statusColor)
     {
-        var days = leave.TotalDays > 0 ? leave.TotalDays : (decimal)((leave.ToDate - leave.FromDate).Days + 1);
+        var days = leave.TotalDays > 0
+            ? leave.TotalDays
+            : LeaveDurationCalculator.CalculateInclusive(leave.FromDate, leave.ToDate, leave.IsHalfDay);
         var fromStr = leave.FromDate.ToString("dd-MMM-yyyy");
         var toStr = leave.ToDate.ToString("dd-MMM-yyyy");
         return Shell($"Leave Request {statusText}", $@"
