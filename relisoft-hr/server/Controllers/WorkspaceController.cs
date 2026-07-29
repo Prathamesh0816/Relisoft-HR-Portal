@@ -307,7 +307,8 @@ public class WorkspaceController : ControllerBase
             teams,
             e.LeaveBalances.Select(lb => new LeaveBalanceDto(
                 lb.Id, lb.LeaveTypeId, lb.LeaveType?.Name ?? "",
-                lb.AllocatedLeaves, lb.UsedLeaves, lb.RemainingLeaves
+                lb.AllocatedLeaves, lb.UsedLeaves, lb.RemainingLeaves,
+                lb.CarryForwardDays, lb.FinancialYear
             )).ToList(),
             null
         );

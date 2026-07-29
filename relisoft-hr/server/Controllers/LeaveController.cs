@@ -18,13 +18,15 @@ public class LeaveController : ControllerBase
     private readonly IEmailService _emailService;
     private readonly NotificationHelper _notif;
     private readonly ILogger<LeaveController> _logger;
+    private readonly LeaveCarryForwardService _carryForwardService;
 
-    public LeaveController(AppDbContext db, IEmailService emailService, NotificationHelper notif, ILogger<LeaveController> logger)
+    public LeaveController(AppDbContext db, IEmailService emailService, NotificationHelper notif, ILogger<LeaveController> logger, LeaveCarryForwardService carryForwardService)
     {
         _db = db;
         _emailService = emailService;
         _notif = notif;
         _logger = logger;
+        _carryForwardService = carryForwardService;
     }
 
     [HttpPost("apply-leave")]
@@ -601,6 +603,8 @@ public class LeaveController : ControllerBase
             remaining = balance?.RemainingLeaves ?? 0,
             allocated = balance?.AllocatedLeaves ?? 0,
             used = balance?.UsedLeaves ?? 0,
+            carryForward = balance?.CarryForwardDays ?? 0,
+            financialYear = balance?.FinancialYear ?? "",
             isFloater = false
         });
     }
@@ -804,6 +808,54 @@ public class LeaveController : ControllerBase
             h.Date.ToString("dd MMMM yyyy"),
             h.Date.DayOfWeek.ToString(),
             h.Type
+        )).ToList());
+    }
+
+    [HttpGet("carry-forward/preview")]
+    public async Task<ActionResult> CarryForwardPreview([FromQuery] string? fromFY)
+    {
+        var fy = fromFY;
+        if (string.IsNullOrEmpty(fy))
+        {
+            var currentFY = _carryForwardService.GetFinancialYear(DateTime.UtcNow);
+            fy = _carryForwardService.GetPreviousFinancialYear(currentFY);
+        }
+
+        var result = await _carryForwardService.PreviewAsync(fy);
+        return Ok(result);
+    }
+
+    [HttpPost("carry-forward/process")]
+    public async Task<ActionResult> CarryForwardProcess(CarryForwardProcessRequest req)
+    {
+        var result = await _carryForwardService.ProcessAsync(
+            req.FromFinancialYear, "Manual", req.ProcessedById);
+
+        if (!result.Success)
+            return BadRequest(new { message = result.Message });
+
+        return Ok(result);
+    }
+
+    [HttpGet("carry-forward/history")]
+    public async Task<ActionResult> CarryForwardHistory([FromQuery] string? fy)
+    {
+        var query = _db.LeaveCarryForwardLogs
+            .Include(l => l.Employee)
+            .Include(l => l.LeaveType)
+            .AsNoTracking();
+
+        if (!string.IsNullOrEmpty(fy))
+            query = query.Where(l => l.FromFinancialYear == fy || l.ToFinancialYear == fy);
+
+        var logs = await query.OrderByDescending(l => l.ProcessedOn).Take(200).ToListAsync();
+
+        return Ok(logs.Select(l => new CarryForwardLogDto(
+            l.Id, l.EmployeeId, l.Employee?.FullName ?? "", l.Employee?.EmployeeCode ?? "",
+            l.LeaveType?.Name ?? "", l.FromFinancialYear, l.ToFinancialYear,
+            l.PreviousYearRemaining, l.CarryForwardPct,
+            l.CarryForwardDays, l.LapsedDays,
+            l.TriggerType, l.ProcessedById, l.ProcessedOn
         )).ToList());
     }
 }

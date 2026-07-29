@@ -3,6 +3,7 @@ using System;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
 using Microsoft.EntityFrameworkCore.Metadata;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 using RelisoftHR.Data;
 
@@ -11,9 +12,11 @@ using RelisoftHR.Data;
 namespace RelisoftHR.Migrations
 {
     [DbContext(typeof(AppDbContext))]
-    partial class AppDbContextModelSnapshot : ModelSnapshot
+    [Migration("20260729061424_LeaveCarryForward")]
+    partial class LeaveCarryForward
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        /// <inheritdoc />
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder
@@ -2424,7 +2427,7 @@ namespace RelisoftHR.Migrations
                         {
                             Id = 2,
                             AdvanceNoticeDays = 3,
-                            CarryForwardPct = 0m,
+                            CarryForwardPct = 50m,
                             CompOffValidityDays = 0,
                             IsActive = true,
                             IsCompOff = false,

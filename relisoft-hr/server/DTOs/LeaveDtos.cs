@@ -46,3 +46,14 @@ public record CalendarEvent(
 );
 
 public record HolidayDto(int Id, string Name, string Date, string Day, string Type);
+
+// Carry-forward DTOs
+public record CarryForwardProcessRequest(string FromFinancialYear, int? ProcessedById);
+
+public record CarryForwardLogDto(
+    int Id, int EmployeeId, string EmployeeName, string EmployeeCode,
+    string LeaveTypeName, string FromFinancialYear, string ToFinancialYear,
+    decimal PreviousYearRemaining, decimal CarryForwardPct,
+    decimal CarryForwardDays, decimal LapsedDays,
+    string TriggerType, int? ProcessedById, DateTime ProcessedOn
+);

@@ -1,5 +1,5 @@
 import useStore from '../store'
-import { LogOut, Home, CalendarCheck, Ticket, UserPlus, Users, ClipboardCheck, Settings, Briefcase, DoorOpen, ChevronRight } from 'lucide-react'
+import { LogOut, Home, CalendarCheck, Ticket, UserPlus, Users, ClipboardCheck, Settings, Briefcase, DoorOpen, ChevronRight, ArrowUpRight } from 'lucide-react'
 
 const sections = [
   {
@@ -12,6 +12,7 @@ const sections = [
       { view: 'balances', label: 'Bulk Uploads', icon: ChevronRight },
       { view: 'hrOnboard', label: 'Onboarding', icon: Users },
       { view: 'offboard', label: 'Offboarding', icon: DoorOpen },
+      { view: 'carryForward', label: 'Carry Forward', icon: ArrowUpRight },
     ]
   },
   {

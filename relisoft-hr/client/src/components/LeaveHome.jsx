@@ -275,6 +275,8 @@ export default function LeaveHome() {
                 const remaining = lb.remainingLeaves
                 const used = lb.usedLeaves
                 const allocated = lb.allocatedLeaves
+                const cf = lb.carryForwardDays || 0
+                const fy = lb.financialYear || ''
                 const pct = allocated > 0 ? Math.min(100, Math.max(0, (used / allocated) * 100)) : 0
                 return (
                   <div key={lb.leaveTypeId} className="flex items-center gap-4 p-4 rounded-xl border border-navy/10 dark:border-white/10 bg-white dark:bg-[var(--bg-secondary)]">
@@ -286,7 +288,12 @@ export default function LeaveHome() {
                     </div>
                     <div>
                       <h4 className="font-bold text-navy dark:text-white text-sm">{lb.leaveTypeName}</h4>
-                      <div className="text-xs text-navy/50 dark:text-white/50 mt-1">{used} used of {allocated}</div>
+                      <div className="text-xs text-navy/50 dark:text-white/50 mt-1">{used} used of {allocated}{fy ? ` · ${fy}` : ''}</div>
+                      {cf > 0 && (
+                        <div className="inline-flex items-center gap-1 mt-1.5 px-2 py-0.5 rounded-full bg-emerald-50 dark:bg-emerald-900/30 text-emerald-700 text-[10px] font-bold">
+                          <span>↗</span> {cf} carried forward
+                        </div>
+                      )}
                     </div>
                   </div>
                 )

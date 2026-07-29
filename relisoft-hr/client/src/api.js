@@ -1219,3 +1219,19 @@ export async function getResilienceReport() {
   const { data } = await api.get('/api/resilience/report')
   return data
 }
+
+// Leave carry-forward
+export async function getCarryForwardPreview(fromFY) {
+  const params = fromFY ? { fromFY } : {}
+  const { data } = await api.get('/api/leave/carry-forward/preview', { params })
+  return data
+}
+export async function processCarryForward(fromFinancialYear, processedById) {
+  const { data } = await api.post('/api/leave/carry-forward/process', { fromFinancialYear, processedById })
+  return data
+}
+export async function getCarryForwardHistory(fy) {
+  const params = fy ? { fy } : {}
+  const { data } = await api.get('/api/leave/carry-forward/history', { params })
+  return data
+}
