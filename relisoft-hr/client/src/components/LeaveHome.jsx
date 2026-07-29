@@ -72,14 +72,20 @@ export default function LeaveHome() {
     if (leaveForm.submitting) return
     setSubmitting('leaveForm', true)
     try {
-      const res = await applyLeave({
+      const request = {
         employeeId: Number(leaveForm.employeeId || currentUser?.employeeId),
         leaveTypeId: Number(leaveForm.leaveTypeId),
         startDate: leaveForm.startDate,
         endDate: leaveForm.endDate,
         isHalfDay: leaveForm.isHalfDay,
         reason: leaveForm.reason
-      })
+      }
+      let res
+      try { res = await applyLeave(request) } catch (err) {
+        const warning = err.response?.data
+        if (err.response?.status !== 409 || !window.confirm(`Insufficient Leave Balance\n\n${warning.warningMessage}\n\nDo you want to continue?`)) throw err
+        res = await applyLeave({ ...request, confirmLossOfPay: true })
+      }
       resetForm('leaveForm', { employeeId: String(currentUser?.employeeId || ''), leaveTypeId: leaveForm.leaveTypeId, startDate: '', endDate: '', isHalfDay: false, reason: '', submitting: false, balanceCheck: null })
       setBalanceInfo(null)
       setMessage({ type: res.lossOfPay ? 'warning' : 'success', text: res.message })
