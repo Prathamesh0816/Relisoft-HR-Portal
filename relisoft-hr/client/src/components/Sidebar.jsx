@@ -26,7 +26,8 @@ const sections = [
     label: 'Reviews',
     roles: ['HRL2', 'HR', 'OrganizationHead', 'ManagerL2', 'Manager', 'TeamLead'],
     items: [
-      { view: 'review', label: 'Leave Review', icon: ClipboardCheck },
+        { view: 'review', label: 'Leave Review', icon: ClipboardCheck },
+        { view: 'leaveReports', label: 'Leave Reports', icon: ClipboardCheck },
     ]
   },
   {
@@ -45,6 +46,7 @@ export default function Sidebar({ onLogout, onNavigate }) {
   const role = currentUser?.role || ''
   const userViews = currentUser?.views || []
 
+
   const visible = (roles) => !roles || roles.includes(role)
 
   const handleNav = (view) => {
@@ -57,7 +59,9 @@ export default function Sidebar({ onLogout, onNavigate }) {
       <div className="p-3 space-y-1">
         {sections.map((section) => {
           if (!visible(section.roles)) return null
-          const shown = section.items.filter((i) => userViews.includes(i.view))
+            const shown = section.items.filter(
+                (item) => !userViews.length || userViews.includes(item.view)
+            )
           if (!shown.length) return null
           return (
             <div key={section.label}>
