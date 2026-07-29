@@ -3,6 +3,7 @@ using System;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
 using Microsoft.EntityFrameworkCore.Metadata;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 using RelisoftHR.Data;
 
@@ -11,9 +12,11 @@ using RelisoftHR.Data;
 namespace RelisoftHR.Migrations
 {
     [DbContext(typeof(AppDbContext))]
-    partial class AppDbContextModelSnapshot : ModelSnapshot
+    [Migration("20260729034937_UpdateCompOffTransferForCreditTracking")]
+    partial class UpdateCompOffTransferForCreditTracking
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        /// <inheritdoc />
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder
@@ -2266,9 +2269,6 @@ namespace RelisoftHR.Migrations
                     b.Property<DateTime?>("CancellationActionedOn")
                         .HasColumnType("datetime2");
 
-                    b.Property<DateTime?>("CancellationBalanceRestoredOn")
-                        .HasColumnType("datetime2");
-
                     b.Property<string>("CancellationReason")
                         .HasColumnType("nvarchar(max)");
 
@@ -2336,39 +2336,6 @@ namespace RelisoftHR.Migrations
                     b.HasIndex("LeaveTypeId");
 
                     b.ToTable("LeaveApplications");
-                });
-
-            modelBuilder.Entity("RelisoftHR.Models.LeaveApplicationHistory", b =>
-                {
-                    b.Property<int>("Id")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("int");
-
-                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("Id"));
-
-                    b.Property<int?>("ActorEmployeeId")
-                        .HasColumnType("int");
-
-                    b.Property<string>("EventType")
-                        .IsRequired()
-                        .HasMaxLength(100)
-                        .HasColumnType("nvarchar(100)");
-
-                    b.Property<int>("LeaveApplicationId")
-                        .HasColumnType("int");
-
-                    b.Property<string>("Notes")
-                        .HasMaxLength(500)
-                        .HasColumnType("nvarchar(500)");
-
-                    b.Property<DateTime>("OccurredOn")
-                        .HasColumnType("datetime2");
-
-                    b.HasKey("Id");
-
-                    b.HasIndex("LeaveApplicationId", "OccurredOn");
-
-                    b.ToTable("LeaveApplicationHistories");
                 });
 
             modelBuilder.Entity("RelisoftHR.Models.LeaveType", b =>
@@ -5108,19 +5075,6 @@ namespace RelisoftHR.Migrations
                     b.Navigation("Employee");
 
                     b.Navigation("LeaveType");
-
-                    b.Navigation("History");
-                });
-
-            modelBuilder.Entity("RelisoftHR.Models.LeaveApplicationHistory", b =>
-                {
-                    b.HasOne("RelisoftHR.Models.LeaveApplication", "LeaveApplication")
-                        .WithMany("History")
-                        .HasForeignKey("LeaveApplicationId")
-                        .OnDelete(DeleteBehavior.Cascade)
-                        .IsRequired();
-
-                    b.Navigation("LeaveApplication");
                 });
 
             modelBuilder.Entity("RelisoftHR.Models.LoanRepayment", b =>

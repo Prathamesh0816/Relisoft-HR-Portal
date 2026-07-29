@@ -31,6 +31,8 @@ public class Employee
     public int? PrimaryTeamId { get; set; }
     public DateTime CreatedOn { get; set; } = DateTime.UtcNow;
     public DateTime? UpdatedOn { get; set; }
+    [MaxLength(50)]
+    public string? ManagerCode { get; set; }   // NEW
 
     [ForeignKey(nameof(RoleId))]
     public OrganizationRole? Role { get; set; }
@@ -38,6 +40,7 @@ public class Employee
     public Team? PrimaryTeam { get; set; }
     [ForeignKey(nameof(SalaryStructureId))]
     public SalaryStructure? SalaryStructure { get; set; }
+    public Employee? ReportingManager { get; set; }   // NEW
     public ICollection<EmployeeTeam> EmployeeTeams { get; set; } = new List<EmployeeTeam>();
     public ICollection<EmployeeLeaveBalance> LeaveBalances { get; set; } = new List<EmployeeLeaveBalance>();
     public ICollection<LeaveApplication> LeaveApplications { get; set; } = new List<LeaveApplication>();

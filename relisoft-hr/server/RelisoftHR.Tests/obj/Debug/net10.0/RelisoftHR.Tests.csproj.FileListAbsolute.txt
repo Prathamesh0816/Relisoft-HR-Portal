@@ -527,3 +527,6 @@ C:\relisoft\hr portal\Relisoft-HR-Portal\relisoft-hr\server\RelisoftHR.Tests\obj
 C:\relisoft\hr portal\Relisoft-HR-Portal\relisoft-hr\server\RelisoftHR.Tests\obj\Debug\net10.0\RelisoftHR.Tests.pdb
 C:\relisoft\hr portal\Relisoft-HR-Portal\relisoft-hr\server\RelisoftHR.Tests\obj\Debug\net10.0\RelisoftHR.Tests.genruntimeconfig.cache
 C:\relisoft\hr portal\Relisoft-HR-Portal\relisoft-hr\server\RelisoftHR.Tests\obj\Debug\net10.0\ref\RelisoftHR.Tests.dll
+C:\Users\Abcom\Desktop\HR_Portal\Relisoft-HR-Portal\relisoft-hr\server\RelisoftHR.Tests\obj\Debug\net10.0\RelisoftHR.Tests.dll
+C:\Users\Abcom\Desktop\HR_Portal\Relisoft-HR-Portal\relisoft-hr\server\RelisoftHR.Tests\obj\Debug\net10.0\refint\RelisoftHR.Tests.dll
+C:\Users\Abcom\Desktop\HR_Portal\Relisoft-HR-Portal\relisoft-hr\server\RelisoftHR.Tests\obj\Debug\net10.0\RelisoftHR.Tests.pdb

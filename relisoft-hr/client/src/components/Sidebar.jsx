@@ -9,6 +9,7 @@ const sections = [
       { view: 'hrHome', label: 'HR Home', icon: Home },
       { view: 'hrControl', label: 'Leave Policy', icon: ClipboardCheck },
       { view: 'register', label: 'New Employee', icon: UserPlus },
+      { view: 'projects', label: 'Projects', icon: Briefcase },
       { view: 'balances', label: 'Bulk Uploads', icon: ChevronRight },
       { view: 'hrOnboard', label: 'Onboarding', icon: Users },
       { view: 'offboard', label: 'Offboarding', icon: DoorOpen },

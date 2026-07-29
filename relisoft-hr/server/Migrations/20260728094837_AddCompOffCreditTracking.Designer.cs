@@ -3,6 +3,7 @@ using System;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
 using Microsoft.EntityFrameworkCore.Metadata;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 using RelisoftHR.Data;
 
@@ -11,9 +12,11 @@ using RelisoftHR.Data;
 namespace RelisoftHR.Migrations
 {
     [DbContext(typeof(AppDbContext))]
-    partial class AppDbContextModelSnapshot : ModelSnapshot
+    [Migration("20260728094837_AddCompOffCreditTracking")]
+    partial class AddCompOffCreditTracking
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        /// <inheritdoc />
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder
@@ -457,14 +460,11 @@ namespace RelisoftHR.Migrations
                     b.Property<DateTime?>("ActionedOn")
                         .HasColumnType("datetime2");
 
-                    b.Property<int>("CompOffCreditLeaveApplicationId")
-                        .HasColumnType("int");
-
                     b.Property<DateTime>("CreatedOn")
                         .HasColumnType("datetime2");
 
-                    b.Property<DateTime>("ExpiresOn")
-                        .HasColumnType("datetime2");
+                    b.Property<decimal>("Days")
+                        .HasColumnType("decimal(18,2)");
 
                     b.Property<int>("FromEmployeeId")
                         .HasColumnType("int");
@@ -482,12 +482,7 @@ namespace RelisoftHR.Migrations
                     b.Property<int>("ToEmployeeId")
                         .HasColumnType("int");
 
-                    b.Property<DateTime>("WorkedDate")
-                        .HasColumnType("datetime2");
-
                     b.HasKey("Id");
-
-                    b.HasIndex("CompOffCreditLeaveApplicationId");
 
                     b.HasIndex("FromEmployeeId");
 
@@ -894,16 +889,15 @@ namespace RelisoftHR.Migrations
                         {
                             Id = 1,
                             CreatedOn = new DateTime(2026, 1, 1, 0, 0, 0, 0, DateTimeKind.Utc),
-                            Department = "",
-                            Designation = "",
-                            Email = "",
+                            Department = "HR",
+                            Designation = "HR Lead",
+                            Email = "preeti.patil@relisofttechnologies.com",
                             EmployeeCode = "EMP-001",
                             EmploymentType = "Full-time",
                             FullName = "Preeti Patil",
-                            JobRole = "",
-                            JoinDate = new DateTime(1, 1, 1, 0, 0, 0, 0, DateTimeKind.Unspecified),
-                            Location = "",
-                            ManagerCode = "EMP-002",
+                            JobRole = "HR Lead",
+                            JoinDate = new DateTime(2024, 1, 15, 0, 0, 0, 0, DateTimeKind.Unspecified),
+                            Location = "Mumbai",
                             RoleId = 7,
                             Status = "Active"
                         },
@@ -911,15 +905,15 @@ namespace RelisoftHR.Migrations
                         {
                             Id = 2,
                             CreatedOn = new DateTime(2026, 1, 1, 0, 0, 0, 0, DateTimeKind.Utc),
-                            Department = "",
-                            Designation = "",
-                            Email = "",
+                            Department = "Management",
+                            Designation = "CEO",
+                            Email = "rakesh.patil@relisofttechnologies.com",
                             EmployeeCode = "EMP-002",
                             EmploymentType = "Full-time",
                             FullName = "Rakesh Patil",
-                            JobRole = "",
-                            JoinDate = new DateTime(1, 1, 1, 0, 0, 0, 0, DateTimeKind.Unspecified),
-                            Location = "",
+                            JobRole = "CEO",
+                            JoinDate = new DateTime(2023, 6, 1, 0, 0, 0, 0, DateTimeKind.Unspecified),
+                            Location = "Mumbai",
                             RoleId = 6,
                             Status = "Active"
                         },
@@ -927,16 +921,15 @@ namespace RelisoftHR.Migrations
                         {
                             Id = 3,
                             CreatedOn = new DateTime(2026, 1, 1, 0, 0, 0, 0, DateTimeKind.Utc),
-                            Department = "",
-                            Designation = "",
-                            Email = "",
+                            Department = "Engineering",
+                            Designation = "Software Engineer",
+                            Email = "aradhana.shinde@relisofttechnologies.com",
                             EmployeeCode = "EMP-003",
                             EmploymentType = "Full-time",
                             FullName = "Aradhana Shinde",
-                            JobRole = "",
-                            JoinDate = new DateTime(1, 1, 1, 0, 0, 0, 0, DateTimeKind.Unspecified),
-                            Location = "",
-                            ManagerCode = "EMP-004",
+                            JobRole = "Software Engineer",
+                            JoinDate = new DateTime(2025, 3, 10, 0, 0, 0, 0, DateTimeKind.Unspecified),
+                            Location = "Mumbai",
                             RoleId = 1,
                             Status = "Active"
                         },
@@ -944,15 +937,15 @@ namespace RelisoftHR.Migrations
                         {
                             Id = 4,
                             CreatedOn = new DateTime(2026, 1, 1, 0, 0, 0, 0, DateTimeKind.Utc),
-                            Department = "",
-                            Designation = "",
-                            Email = "",
+                            Department = "Data Operations",
+                            Designation = "Technical Manager L2",
+                            Email = "arif.nadeem.mirza@relisofttechnologies.com",
                             EmployeeCode = "EMP-004",
                             EmploymentType = "Full-time",
                             FullName = "Arif Nadeem Mirza",
-                            JobRole = "",
-                            JoinDate = new DateTime(1, 1, 1, 0, 0, 0, 0, DateTimeKind.Unspecified),
-                            Location = "",
+                            JobRole = "Technical Delivery",
+                            JoinDate = new DateTime(2025, 6, 12, 0, 0, 0, 0, DateTimeKind.Unspecified),
+                            Location = "Pune",
                             RoleId = 8,
                             Status = "Active"
                         },
@@ -960,16 +953,15 @@ namespace RelisoftHR.Migrations
                         {
                             Id = 5,
                             CreatedOn = new DateTime(2026, 1, 1, 0, 0, 0, 0, DateTimeKind.Utc),
-                            Department = "",
-                            Designation = "",
-                            Email = "",
+                            Department = "Data Operations",
+                            Designation = "Technical Manager L2",
+                            Email = "girish.patil@relisofttechnologies.com",
                             EmployeeCode = "EMP-005",
                             EmploymentType = "Full-time",
                             FullName = "Girish Patil",
-                            JobRole = "",
-                            JoinDate = new DateTime(1, 1, 1, 0, 0, 0, 0, DateTimeKind.Unspecified),
-                            Location = "",
-                            ManagerCode = "EMP-004",
+                            JobRole = "Technical Delivery",
+                            JoinDate = new DateTime(2025, 8, 20, 0, 0, 0, 0, DateTimeKind.Unspecified),
+                            Location = "Bengaluru",
                             RoleId = 8,
                             Status = "Active"
                         },
@@ -977,16 +969,15 @@ namespace RelisoftHR.Migrations
                         {
                             Id = 6,
                             CreatedOn = new DateTime(2026, 1, 1, 0, 0, 0, 0, DateTimeKind.Utc),
-                            Department = "",
-                            Designation = "",
-                            Email = "",
+                            Department = "Quality Engineering",
+                            Designation = "Technical Manager L1",
+                            Email = "shreerang.joshi@relisofttechnologies.com",
                             EmployeeCode = "EMP-006",
                             EmploymentType = "Full-time",
                             FullName = "Shreerang Joshi",
-                            JobRole = "",
-                            JoinDate = new DateTime(1, 1, 1, 0, 0, 0, 0, DateTimeKind.Unspecified),
-                            Location = "",
-                            ManagerCode = "EMP-004",
+                            JobRole = "Quality Lead (All Areas)",
+                            JoinDate = new DateTime(2024, 11, 1, 0, 0, 0, 0, DateTimeKind.Unspecified),
+                            Location = "Pune",
                             RoleId = 5,
                             Status = "Active"
                         },
@@ -994,16 +985,15 @@ namespace RelisoftHR.Migrations
                         {
                             Id = 7,
                             CreatedOn = new DateTime(2026, 1, 1, 0, 0, 0, 0, DateTimeKind.Utc),
-                            Department = "",
-                            Designation = "",
-                            Email = "",
+                            Department = "Quality Engineering",
+                            Designation = "Quality Engineer",
+                            Email = "prathamesh.katikar@relisofttechnologies.com",
                             EmployeeCode = "EMP-007",
                             EmploymentType = "Full-time",
                             FullName = "Prathamesh Katikar",
-                            JobRole = "",
-                            JoinDate = new DateTime(1, 1, 1, 0, 0, 0, 0, DateTimeKind.Unspecified),
-                            Location = "",
-                            ManagerCode = "EMP-004",
+                            JobRole = "Quality Engineer (TLM / LQM)",
+                            JoinDate = new DateTime(2026, 3, 1, 0, 0, 0, 0, DateTimeKind.Unspecified),
+                            Location = "Mumbai",
                             RoleId = 1,
                             Status = "Active"
                         },
@@ -1011,16 +1001,15 @@ namespace RelisoftHR.Migrations
                         {
                             Id = 8,
                             CreatedOn = new DateTime(2026, 1, 1, 0, 0, 0, 0, DateTimeKind.Utc),
-                            Department = "",
-                            Designation = "",
-                            Email = "",
+                            Department = "HR",
+                            Designation = "Super HR",
+                            Email = "hr@relisofttechnologies.com",
                             EmployeeCode = "EMP-008",
                             EmploymentType = "Full-time",
                             FullName = "Super HR",
-                            JobRole = "",
-                            JoinDate = new DateTime(1, 1, 1, 0, 0, 0, 0, DateTimeKind.Unspecified),
-                            Location = "",
-                            ManagerCode = "EMP-002",
+                            JobRole = "Super HR",
+                            JoinDate = new DateTime(2024, 6, 1, 0, 0, 0, 0, DateTimeKind.Unspecified),
+                            Location = "Mumbai",
                             RoleId = 7,
                             Status = "Active"
                         },
@@ -1028,16 +1017,15 @@ namespace RelisoftHR.Migrations
                         {
                             Id = 9,
                             CreatedOn = new DateTime(2026, 1, 1, 0, 0, 0, 0, DateTimeKind.Utc),
-                            Department = "",
-                            Designation = "",
-                            Email = "",
+                            Department = "HR",
+                            Designation = "HR Executive",
+                            Email = "unnati.gawali@relisofttechnologies.com",
                             EmployeeCode = "EMP-009",
                             EmploymentType = "Full-time",
                             FullName = "Unnati Gawali",
-                            JobRole = "",
-                            JoinDate = new DateTime(1, 1, 1, 0, 0, 0, 0, DateTimeKind.Unspecified),
-                            Location = "",
-                            ManagerCode = "EMP-002",
+                            JobRole = "HR Executive",
+                            JoinDate = new DateTime(2025, 9, 1, 0, 0, 0, 0, DateTimeKind.Unspecified),
+                            Location = "Mumbai",
                             RoleId = 3,
                             Status = "Active"
                         });
@@ -2266,9 +2254,6 @@ namespace RelisoftHR.Migrations
                     b.Property<DateTime?>("CancellationActionedOn")
                         .HasColumnType("datetime2");
 
-                    b.Property<DateTime?>("CancellationBalanceRestoredOn")
-                        .HasColumnType("datetime2");
-
                     b.Property<string>("CancellationReason")
                         .HasColumnType("nvarchar(max)");
 
@@ -2336,39 +2321,6 @@ namespace RelisoftHR.Migrations
                     b.HasIndex("LeaveTypeId");
 
                     b.ToTable("LeaveApplications");
-                });
-
-            modelBuilder.Entity("RelisoftHR.Models.LeaveApplicationHistory", b =>
-                {
-                    b.Property<int>("Id")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("int");
-
-                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("Id"));
-
-                    b.Property<int?>("ActorEmployeeId")
-                        .HasColumnType("int");
-
-                    b.Property<string>("EventType")
-                        .IsRequired()
-                        .HasMaxLength(100)
-                        .HasColumnType("nvarchar(100)");
-
-                    b.Property<int>("LeaveApplicationId")
-                        .HasColumnType("int");
-
-                    b.Property<string>("Notes")
-                        .HasMaxLength(500)
-                        .HasColumnType("nvarchar(500)");
-
-                    b.Property<DateTime>("OccurredOn")
-                        .HasColumnType("datetime2");
-
-                    b.HasKey("Id");
-
-                    b.HasIndex("LeaveApplicationId", "OccurredOn");
-
-                    b.ToTable("LeaveApplicationHistories");
                 });
 
             modelBuilder.Entity("RelisoftHR.Models.LeaveType", b =>
@@ -4648,12 +4600,6 @@ namespace RelisoftHR.Migrations
 
             modelBuilder.Entity("RelisoftHR.Models.CompOffTransfer", b =>
                 {
-                    b.HasOne("RelisoftHR.Models.LeaveApplication", "CompOffCredit")
-                        .WithMany()
-                        .HasForeignKey("CompOffCreditLeaveApplicationId")
-                        .OnDelete(DeleteBehavior.Cascade)
-                        .IsRequired();
-
                     b.HasOne("RelisoftHR.Models.Employee", "FromEmployee")
                         .WithMany()
                         .HasForeignKey("FromEmployeeId")
@@ -4665,8 +4611,6 @@ namespace RelisoftHR.Migrations
                         .HasForeignKey("ToEmployeeId")
                         .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired();
-
-                    b.Navigation("CompOffCredit");
 
                     b.Navigation("FromEmployee");
 
@@ -5108,19 +5052,6 @@ namespace RelisoftHR.Migrations
                     b.Navigation("Employee");
 
                     b.Navigation("LeaveType");
-
-                    b.Navigation("History");
-                });
-
-            modelBuilder.Entity("RelisoftHR.Models.LeaveApplicationHistory", b =>
-                {
-                    b.HasOne("RelisoftHR.Models.LeaveApplication", "LeaveApplication")
-                        .WithMany("History")
-                        .HasForeignKey("LeaveApplicationId")
-                        .OnDelete(DeleteBehavior.Cascade)
-                        .IsRequired();
-
-                    b.Navigation("LeaveApplication");
                 });
 
             modelBuilder.Entity("RelisoftHR.Models.LoanRepayment", b =>

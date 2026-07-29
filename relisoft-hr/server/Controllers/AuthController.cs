@@ -106,6 +106,9 @@ public class AuthController : ControllerBase
                              "tickets", "balances", "review","leaveReports","overview",
                              "calendar", "candidateForm", "hrOnboard", "offboard",
                              "directory", "settings" };
+                     "tickets", "balances", "review", "overview",
+                     "calendar", "candidateForm", "hrOnboard", "offboard",
+                     "directory", "projects", "settings" };
         return role switch
         {
             "HRL2" or "HR" => phase1,
