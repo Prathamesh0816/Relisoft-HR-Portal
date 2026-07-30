@@ -39,4 +39,19 @@ describe('LoginPage', () => {
       expect(mockLogin).toHaveBeenCalledWith('testuser', 'testpass')
     })
   })
+
+  it('shows and hides the password', async () => {
+    const user = userEvent.setup()
+    render(<LoginPage onLogin={mockLogin} />)
+    const passwordInput = screen.getByLabelText('Password')
+
+    expect(passwordInput).toHaveAttribute('type', 'password')
+
+    await user.click(screen.getByRole('button', { name: 'Show password' }))
+    expect(passwordInput).toHaveAttribute('type', 'text')
+    expect(screen.getByRole('button', { name: 'Hide password' })).toHaveAttribute('aria-pressed', 'true')
+
+    await user.click(screen.getByRole('button', { name: 'Hide password' }))
+    expect(passwordInput).toHaveAttribute('type', 'password')
+  })
 })

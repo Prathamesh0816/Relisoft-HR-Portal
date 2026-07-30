@@ -1,9 +1,11 @@
 import { useState } from 'react'
+import { Eye, EyeOff } from 'lucide-react'
 import useStore from '../store'
 
 export default function LoginPage({ onLogin }) {
   const { authForm, updateAuthForm } = useStore()
   const [submitting, setSubmitting] = useState(false)
+  const [showPassword, setShowPassword] = useState(false)
 
   const handleSubmit = async (e) => {
     e.preventDefault()
@@ -66,15 +68,28 @@ export default function LoginPage({ onLogin }) {
                   />
                 </div>
                 <div>
-                  <label className="text-xs font-bold text-navy/70 uppercase tracking-wider">Password</label>
-                  <input
-                    type="password"
-                    value={authForm.password}
-                    onChange={(e) => updateAuthForm('password', e.target.value)}
-                    placeholder="Enter password"
-                    required
-                    className="mt-1.5 w-full h-12 px-4 rounded-xl border border-navy/10 bg-white focus:border-gold-1 focus:ring-4 focus:ring-gold-1/10 outline-none transition-all text-navy"
-                  />
+                  <label htmlFor="login-password" className="text-xs font-bold text-navy/70 uppercase tracking-wider">Password</label>
+                  <div className="relative mt-1.5">
+                    <input
+                      id="login-password"
+                      type={showPassword ? 'text' : 'password'}
+                      value={authForm.password}
+                      onChange={(e) => updateAuthForm('password', e.target.value)}
+                      placeholder="Enter password"
+                      autoComplete="current-password"
+                      required
+                      className="w-full h-12 pl-4 pr-12 rounded-xl border border-navy/10 bg-white focus:border-gold-1 focus:ring-4 focus:ring-gold-1/10 outline-none transition-all text-navy"
+                    />
+                    <button
+                      type="button"
+                      onClick={() => setShowPassword((visible) => !visible)}
+                      aria-label={showPassword ? 'Hide password' : 'Show password'}
+                      aria-pressed={showPassword}
+                      className="absolute inset-y-0 right-0 w-12 flex items-center justify-center text-navy/50 hover:text-navy focus:outline-none focus-visible:ring-2 focus-visible:ring-gold-1 rounded-r-xl"
+                    >
+                      {showPassword ? <EyeOff size={18} aria-hidden="true" /> : <Eye size={18} aria-hidden="true" />}
+                    </button>
+                  </div>
                 </div>
                 <button type="submit" disabled={submitting} className="gold-button w-full h-12 rounded-xl font-bold text-sm">
                   {submitting ? 'Signing in...' : 'Sign in'}
