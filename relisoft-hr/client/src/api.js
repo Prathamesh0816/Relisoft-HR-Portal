@@ -103,9 +103,8 @@ export async function getOnboardingProfile(employeeId) {
 }
 
 export async function saveOnboardingProfile(formData) {
-  const { data } = await axios.post('/api/onboarding', formData, {
-    headers: { 'Content-Type': 'multipart/form-data' },
-    Authorization: `Bearer ${JSON.parse(localStorage.getItem('relisoft-hr-user') || '{}').token || ''}`
+  const { data } = await api.post('/api/onboarding', formData, {
+    headers: { 'Content-Type': 'multipart/form-data' }
   })
   return data
 }
@@ -212,12 +211,17 @@ export async function getAvailableCompOffCredits(employeeId) {
 }
 
 export async function uploadMedicalCertificate(id, formData) {
-  const { data } = await axios.post(`/api/leave/${id}/upload-medical`, formData, {
-    headers: { 'Content-Type': 'multipart/form-data' },
-    Authorization: `Bearer ${JSON.parse(localStorage.getItem('relisoft-hr-user') || '{}').token || ''}`
+  const { data } = await api.post(`/api/leave/${id}/upload-medical`, formData, {
+    headers: { 'Content-Type': 'multipart/form-data' }
   })
   return data
 }
+
+export async function downloadMedicalCertificate(id) {
+  const { data } = await api.get(`/api/leave/${id}/download-medical`, { responseType: 'blob' })
+  return data
+}
+
 
 export async function checkAllBalances() {
   const { data } = await api.get('/api/leave/balance-check-all')
@@ -234,17 +238,15 @@ export async function downloadLeaveReport() {
 }
 
 export async function uploadExistingExcel(formData) {
-  const { data } = await axios.post('/api/excel/upload-existing-employees', formData, {
-    headers: { 'Content-Type': 'multipart/form-data' },
-    Authorization: `Bearer ${JSON.parse(localStorage.getItem('relisoft-hr-user') || '{}').token || ''}`
+  const { data } = await api.post('/api/excel/upload-existing-employees', formData, {
+    headers: { 'Content-Type': 'multipart/form-data' }
   })
   return data
 }
 
 export async function uploadLeaveExcel(formData) {
-  const { data } = await axios.post('/api/excel/upload-leave-balances', formData, {
-    headers: { 'Content-Type': 'multipart/form-data' },
-    Authorization: `Bearer ${JSON.parse(localStorage.getItem('relisoft-hr-user') || '{}').token || ''}`
+  const { data } = await api.post('/api/excel/upload-leave-balances', formData, {
+    headers: { 'Content-Type': 'multipart/form-data' }
   })
   return data
 }
@@ -1221,5 +1223,21 @@ export async function getStressTest() {
 }
 export async function getResilienceReport() {
   const { data } = await api.get('/api/resilience/report')
+  return data
+}
+
+// Leave carry-forward
+export async function getCarryForwardPreview(fromFY) {
+  const params = fromFY ? { fromFY } : {}
+  const { data } = await api.get('/api/leave/carry-forward/preview', { params })
+  return data
+}
+export async function processCarryForward(fromFinancialYear, processedById) {
+  const { data } = await api.post('/api/leave/carry-forward/process', { fromFinancialYear, processedById })
+  return data
+}
+export async function getCarryForwardHistory(fy) {
+  const params = fy ? { fy } : {}
+  const { data } = await api.get('/api/leave/carry-forward/history', { params })
   return data
 }

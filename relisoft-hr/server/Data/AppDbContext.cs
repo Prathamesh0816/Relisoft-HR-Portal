@@ -28,6 +28,7 @@ public class AppDbContext : DbContext
     public DbSet<ApprovalDelegate> ApprovalDelegates => Set<ApprovalDelegate>();
     public DbSet<LeaveAccrualLog> LeaveAccrualLogs => Set<LeaveAccrualLog>();
     public DbSet<CompOffTransfer> CompOffTransfers => Set<CompOffTransfer>();
+    public DbSet<LeaveCarryForwardLog> LeaveCarryForwardLogs => Set<LeaveCarryForwardLog>();
     public DbSet<SalaryDiscussion> SalaryDiscussions => Set<SalaryDiscussion>();
     public DbSet<DocumentTemplate> DocumentTemplates => Set<DocumentTemplate>();
     public DbSet<EmployeeDocument> EmployeeDocuments => Set<EmployeeDocument>();
@@ -486,8 +487,8 @@ public class AppDbContext : DbContext
         );
 
         modelBuilder.Entity<LeaveType>().HasData(
-            new LeaveType { Id = 1, Name = "Sick/Casual Leave", SortOrder = 1, CarryForwardPct = 0, MaxConsecutiveDays = 3, RequiresAdvanceNotice = false },
-            new LeaveType { Id = 2, Name = "Planned Leave", SortOrder = 2, CarryForwardPct = 50, MaxConsecutiveDays = 15, RequiresAdvanceNotice = true, AdvanceNoticeDays = 3 },
+            new LeaveType { Id = 1, Name = "Sick/Casual Leave", SortOrder = 1, CarryForwardPct = 50, MaxConsecutiveDays = 3, RequiresAdvanceNotice = false },
+            new LeaveType { Id = 2, Name = "Planned Leave", SortOrder = 2, CarryForwardPct = 0, MaxConsecutiveDays = 15, RequiresAdvanceNotice = true, AdvanceNoticeDays = 3 },
             new LeaveType { Id = 3, Name = "Maternity Leave", SortOrder = 3, MaxConsecutiveDays = 180, RequiresAdvanceNotice = true, AdvanceNoticeDays = 30 },
             new LeaveType { Id = 4, Name = "Paternity Leave", SortOrder = 4, MaxConsecutiveDays = 15, RequiresAdvanceNotice = true, AdvanceNoticeDays = 7 },
             new LeaveType { Id = 5, Name = "Bereavement Leave", SortOrder = 5, MaxConsecutiveDays = 3, RequiresAdvanceNotice = false },

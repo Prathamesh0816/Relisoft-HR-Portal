@@ -16,6 +16,7 @@ import HrOnboardingDashboard from './HrOnboardingDashboard'
 import OffboardingDashboard from './OffboardingDashboard'
 import HrHome from './HrHome'
 import HrControlPanel from './HrControlPanel'
+import CarryForwardAdmin from './CarryForwardAdmin'
 import Settings from './Settings'
 import ProjectBuilder from './ProjectBuilder'
 import { Menu, X } from 'lucide-react'
@@ -37,6 +38,7 @@ const meta = {
   candidateForm: { label: 'Candidate', title: 'New candidate onboarding', subtitle: 'Submit your details to begin the onboarding process.' },
   hrOnboard: { label: 'HR', title: 'HR onboarding dashboard', subtitle: 'Review candidates, approve onboarding, and complete setup steps.' },
   offboard: { label: 'HR', title: 'Offboarding dashboard', subtitle: 'Manage employee offboarding including asset handover and ID deactivation.' },
+  carryForward: { label: 'HR', title: 'Year-end leave carry-forward', subtitle: 'Preview, process, and audit leave balance carry-forward across financial years.' },
   settings: { label: 'Account', title: 'Settings', subtitle: 'Manage your account settings and preferences.' }
 }
 
@@ -114,6 +116,7 @@ export default function AppLayout({ onLogout }) {
           {activeView === 'candidateForm' && <CandidateOnboarding />}
           {activeView === 'hrOnboard' && <HrOnboardingDashboard />}
           {activeView === 'offboard' && <OffboardingDashboard />}
+          {activeView === 'carryForward' && <CarryForwardAdmin />}
           {activeView === 'settings' && <Settings />}
         </main>
       </div>

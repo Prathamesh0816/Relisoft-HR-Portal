@@ -38,5 +38,6 @@ public record TeamDto(int Id, string Name, int ProjectId, string ProjectName, in
 
 public record LeaveBalanceDto(
     int Id, int LeaveTypeId, string LeaveTypeName,
-    decimal AllocatedLeaves, decimal UsedLeaves, decimal RemainingLeaves
+    decimal AllocatedLeaves, decimal UsedLeaves, decimal RemainingLeaves,
+    decimal CarryForwardDays = 0, string FinancialYear = ""
 );

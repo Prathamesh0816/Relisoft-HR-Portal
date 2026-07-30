@@ -35,6 +35,11 @@ builder.Services.AddScoped<INotificationService, NotificationService>();
 builder.Services.AddScoped<NotificationHelper>();
 builder.Services.AddScoped<ILeaveBalanceService, LeaveBalanceService>();
 
+// Leave carry-forward
+builder.Services.Configure<LeavePolicyOptions>(builder.Configuration.GetSection("LeavePolicy"));
+builder.Services.AddScoped<LeaveCarryForwardService>();
+builder.Services.AddHostedService<LeaveCarryForwardBackgroundJob>();
+
 var corsOrigins = (builder.Configuration["CorsOrigins"] ?? "http://localhost:5173")
     .Split(',', StringSplitOptions.TrimEntries | StringSplitOptions.RemoveEmptyEntries);
 builder.Services.AddCors(options =>

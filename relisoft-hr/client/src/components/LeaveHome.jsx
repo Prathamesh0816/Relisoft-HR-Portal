@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react'
 import useStore from '../store'
-import { applyLeave, getMyLeaveRequests, cancelLeave, requestCancellation, loadWorkspace, checkLeaveBalance, applyCompOff, getFloaterUsage, uploadMedicalCertificate, transferCompOff, getCompOffTransfers, getAvailableCompOffCredits } from '../api'
+import { applyLeave, getMyLeaveRequests, cancelLeave, requestCancellation, loadWorkspace, checkLeaveBalance, applyCompOff, getFloaterUsage, uploadMedicalCertificate, downloadMedicalCertificate, transferCompOff, getCompOffTransfers, getAvailableCompOffCredits } from '../api'
 
 function statusClass(status) {
   const s = String(status || '').toLowerCase()
@@ -70,6 +70,17 @@ export default function LeaveHome() {
   const handleSubmit = async (e) => {
     e.preventDefault()
     if (leaveForm.submitting) return
+
+    const start = leaveForm.startDate ? new Date(leaveForm.startDate) : null
+    const end = leaveForm.endDate ? new Date(leaveForm.endDate) : null
+    if (selectedLeaveType?.name === 'Sick/Casual Leave' && start && end) {
+      const days = Math.ceil((end - start) / (1000 * 60 * 60 * 24)) + 1
+      if (days > 3 && !medicalFile) {
+        setMessage({ type: 'error', text: 'Medical certificate is required for Sick/Casual Leave exceeding 3 days.' })
+        return
+      }
+    }
+
     setSubmitting('leaveForm', true)
     try {
       const request = {
@@ -78,7 +89,8 @@ export default function LeaveHome() {
         startDate: leaveForm.startDate,
         endDate: leaveForm.endDate,
         isHalfDay: leaveForm.isHalfDay,
-        reason: leaveForm.reason
+        reason: leaveForm.reason,
+        isMedicalLeave: Boolean(medicalFile)
       }
       let res
       try { res = await applyLeave(request) } catch (err) {
@@ -86,10 +98,20 @@ export default function LeaveHome() {
         if (err.response?.status !== 409 || !window.confirm(`Insufficient Leave Balance\n\n${warning.warningMessage}\n\nDo you want to continue?`)) throw err
         res = await applyLeave({ ...request, confirmLossOfPay: true })
       }
+
+      if (medicalFile) {
+        const formData = new FormData()
+        formData.append('file', medicalFile)
+        await uploadMedicalCertificate(res.id, formData)
+        setMessage({ type: 'success', text: 'Leave request submitted and medical certificate uploaded.' })
+      } else {
+        setMessage({ type: res.lossOfPay ? 'warning' : 'success', text: res.message })
+      }
+
       resetForm('leaveForm', { employeeId: String(currentUser?.employeeId || ''), leaveTypeId: leaveForm.leaveTypeId, startDate: '', endDate: '', isHalfDay: false, reason: '', submitting: false, balanceCheck: null })
       setBalanceInfo(null)
-      setMessage({ type: res.lossOfPay ? 'warning' : 'success', text: res.message })
-      if (res.isMedicalLeave) setMedicalLeaveId(res.id)
+      setMedicalFile(null)
+      if (res.isMedicalLeave && !medicalFile) setMedicalLeaveId(res.id)
       await Promise.all([loadWorkspace().then((d) => useStore.getState().setData(d)), getMyLeaveRequests(currentUser?.employeeId).then((r) => setMyLeaves({ requests: r.requests || [] }))])
     } catch (err) {
       setMessage({ type: 'error', text: err.response?.data?.message || 'Failed to submit.' })
@@ -217,6 +239,12 @@ export default function LeaveHome() {
               <label className="text-xs font-bold text-navy/70 dark:text-white/70 uppercase tracking-wider">To</label>
               <input type="date" value={leaveForm.endDate} disabled={leaveForm.submitting} onChange={(e) => updateForm('leaveForm', 'endDate', e.target.value)} required className="mt-1.5 w-full h-12 px-4 rounded-xl border border-navy/10 dark:border-white/10 bg-white dark:bg-[var(--bg-secondary)] focus:border-gold-1 focus:ring-4 focus:ring-gold-1/10 outline-none transition-all text-navy dark:text-white" />
             </div>
+            {selectedLeaveType?.name === 'Sick/Casual Leave' && (
+              <div>
+                <label className="text-xs font-bold text-navy/70 dark:text-white/70 uppercase tracking-wider">Medical Certificate (PDF/JPG/PNG)</label>
+                <input key={medicalFile ? 'has-file' : 'no-file'} type="file" accept=".pdf,.jpg,.jpeg,.png" disabled={leaveForm.submitting} onChange={(e) => setMedicalFile(e.target.files[0])} className="mt-1.5 w-full h-12 px-4 py-2 rounded-xl border border-navy/10 dark:border-white/10 bg-white dark:bg-[var(--bg-secondary)] focus:border-gold-1 focus:ring-4 focus:ring-gold-1/10 outline-none transition-all text-navy dark:text-white file:mr-3 file:px-3 file:py-1.5 file:rounded-lg file:border-0 file:bg-gold-1 file:text-white file:font-bold file:text-xs cursor-pointer" />
+              </div>
+            )}
             {data.hrPolicy?.allowHalfDayLeave && (
               <div className="md:col-span-2">
                 <label className="inline-flex items-center gap-3 px-4 py-3 rounded-xl border border-navy/10 dark:border-white/10 bg-white dark:bg-[var(--bg-secondary)] cursor-pointer">
@@ -265,6 +293,8 @@ export default function LeaveHome() {
                 const remaining = lb.remainingLeaves
                 const used = lb.usedLeaves
                 const allocated = lb.allocatedLeaves
+                const cf = lb.carryForwardDays || 0
+                const fy = lb.financialYear || ''
                 const pct = allocated > 0 ? Math.min(100, Math.max(0, (used / allocated) * 100)) : 0
                 return (
                   <div key={lb.leaveTypeId} className="flex items-center gap-4 p-4 rounded-xl border border-navy/10 dark:border-white/10 bg-white dark:bg-[var(--bg-secondary)]">
@@ -276,7 +306,12 @@ export default function LeaveHome() {
                     </div>
                     <div>
                       <h4 className="font-bold text-navy dark:text-white text-sm">{lb.leaveTypeName}</h4>
-                      <div className="text-xs text-navy/50 dark:text-white/50 mt-1">{used} used of {allocated}</div>
+                      <div className="text-xs text-navy/50 dark:text-white/50 mt-1">{used} used of {allocated}{fy ? ` · ${fy}` : ''}</div>
+                      {cf > 0 && (
+                        <div className="inline-flex items-center gap-1 mt-1.5 px-2 py-0.5 rounded-full bg-emerald-50 dark:bg-emerald-900/30 text-emerald-700 text-[10px] font-bold">
+                          <span>↗</span> {cf} carried forward
+                        </div>
+                      )}
                     </div>
                   </div>
                 )
@@ -308,7 +343,7 @@ export default function LeaveHome() {
         {medicalLeaveId && (
           <form onSubmit={handleMedicalUpload} className="px-5 pb-5 border-t border-navy/10 pt-4 space-y-4">
             <h3 className="font-heading font-bold text-navy dark:text-white">Upload medical certificate</h3>
-            <p className="text-muted dark:text-white/60 text-xs">Leave &gt; 3 days requires a medical certificate before approval.</p>
+            <p className="text-muted dark:text-white/60 text-xs">Sick/Casual leave &gt; 3 days requires a medical certificate before approval.</p>
             <div className="grid md:grid-cols-2 gap-4">
               <div>
                 <label className="text-xs font-bold text-navy/70 dark:text-white/70 uppercase tracking-wider">Certificate file (PDF/JPG/PNG)</label>
@@ -406,7 +441,26 @@ export default function LeaveHome() {
                     <h4 className="font-bold text-navy dark:text-white">{req.leaveTypeName}</h4>
                     <div className="text-xs text-navy/50 dark:text-white/50 mt-0.5">Approver: {req.approverName || 'Not assigned'}</div>
                     {req.lossOfPay && <span className="inline-block mt-1 px-2 py-0.5 rounded bg-red-50 dark:bg-red-900/30 text-red-600 text-[10px] font-bold">Loss of Pay</span>}
-                    {req.isMedicalLeave && <span className="inline-block mt-1 px-2 py-0.5 rounded bg-amber-50 dark:bg-amber-900/30 text-amber-700 text-[10px] font-bold">{req.medicalCertificatePath ? 'Cert uploaded' : 'Med cert needed'}</span>}
+                    {req.isMedicalLeave && (
+                      <div className="flex flex-col gap-1 items-start mt-1">
+                        <span className="inline-block px-2 py-0.5 rounded bg-amber-50 dark:bg-amber-900/30 text-amber-700 text-[10px] font-bold">
+                          {req.medicalCertificatePath ? 'Cert uploaded' : 'Med cert needed'}
+                        </span>
+                        {req.medicalCertificatePath && (
+                          <button type="button" onClick={async () => {
+                            try {
+                              const data = await downloadMedicalCertificate(req.id)
+                              const url = window.URL.createObjectURL(data)
+                              window.open(url, '_blank')
+                            } catch (err) {
+                              alert('Failed to download certificate.')
+                            }
+                          }} className="text-[10px] font-bold text-gold-1 hover:underline outline-none mt-0.5">
+                            View Certificate
+                          </button>
+                        )}
+                      </div>
+                    )}
                   </div>
                   <div className="flex gap-2">
                     <span className={`px-3 py-1 rounded-full text-xs font-bold ${statusClass(req.status)}`}>{req.status}</span>
