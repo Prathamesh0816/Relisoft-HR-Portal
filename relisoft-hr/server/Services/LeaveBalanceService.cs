@@ -9,7 +9,9 @@ public sealed record LeaveBalanceSummary(
     string LeaveTypeName,
     decimal AllocatedLeaves,
     decimal UsedLeaves,
-    decimal RemainingLeaves);
+    decimal RemainingLeaves,
+    decimal CarryForwardDays = 0,
+    string FinancialYear = "");
 public sealed record LeaveBalanceValidation(decimal AvailableBalance, decimal RequestedDays, decimal PaidLeaveDays, decimal LopDays, bool HasSufficientBalance, string WarningMessage, DateTime LeaveMonth);
 
 public interface ILeaveBalanceService
@@ -61,7 +63,8 @@ public sealed class LeaveBalanceService : ILeaveBalanceService
             return storedBalance == null
                 ? new LeaveBalanceSummary(0, leaveType.Id, leaveType.Name, 0, 0, 0)
                 : new LeaveBalanceSummary(storedBalance.Id, leaveType.Id, leaveType.Name,
-                    storedBalance.AllocatedLeaves, storedBalance.UsedLeaves, storedBalance.RemainingLeaves);
+                    storedBalance.AllocatedLeaves, storedBalance.UsedLeaves, storedBalance.RemainingLeaves,
+                    storedBalance.CarryForwardDays, storedBalance.FinancialYear ?? "");
         }
 
         var employee = await _db.Employees.AsNoTracking().SingleOrDefaultAsync(employee => employee.Id == employeeId);
@@ -94,7 +97,9 @@ public sealed class LeaveBalanceService : ILeaveBalanceService
             leaveType.Name,
             earned,
             used,
-            remaining);
+            remaining,
+            storedBalance?.CarryForwardDays ?? 0,
+            storedBalance?.FinancialYear ?? "");
     }
 
     internal static DateTime GetFinancialYearStart(DateTime date) =>

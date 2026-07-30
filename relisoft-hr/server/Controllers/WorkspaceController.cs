@@ -273,7 +273,7 @@ public class WorkspaceController : ControllerBase
         var y = year ?? DateTime.UtcNow.Year;
         var leaves = await _db.LeaveApplications
             .Include(l => l.Employee)
-                 .ThenInclude(e => e.LeaveBalances)
+                 .ThenInclude(e => e!.LeaveBalances)
             .Include(l => l.LeaveType)
             .Where(l => l.AppliedOn.Year == y)
             .OrderBy(l => l.Employee!.FullName)
