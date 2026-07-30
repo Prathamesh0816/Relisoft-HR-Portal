@@ -21,6 +21,7 @@ export default function LeaveHome() {
   const [medicalFile, setMedicalFile] = useState(null)
   const [medicalUploading, setMedicalUploading] = useState(false)
   const [medicalLeaveId, setMedicalLeaveId] = useState(null)
+  const [fileInputKey, setFileInputKey] = useState(Date.now())
   const [transferForm, setTransferForm] = useState({ toEmployeeId: '', compOffCreditLeaveApplicationId: '', reason: '', submitting: false })
   const [transfers, setTransfers] = useState([])
   const [showTransferForm, setShowTransferForm] = useState(false)
@@ -111,6 +112,7 @@ export default function LeaveHome() {
       resetForm('leaveForm', { employeeId: String(currentUser?.employeeId || ''), leaveTypeId: leaveForm.leaveTypeId, startDate: '', endDate: '', isHalfDay: false, reason: '', submitting: false, balanceCheck: null })
       setBalanceInfo(null)
       setMedicalFile(null)
+      setFileInputKey(Date.now())
       if (res.isMedicalLeave && !medicalFile) setMedicalLeaveId(res.id)
       await Promise.all([loadWorkspace().then((d) => useStore.getState().setData(d)), getMyLeaveRequests(currentUser?.employeeId).then((r) => setMyLeaves({ requests: r.requests || [] }))])
     } catch (err) {
@@ -150,6 +152,7 @@ export default function LeaveHome() {
       await uploadMedicalCertificate(medicalLeaveId, formData)
       setMessage({ type: 'success', text: 'Medical certificate uploaded.' })
       setMedicalFile(null)
+      setFileInputKey(Date.now())
       setMedicalLeaveId(null)
       await Promise.all([loadWorkspace().then((d) => useStore.getState().setData(d)), getMyLeaveRequests(currentUser?.employeeId).then((r) => setMyLeaves({ requests: r.requests || [] }))])
     } catch (err) {
@@ -242,7 +245,7 @@ export default function LeaveHome() {
             {selectedLeaveType?.name === 'Sick/Casual Leave' && (
               <div>
                 <label className="text-xs font-bold text-navy/70 dark:text-white/70 uppercase tracking-wider">Medical Certificate (PDF/JPG/PNG)</label>
-                <input key={medicalFile ? 'has-file' : 'no-file'} type="file" accept=".pdf,.jpg,.jpeg,.png" disabled={leaveForm.submitting} onChange={(e) => setMedicalFile(e.target.files[0])} className="mt-1.5 w-full h-12 px-4 py-2 rounded-xl border border-navy/10 dark:border-white/10 bg-white dark:bg-[var(--bg-secondary)] focus:border-gold-1 focus:ring-4 focus:ring-gold-1/10 outline-none transition-all text-navy dark:text-white file:mr-3 file:px-3 file:py-1.5 file:rounded-lg file:border-0 file:bg-gold-1 file:text-white file:font-bold file:text-xs cursor-pointer" />
+                <input key={fileInputKey} type="file" accept=".pdf,.jpg,.jpeg,.png" disabled={leaveForm.submitting} onChange={(e) => setMedicalFile(e.target.files[0])} className="mt-1.5 w-full h-12 px-4 py-2 rounded-xl border border-navy/10 dark:border-white/10 bg-white dark:bg-[var(--bg-secondary)] focus:border-gold-1 focus:ring-4 focus:ring-gold-1/10 outline-none transition-all text-navy dark:text-white file:mr-3 file:px-3 file:py-1.5 file:rounded-lg file:border-0 file:bg-gold-1 file:text-white file:font-bold file:text-xs cursor-pointer" />
               </div>
             )}
             {data.hrPolicy?.allowHalfDayLeave && (
@@ -347,7 +350,7 @@ export default function LeaveHome() {
             <div className="grid md:grid-cols-2 gap-4">
               <div>
                 <label className="text-xs font-bold text-navy/70 dark:text-white/70 uppercase tracking-wider">Certificate file (PDF/JPG/PNG)</label>
-                <input type="file" accept=".pdf,.jpg,.jpeg,.png" onChange={(e) => setMedicalFile(e.target.files[0])} disabled={medicalUploading} className="mt-1.5 w-full h-12 px-4 rounded-xl border border-navy/10 dark:border-white/10 bg-white dark:bg-[var(--bg-secondary)] text-navy dark:text-white file:mr-3 file:px-3 file:py-1.5 file:rounded-lg file:border-0 file:bg-gold-1 file:text-white file:font-bold file:text-xs" />
+                <input key={fileInputKey} type="file" accept=".pdf,.jpg,.jpeg,.png" onChange={(e) => setMedicalFile(e.target.files[0])} disabled={medicalUploading} className="mt-1.5 w-full h-12 px-4 rounded-xl border border-navy/10 dark:border-white/10 bg-white dark:bg-[var(--bg-secondary)] text-navy dark:text-white file:mr-3 file:px-3 file:py-1.5 file:rounded-lg file:border-0 file:bg-gold-1 file:text-white file:font-bold file:text-xs" />
               </div>
             </div>
             <button type="submit" disabled={!medicalFile || medicalUploading} className="gold-button px-6 py-3 rounded-xl font-bold text-sm">{medicalUploading ? 'Uploading...' : 'Upload certificate'}</button>
