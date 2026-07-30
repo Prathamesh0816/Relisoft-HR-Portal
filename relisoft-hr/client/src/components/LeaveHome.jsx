@@ -230,7 +230,8 @@ export default function LeaveHome() {
             </div>
             <div>
               <label className="text-xs font-bold text-navy/70 dark:text-white/70 uppercase tracking-wider">Leave type</label>
-              <select value={leaveForm.leaveTypeId} disabled={leaveForm.submitting} onChange={(e) => updateForm('leaveForm', 'leaveTypeId', e.target.value)} className="mt-1.5 w-full h-12 px-4 rounded-xl border border-navy/10 dark:border-white/10 bg-white dark:bg-[var(--bg-secondary)] focus:border-gold-1 focus:ring-4 focus:ring-gold-1/10 outline-none transition-all text-navy dark:text-white">
+              <select value={leaveForm.leaveTypeId} disabled={leaveForm.submitting} onChange={(e) => updateForm('leaveForm', 'leaveTypeId', e.target.value)} required className="mt-1.5 w-full h-12 px-4 rounded-xl border border-navy/10 dark:border-white/10 bg-white dark:bg-[var(--bg-secondary)] focus:border-gold-1 focus:ring-4 focus:ring-gold-1/10 outline-none transition-all text-navy dark:text-white">
+                <option value="">-select-</option>
                 {data.leaveTypes.map((lt) => <option key={lt.id} value={lt.id}>{lt.name}{lt.isFloaterHoliday ? ` (max ${lt.maxFloaterPerYear}/yr)` : ''}</option>)}
               </select>
             </div>
