@@ -308,6 +308,12 @@ public class WorkspaceController : ControllerBase
                 leave.Status,
                 ApprovedBy = leave.ApproverName,
                 RemainingLeaves = remainingLeaves,
+
+                ExtraLeavesTaken =
+                    leave.Status == "Approved"
+                        ? leave.LopDays
+                        : 0m,
+
                 leave.LossOfPay
             });
         }
