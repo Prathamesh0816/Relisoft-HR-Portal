@@ -13,6 +13,16 @@ export default function LeaveReports() {
     const [endDate, setEndDate] = useState("");
     const [report, setReport] = useState([]);
 
+    const formatDate = (dateValue) => {
+        if (!dateValue) return "-";
+
+        const [year, monthValue, day] = dateValue
+            .split("T")[0]
+            .split("-");
+
+        return `${day}-${monthValue}-${year}`;
+    };
+
     const handleGenerateReport = async () => {
         try {
             const year = new Date().getFullYear();
@@ -92,11 +102,13 @@ export default function LeaveReports() {
             "Employee Name": row.employeeName,
             "Employee Code": row.employeeCode,
             "Leave Type": row.leaveType,
-            "From Date": row.fromDate?.split("T")[0] || "",
-            "To Date": row.toDate?.split("T")[0] || "",
+            "From Date": formatDate(row.fromDate),
+            "To Date": formatDate(row.toDate),
             "Total Days": row.totalDays,
             Status: row.status,
-            "Approved By": row.approvedBy || "-",
+            "Approved/Rejected By": row.approvedBy || "-",
+            "Remaining Leaves": row.remainingLeaves ?? 0,
+            "Extra Leaves Taken": row.extraLeavesTaken ?? 0,
             "Loss Of Pay": row.lossOfPay ? "Yes" : "No"
         }));
 
@@ -111,7 +123,9 @@ export default function LeaveReports() {
             { wch: 14 },
             { wch: 12 },
             { wch: 14 },
-            { wch: 22 },
+            { wch: 24 },
+            { wch: 18 },
+            { wch: 20 },
             { wch: 14 }
         ];
 
@@ -137,11 +151,13 @@ export default function LeaveReports() {
             "Employee Name": row.employeeName,
             "Employee Code": row.employeeCode,
             "Leave Type": row.leaveType,
-            "From Date": row.fromDate?.split("T")[0] || "",
-            "To Date": row.toDate?.split("T")[0] || "",
+            "From Date": formatDate(row.fromDate),
+            "To Date": formatDate(row.toDate),
             "Total Days": row.totalDays,
             Status: row.status,
-            "Approved By": row.approvedBy || "-",
+            "Approved/Rejected By": row.approvedBy || "-",
+            "Remaining Leaves": row.remainingLeaves ?? 0,
+            "Extra Leaves Taken": row.extraLeavesTaken ?? 0,
             "Loss Of Pay": row.lossOfPay ? "Yes" : "No"
         }));
 
@@ -337,13 +353,45 @@ export default function LeaveReports() {
                                 <th style={headerStyle}>Employee Name</th>
                                 <th style={headerStyle}>Employee Code</th>
                                 <th style={headerStyle}>Leave Type</th>
-                                <th style={headerStyle}>From Date</th>
-                                <th style={headerStyle}>To Date</th>
+
+                                <th
+                                    style={{
+                                        ...headerStyle,
+                                        minWidth: "120px",
+                                        whiteSpace: "nowrap"
+                                    }}
+                                >
+                                    From Date
+                                </th>
+
+                                <th
+                                    style={{
+                                        ...headerStyle,
+                                        minWidth: "120px",
+                                        whiteSpace: "nowrap"
+                                    }}
+                                >
+                                    To Date
+                                </th>
+
                                 <th style={headerStyle}>Total Days</th>
                                 <th style={headerStyle}>Status</th>
-                                <th style={headerStyle}>Approved By</th>
-                                <th style={headerStyle}>Leaves Remaining</th>
-                                <th style={headerStyle}>Loss Of Pay</th>
+
+                                <th style={headerStyle}>
+                                    Approved/Rejected By
+                                </th>
+
+                                <th style={headerStyle}>
+                                    Leaves Remaining
+                                </th>
+
+                                <th style={headerStyle}>
+                                    Extra Leaves Taken
+                                </th>
+
+                                <th style={headerStyle}>
+                                    Loss Of Pay
+                                </th>
                             </tr>
                         </thead>
 
@@ -379,12 +427,24 @@ export default function LeaveReports() {
                                         {row.leaveType}
                                     </td>
 
-                                    <td style={cellStyle}>
-                                        {row.fromDate?.split("T")[0]}
+                                    <td
+                                        style={{
+                                            ...cellStyle,
+                                            minWidth: "120px",
+                                            whiteSpace: "nowrap"
+                                        }}
+                                    >
+                                        {formatDate(row.fromDate)}
                                     </td>
 
-                                    <td style={cellStyle}>
-                                        {row.toDate?.split("T")[0]}
+                                    <td
+                                        style={{
+                                            ...cellStyle,
+                                            minWidth: "120px",
+                                            whiteSpace: "nowrap"
+                                        }}
+                                    >
+                                        {formatDate(row.toDate)}
                                     </td>
 
                                     <td
@@ -411,6 +471,15 @@ export default function LeaveReports() {
                                         }}
                                     >
                                         {row.remainingLeaves ?? 0}
+                                    </td>
+
+                                    <td
+                                        style={{
+                                            ...cellStyle,
+                                            textAlign: "center"
+                                        }}
+                                    >
+                                        {row.extraLeavesTaken ?? 0}
                                     </td>
 
                                     <td
