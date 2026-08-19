@@ -25,7 +25,12 @@ public class LeaveControllerTests : IDisposable
         var notifLogger = new NullLogger<NotificationHelper>();
         var notifSvc = new NotificationService(_db, new NullLogger<NotificationService>());
         var notif = new NotificationHelper(emailService, notifSvc, _db, notifLogger);
-        _controller = new LeaveController(_db, emailService, notif, logger, new LeaveBalanceService(_db));
+        var carryForwardService = new LeaveCarryForwardService(
+            _db,
+            Microsoft.Extensions.Options.Options.Create(new LeavePolicyOptions()),
+            new NullLogger<LeaveCarryForwardService>());
+        _controller = new LeaveController(
+            _db, emailService, notif, logger, new LeaveBalanceService(_db), carryForwardService);
         SetAuthenticatedEmployee(3);
     }
 
@@ -73,13 +78,6 @@ public class LeaveControllerTests : IDisposable
     [Fact]
     public async Task ApplyLeave_InclusiveDateRange_StoresAllCalendarDays()
     {
-        _db.EmployeeLeaveBalances.Add(new RelisoftHR.Models.EmployeeLeaveBalance
-        {
-            EmployeeId = 3, LeaveTypeId = 1,
-            AllocatedLeaves = 12, UsedLeaves = 0, RemainingLeaves = 12
-        });
-        await _db.SaveChangesAsync();
-
         Assert.IsType<OkObjectResult>(await _controller.ApplyLeave(new ApplyLeaveRequest(
             3, 1, new DateTime(2026, 8, 2), new DateTime(2026, 8, 4), false, "Inclusive duration")));
 
@@ -102,16 +100,6 @@ public class LeaveControllerTests : IDisposable
     [Fact]
     public async Task HalfDayApprovalAndCancellation_UpdatesStoredBalanceByPointFive()
     {
-        _db.EmployeeLeaveBalances.Add(new RelisoftHR.Models.EmployeeLeaveBalance
-        {
-            EmployeeId = 3,
-            LeaveTypeId = 1,
-            AllocatedLeaves = 12,
-            UsedLeaves = 0,
-            RemainingLeaves = 12
-        });
-        await _db.SaveChangesAsync();
-
         await _controller.ApplyLeave(new ApplyLeaveRequest(3, 1,
             new DateTime(2026, 8, 3), new DateTime(2026, 8, 3), true, "Morning appointment"));
         SetAuthenticatedEmployee(1);
@@ -262,8 +250,11 @@ public class LeaveControllerTests : IDisposable
     public async Task PlannedLeaveApproval_DeductsTheFullApprovedDurationFromSnapshot()
     {
         var employee = await _db.Employees.FindAsync(3);
+        var plannedLeave = await _db.LeaveTypes.FindAsync(2);
         Assert.NotNull(employee);
+        Assert.NotNull(plannedLeave);
         employee!.JoinDate = new DateTime(2026, 4, 15); // Four planned days earned in July.
+        plannedLeave!.RequiresAdvanceNotice = false;
         await _db.SaveChangesAsync();
 
         await _controller.ApplyLeave(new ApplyLeaveRequest(
@@ -321,16 +312,6 @@ public class LeaveControllerTests : IDisposable
     [Fact]
     public async Task CancellationApproval_RestoresStoredBalanceExactlyOnce_AndWritesAuditHistory()
     {
-        _db.EmployeeLeaveBalances.Add(new RelisoftHR.Models.EmployeeLeaveBalance
-        {
-            EmployeeId = 3,
-            LeaveTypeId = 1,
-            AllocatedLeaves = 12,
-            UsedLeaves = 0,
-            RemainingLeaves = 12
-        });
-        await _db.SaveChangesAsync();
-
         await _controller.ApplyLeave(new ApplyLeaveRequest(3, 1,
             new DateTime(2026, 7, 20), new DateTime(2026, 7, 22), false, "Personal work"));
         SetAuthenticatedEmployee(1);

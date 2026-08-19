@@ -7,6 +7,15 @@ public class AppDbContext : DbContext
 {
     public AppDbContext(DbContextOptions<AppDbContext> options) : base(options) { }
 
+    protected override void ConfigureConventions(ModelConfigurationBuilder configurationBuilder)
+    {
+        base.ConfigureConventions(configurationBuilder);
+
+        // Match SQL Server's existing decimal(18,2) columns explicitly so EF
+        // does not rely on a provider default that could silently change later.
+        configurationBuilder.Properties<decimal>().HavePrecision(18, 2);
+    }
+
     public DbSet<Employee> Employees => Set<Employee>();
     public DbSet<UserLogin> UserLogins => Set<UserLogin>();
     public DbSet<OrganizationRole> OrganizationRoles => Set<OrganizationRole>();

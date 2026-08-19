@@ -85,6 +85,19 @@ namespace RelisoftHR.Migrations
                 column: "ManagerCode",
                 value: "EMP-002"); // Unnati Gawali -> Rakesh Patil
 
+            // Older databases only contain the first three demo employees at this
+            // point. Do not let references to employees added by the runtime demo
+            // seeder prevent the self-referencing foreign key from being created.
+            migrationBuilder.Sql("""
+                UPDATE employee
+                SET [ManagerCode] = NULL
+                FROM [Employees] AS employee
+                LEFT JOIN [Employees] AS manager
+                    ON manager.[EmployeeCode] = employee.[ManagerCode]
+                WHERE employee.[ManagerCode] IS NOT NULL
+                    AND manager.[Id] IS NULL;
+                """);
+
             migrationBuilder.Sql("""
                 IF NOT EXISTS (SELECT 1 FROM sys.indexes WHERE object_id = OBJECT_ID(N'dbo.Employees') AND [name] = N'IX_Employees_EmployeeCode')
                     CREATE UNIQUE INDEX [IX_Employees_EmployeeCode] ON [Employees] ([EmployeeCode]);

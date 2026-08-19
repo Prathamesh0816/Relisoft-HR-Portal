@@ -46,6 +46,18 @@ public static class TestDbContext
             new LeaveType { Id = 9, Name = "Floater Holiday", SortOrder = 9, IsFloaterHoliday = true, MaxFloaterPerYear = 2, MaxConsecutiveDays = 1 }
         );
 
+        db.EmployeeLeaveBalances.Add(new EmployeeLeaveBalance
+        {
+            Id = 1,
+            EmployeeId = 3,
+            LeaveTypeId = 1,
+            AllocatedLeaves = 12,
+            UsedLeaves = 0,
+            RemainingLeaves = 12,
+            FinancialYear = "FY2026",
+            CreatedOn = utc
+        });
+
         db.HrPolicies.Add(new HrPolicy { Id = 1, AllowHalfDayLeave = false, UpdatedOn = utc });
 
         db.SaveChanges();

@@ -286,6 +286,12 @@ public class LeaveController : ControllerBase
         if (!managedEmployeeIds.Contains(application.EmployeeId))
             return Forbid();
 
+        var isCancellationDecision =
+            req.Action.Equals("cancel_approve", StringComparison.OrdinalIgnoreCase) ||
+            req.Action.Equals("cancel_reject", StringComparison.OrdinalIgnoreCase);
+        if (isCancellationDecision && application.Status != "CancellationRequested")
+            return Conflict(new { message = "This cancellation request has already been actioned." });
+
         if (application.Status == "CancellationRequested")
         {
             await using var transaction = _db.Database.IsRelational()

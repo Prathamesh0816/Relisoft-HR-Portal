@@ -11,6 +11,9 @@ public static class DemoDataSeeder
         if (await db.Projects.AnyAsync())
             return;
 
+        await using var transaction = await db.Database.BeginTransactionAsync();
+        try
+        {
         var utc = DateTime.UtcNow;
         var today = DateOnly.FromDateTime(DateTime.Today);
 
@@ -122,20 +125,19 @@ public static class DemoDataSeeder
         await db.SaveChangesAsync();
 
         // 9. Additional employees (checked individually so they survive re-seed)
-        if (!await db.Employees.AnyAsync(e => e.Id == 10))
+        if (!await db.Employees.AnyAsync(e => e.EmployeeCode == "EMP-010"))
         {
             var hash = "$2a$11$1OmqZ7Lg1.9.5dC2qwF3He4EDiSghkDr94W1CrHjxUML9COevlnhy";
-            db.Employees.AddRange(
-                new Employee { Id = 10, EmployeeCode = "EMP-010", FullName = "Bhushan Babras", Email = "bhushan.babras@relisofttechnologies.com", Department = "Engineering", Designation = "Software Engineer", JobRole = "Software Engineer", EmploymentType = "Full-time", Location = "Mumbai", JoinDate = new DateTime(2025, 1, 10), RoleId = 1, CreatedOn = utc },
-                new Employee { Id = 11, EmployeeCode = "EMP-011", FullName = "Sopan Bidgar", Email = "sopan.bidgar@relisofttechnologies.com", Department = "Engineering", Designation = "Software Engineer", JobRole = "Software Engineer", EmploymentType = "Full-time", Location = "Pune", JoinDate = new DateTime(2025, 2, 15), RoleId = 1, CreatedOn = utc },
-                new Employee { Id = 12, EmployeeCode = "EMP-012", FullName = "Supriya Gaikwad", Email = "supriya.gaikwad@relisofttechnologies.com", Department = "Engineering", Designation = "Software Engineer", JobRole = "Software Engineer", EmploymentType = "Full-time", Location = "Mumbai", JoinDate = new DateTime(2025, 3, 5), RoleId = 1, CreatedOn = utc }
-            );
+            var bhushan = new Employee { EmployeeCode = "EMP-010", FullName = "Bhushan Babras", Email = "bhushan.babras@relisofttechnologies.com", Department = "Engineering", Designation = "Software Engineer", JobRole = "Software Engineer", EmploymentType = "Full-time", Location = "Mumbai", JoinDate = new DateTime(2025, 1, 10), RoleId = 1, CreatedOn = utc };
+            var sopan = new Employee { EmployeeCode = "EMP-011", FullName = "Sopan Bidgar", Email = "sopan.bidgar@relisofttechnologies.com", Department = "Engineering", Designation = "Software Engineer", JobRole = "Software Engineer", EmploymentType = "Full-time", Location = "Pune", JoinDate = new DateTime(2025, 2, 15), RoleId = 1, CreatedOn = utc };
+            var supriya = new Employee { EmployeeCode = "EMP-012", FullName = "Supriya Gaikwad", Email = "supriya.gaikwad@relisofttechnologies.com", Department = "Engineering", Designation = "Software Engineer", JobRole = "Software Engineer", EmploymentType = "Full-time", Location = "Mumbai", JoinDate = new DateTime(2025, 3, 5), RoleId = 1, CreatedOn = utc };
+            db.Employees.AddRange(bhushan, sopan, supriya);
             await db.SaveChangesAsync();
 
             db.UserLogins.AddRange(
-                new UserLogin { EmployeeId = 10, Username = "bhushan", PasswordHash = hash, CreatedOn = utc },
-                new UserLogin { EmployeeId = 11, Username = "sopan", PasswordHash = hash, CreatedOn = utc },
-                new UserLogin { EmployeeId = 12, Username = "supriya", PasswordHash = hash, CreatedOn = utc }
+                new UserLogin { EmployeeId = bhushan.Id, Username = "bhushan", PasswordHash = hash, CreatedOn = utc },
+                new UserLogin { EmployeeId = sopan.Id, Username = "sopan", PasswordHash = hash, CreatedOn = utc },
+                new UserLogin { EmployeeId = supriya.Id, Username = "supriya", PasswordHash = hash, CreatedOn = utc }
             );
             await db.SaveChangesAsync();
         }
@@ -153,6 +155,24 @@ public static class DemoDataSeeder
             );
             await db.SaveChangesAsync();
 
+            // ManagerCode is protected by a self-referencing foreign key. Assign
+            // managers only after all referenced employees have been inserted.
+            var managerAssignments = new Dictionary<int, string>
+            {
+                [3] = "EMP-004",
+                [5] = "EMP-004",
+                [6] = "EMP-004",
+                [7] = "EMP-004",
+                [8] = "EMP-002",
+                [9] = "EMP-002"
+            };
+            var managedEmployees = await db.Employees
+                .Where(e => managerAssignments.Keys.Contains(e.Id))
+                .ToListAsync();
+            foreach (var employee in managedEmployees)
+                employee.ManagerCode = managerAssignments[employee.Id];
+            await db.SaveChangesAsync();
+
             db.UserLogins.AddRange(
                 new UserLogin { Id = 4, EmployeeId = 4, Username = "arif", PasswordHash = hash, CreatedOn = utc },
                 new UserLogin { Id = 5, EmployeeId = 5, Username = "girish", PasswordHash = hash, CreatedOn = utc },
@@ -162,6 +182,14 @@ public static class DemoDataSeeder
                 new UserLogin { Id = 9, EmployeeId = 9, Username = "unnati", PasswordHash = hash, CreatedOn = utc }
             );
             await db.SaveChangesAsync();
+        }
+
+        await transaction.CommitAsync();
+        }
+        catch
+        {
+            await transaction.RollbackAsync();
+            throw;
         }
     }
 }
