@@ -260,4 +260,50 @@ body {{ margin:0; padding:0; font-family:'Inter',Arial,sans-serif; background:#f
 <p>You have earned <b>{points}</b> reward points.</p>
 {(string.IsNullOrEmpty(reason) ? "" : $"<p><b>Reason:</b> {reason}</p>")}");
     }
+
+    public static string InterviewScheduled(string interviewerName, string candidateName, string jobTitle, DateTime scheduledAt, string mode)
+    {
+        return Shell("Interview Scheduled", $@"
+<p>Dear <b>{interviewerName}</b>,</p>
+<p>An interview has been scheduled with <b>{candidateName}</b> for <b>{jobTitle}</b>.</p>
+<table class='table'>
+{TableRow("Candidate", candidateName)}
+{TableRow("Position", jobTitle)}
+{TableRow("Scheduled", scheduledAt.ToString("dd-MMM-yyyy HH:mm"))}
+{TableRow("Mode", mode)}
+</table>
+<p>Please record your feedback in the Recruitment module after the interview.</p>");
+    }
+
+    public static string PasswordReset(string employeeName, string token, DateTime expires)
+    {
+        var resetUrl = $"http://localhost:5173/reset-password?token={token}";
+        return Shell("Reset Your Password", $@"
+<p>Dear <b>{employeeName}</b>,</p>
+<p>We received a request to reset your password.</p>
+<p>Click the button below (or copy the link) to choose a new password. This link expires on <b>{expires:dd-MMM-yyyy HH:mm} UTC</b>.</p>
+<table class='table'>
+{TableRow("Reset Link", $"<a href='{resetUrl}'>{resetUrl}</a>")}
+</table>
+<p>If you did not request this, you can safely ignore this email.</p>");
+    }
+
+    public static string Payslip(string employeeName, string monthName, int year, Payslip payslip)
+    {
+        var lineRows = string.Join("", payslip.Lines.Select(l => TableRow(
+            $"{l.ComponentName} ({l.Type})",
+            $"{(l.Type == PayComponentType.Deduction ? "-" : "")}{l.Amount:N2}"
+        )));
+
+        return Shell($"Your Payslip — {monthName} {year}", $@"
+<p>Dear <b>{employeeName}</b>,</p>
+<p>Your payslip for <b>{monthName} {year}</b> is ready.</p>
+<table class='table'>
+{lineRows}
+{TableRow("Gross Earnings", payslip.GrossEarnings.ToString("N2"))}
+{TableRow("Total Deductions", payslip.TotalDeductions.ToString("N2"))}
+{TableRow("Net Pay", payslip.NetPay.ToString("N2"))}
+</table>
+<p>Login to the Relisoft HR Portal to view the full payslip.</p>");
+    }
 }

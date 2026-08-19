@@ -1,6 +1,6 @@
 import { useState, useMemo } from 'react'
 import useStore from '../store'
-import { updateEmployee, loadWorkspace } from '../api'
+import { updateEmployee, loadWorkspace, getVirtualIdCard } from '../api'
 
 function roleLabel(role, fallback) {
   const labels = { Employee: 'Software Engineer', TeamLead: 'Team Lead', HR: 'HR L1', HRL2: 'HR L2', SeniorSoftwareEngineer: 'Senior Software Engineer', Manager: 'Technical Manager L1', ManagerL2: 'Technical Manager L2', OrganizationHead: 'Organization Head' }
@@ -24,6 +24,7 @@ export default function Directory() {
   const { data, currentUser, setData, setMessage } = useStore()
   const [editingId, setEditingId] = useState(null)
   const [search, setSearch] = useState('')
+  const [preview, setPreview] = useState(null)
   const canEdit = currentUser && (currentUser.role === 'HR' || currentUser.role === 'HRL2' || currentUser.role === 'OrganizationHead')
   const allTeams = data.projects.flatMap((p) => p.teams.map((t) => ({ ...t, projectName: p.name })))
 
@@ -124,7 +125,15 @@ export default function Directory() {
                   </td>
                   {canEdit && (
                     <td className="px-4 py-3">
-                      <button onClick={() => startEdit(data.employees.find((e) => e.id === row.id))} className="px-3 py-1.5 rounded-lg border border-navy/10 dark:border-white/10 text-navy/70 dark:text-white/70 font-bold text-xs hover:bg-navy/5">Edit</button>
+                      <div className="flex gap-2">
+                        <button onClick={() => startEdit(data.employees.find((e) => e.id === row.id))} className="px-3 py-1.5 rounded-lg border border-navy/10 dark:border-white/10 text-navy/70 dark:text-white/70 font-bold text-xs hover:bg-navy/5">Edit</button>
+                        <button onClick={async () => {
+                          try {
+                            const html = await getVirtualIdCard(row.id)
+                            setPreview({ html, title: `${row.employee} — Virtual ID Card` })
+                          } catch (err) { setMessage({ type: 'error', text: err.response?.data?.message || 'Could not open ID card.' }) }
+                        }} className="px-3 py-1.5 rounded-lg border border-gold-2/40 text-gold-1 font-bold text-xs hover:bg-gold-1/10">Virtual ID</button>
+                      </div>
                     </td>
                   )}
                   <td className="px-4 py-3 text-sm text-navy dark:text-white">{row.employeeCode}</td>
@@ -140,6 +149,23 @@ export default function Directory() {
             </tbody>
           </table>
         </div>
+        {preview && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4" onClick={() => setPreview(null)}>
+            <div className="w-full max-w-3xl bg-white rounded-2xl shadow-2xl overflow-hidden" onClick={(e) => e.stopPropagation()}>
+              <div className="flex items-center justify-between px-5 py-3 border-b border-navy/10 bg-navy-dark text-white">
+                <h3 className="font-heading font-bold">{preview.title}</h3>
+                <button onClick={() => setPreview(null)} className="text-white/70 hover:text-white text-xl font-bold">&times;</button>
+              </div>
+              <div className="bg-slate-200 p-4 max-h-[70vh] overflow-auto">
+                <iframe srcDoc={preview.html} title={preview.title} className="w-full h-[60vh] bg-white rounded-lg border border-navy/10" />
+              </div>
+              <div className="flex items-center justify-end gap-2 px-5 py-3 bg-slate-50 border-t border-navy/10">
+                <button onClick={() => setPreview(null)} className="px-4 py-2 rounded-lg border border-navy/10 bg-white text-navy/70 font-bold text-xs">Close</button>
+                <button onClick={() => { const win = window.open('', '_blank'); if (win) { win.document.write(preview.html); win.document.close(); } }} className="px-4 py-2 rounded-lg bg-gold-1 text-navy-dark font-bold text-xs">Open & Print</button>
+              </div>
+            </div>
+          </div>
+        )}
         {editingEmployee && editForm && (
           <div className="fixed inset-0 z-50 grid place-items-center p-6 bg-navy/40 backdrop-blur-sm">
             <div className="card-surface w-full max-w-3xl max-h-[90vh] overflow-hidden">

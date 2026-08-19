@@ -8,7 +8,7 @@ export default function SkillGapAnalysis() {
   const gaps = resilience.skillGaps || []
 
   useEffect(() => {
-    getSkillGaps().then((d) => setResilience({ skillGaps: d.skillGaps || [], loading: false })).catch(() => setResilience({ loading: false }))
+    getSkillGaps().then((d) => setResilience({ skillGaps: Array.isArray(d) ? d : (d.skillGaps || []), loading: false })).catch(() => setResilience({ loading: false }))
   }, [])
 
   const riskColor = (r) => {
@@ -40,8 +40,8 @@ export default function SkillGapAnalysis() {
                   <div key={gap.id || i} className="p-3 rounded-xl border border-navy/10 dark:border-white/10 bg-white dark:bg-[var(--bg-secondary)]">
                     <div className="flex items-center justify-between gap-4">
                       <div>
-                        <div className="font-bold text-navy dark:text-white text-sm">{gap.skillArea || gap.area}</div>
-                        <div className="text-xs text-muted mt-1">Proficiency: {gap.proficiency ?? 0}% · Documentation: {gap.documentationLevel ?? 0}%</div>
+                        <div className="font-bold text-navy dark:text-white text-sm">{gap.knowledgeArea || gap.skillArea || gap.area}</div>
+                        <div className="text-xs text-muted mt-1">Proficiency: {gap.avgProficiency ?? gap.proficiency ?? 0}/4 · Documentation: {gap.documentationLevel ?? 0}</div>
                       </div>
                       <span className={`px-3 py-1 rounded-full text-xs font-bold ${gap.riskLevel === 'High' ? 'bg-red-50 text-red-700' : gap.riskLevel === 'Medium' ? 'bg-amber-50 text-amber-700' : 'bg-emerald-50 text-emerald-700'}`}>
                         {gap.riskLevel || 'Low'}

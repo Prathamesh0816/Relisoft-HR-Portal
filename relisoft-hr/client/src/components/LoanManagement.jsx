@@ -95,8 +95,8 @@ export default function LoanManagement() {
                   <div className="flex items-center justify-between gap-4">
                     <div>
                       <div className="font-bold text-navy dark:text-white text-sm">{l.loanTypeName}</div>
-                      <div className="text-xs text-muted mt-1">Amount: ${Number(l.amount).toFixed(2)} · {l.purpose}</div>
-                      {l.balance > 0 && <div className="text-xs text-muted">Balance: ${Number(l.balance).toFixed(2)} · EMI: ${Number(l.emiAmount || 0).toFixed(2)}</div>}
+                      <div className="text-xs text-muted mt-1">Amount: ₹{Number(l.amount).toLocaleString('en-IN', { minimumFractionDigits: 2 })} · {l.purpose}</div>
+                      {l.balance > 0 && <div className="text-xs text-muted">Balance: ₹{Number(l.balance).toLocaleString('en-IN', { minimumFractionDigits: 2 })} · EMI: ₹{Number(l.emiAmount || 0).toLocaleString('en-IN', { minimumFractionDigits: 2 })}</div>}
                       <div className="text-xs text-muted">{new Date(l.createdOn).toLocaleDateString()}</div>
                     </div>
                     <span className={`px-3 py-1 rounded-full text-xs font-bold ${statusBadge(l.status)}`}>{l.status}</span>
@@ -123,7 +123,7 @@ export default function LoanManagement() {
               </select>
             </div>
             <div>
-              <label className="label">Amount ($)</label>
+              <label className="label">Amount (₹)</label>
               <input type="number" min={1} value={form.amount} onChange={(e) => setForm((s) => ({ ...s, amount: e.target.value }))} required placeholder="0.00" className="input w-full" />
             </div>
             <div>
@@ -133,7 +133,7 @@ export default function LoanManagement() {
             {calculatedEmi && (
               <div className="p-4 rounded-xl border border-emerald-200 bg-emerald-50/30">
                 <div className="text-sm font-bold text-navy dark:text-white">Estimated EMI</div>
-                <div className="text-2xl font-bold text-emerald-700">${calculatedEmi.emi.toFixed(2)} / month</div>
+                <div className="text-2xl font-bold text-emerald-700">₹{calculatedEmi.emi.toLocaleString('en-IN', { minimumFractionDigits: 2 })} / month</div>
                 <div className="text-xs text-muted mt-1">{calculatedEmi.tenure} months at {calculatedEmi.rate}% interest</div>
               </div>
             )}
@@ -156,7 +156,7 @@ export default function LoanManagement() {
                   <div className="flex items-center justify-between gap-4">
                     <div>
                       <div className="font-bold text-navy dark:text-white text-sm">{l.employeeName} · {l.loanTypeName}</div>
-                      <div className="text-xs text-muted mt-1">${Number(l.amount).toFixed(2)} · {l.purpose}</div>
+                      <div className="text-xs text-muted mt-1">₹{Number(l.amount).toLocaleString('en-IN', { minimumFractionDigits: 2 })} · {l.purpose}</div>
                     </div>
                     <div className="flex gap-2">
                       <button onClick={() => handleApprove(l.id)} className="px-3 py-1.5 rounded-xl bg-emerald-50 text-emerald-700 border border-emerald-200 font-bold text-xs hover:bg-emerald-100"><CheckCircle size={14} className="inline mr-1" />Approve</button>

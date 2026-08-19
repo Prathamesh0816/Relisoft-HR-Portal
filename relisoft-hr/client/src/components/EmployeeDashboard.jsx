@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react'
 import useStore from '../store'
 import { getDashboardStats, getAttendance } from '../api'
-import { Users, CalendarCheck, Ticket, Clock, Briefcase, Bell } from 'lucide-react'
+import { Users, CalendarCheck, Ticket, Clock, Briefcase, Bell, Gift } from 'lucide-react'
 
 export default function EmployeeDashboard() {
   const { currentUser, dashboard, setDashboard, attendance, setAttendance, notifications, fetchNotifications } = useStore()
@@ -9,7 +9,7 @@ export default function EmployeeDashboard() {
 
   useEffect(() => {
     getDashboardStats().then(setStats).catch(() => {})
-    getAttendance(currentUser?.id).then((r) => {
+    getAttendance(currentUser?.employeeId).then((r) => {
       const today = r.find(a => {
         const d = new Date(a.date).toDateString()
         return d === new Date().toDateString()

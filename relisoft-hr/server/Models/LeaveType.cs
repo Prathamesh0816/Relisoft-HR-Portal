@@ -18,4 +18,5 @@ public class LeaveType
     public int MaxConsecutiveDays { get; set; }
     public bool RequiresAdvanceNotice { get; set; }
     public int AdvanceNoticeDays { get; set; }
+    public decimal DefaultDaysPerYear { get; set; }
 }

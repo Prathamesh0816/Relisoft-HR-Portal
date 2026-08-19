@@ -1,5 +1,5 @@
 import useStore from '../store'
-import { LogOut, Home, CalendarCheck, Ticket, UserPlus, Users, ClipboardCheck, Settings, Briefcase, DoorOpen, ChevronRight, ArrowUpRight } from 'lucide-react'
+import { LogOut, Home, CalendarCheck, Ticket, UserPlus, Users, ClipboardCheck, Settings, Briefcase, DoorOpen, ChevronRight, ArrowUpRight, Wallet, Star, Award, Gift, BadgeCheck, FileText, BarChart3, GitBranch, LayoutDashboard, Clock, ClipboardList, Receipt, ListChecks, Sparkles, GraduationCap, HeartHandshake, MessagesSquare, Car, Smile, BookOpen, Megaphone, Bell, Package, HardHat, Repeat, ShieldCheck, Scale, Upload, Activity, AlertTriangle, TrendingUp, Bot, UserCircle, Network } from 'lucide-react'
 
 const sections = [
   {
@@ -17,11 +17,81 @@ const sections = [
     ]
   },
   {
+    label: 'People & Appraisal',
+    roles: ['HRL2', 'HR', 'Manager', 'ManagerL2', 'OrganizationHead'],
+    items: [
+      { view: 'lifecycle', label: 'Probation & Appraisal', icon: BadgeCheck },
+      { view: 'docsSalary', label: 'Increments & Documents', icon: FileText },
+      { view: 'analytics', label: 'Workforce Analytics', icon: BarChart3 },
+      { view: 'orgchart', label: 'Organization Chart', icon: GitBranch },
+    ]
+  },
+  {
+    label: 'Recognition',
+    items: [
+      { view: 'recognition', label: 'Recognition & Awards', icon: Award },
+      { view: 'rewards', label: 'Rewards Store', icon: Gift },
+    ]
+  },
+  {
+    label: 'Recruitment',
+    items: [
+      { view: 'recruitment', label: 'Hiring', icon: Briefcase },
+    ]
+  },
+  {
+    label: 'Org & Teams',
+    items: [
+      { view: 'teams', label: 'Teams & Hierarchy', icon: Network },
+      { view: 'directory', label: 'Directory', icon: Users },
+    ]
+  },
+  {
     label: 'Employee',
     items: [
+      { view: 'profile', label: 'My Profile', icon: UserCircle },
+      { view: 'employeeDashboard', label: 'Dashboard', icon: LayoutDashboard },
       { view: 'apply', label: 'Apply Leave', icon: CalendarCheck },
       { view: 'onboarding', label: 'My Onboarding', icon: UserPlus },
       { view: 'tickets', label: 'Tickets', icon: Ticket },
+      { view: 'attendance', label: 'My Attendance', icon: Clock },
+      { view: 'timesheets', label: 'My Timesheets', icon: ClipboardList },
+      { view: 'expenses', label: 'Expenses', icon: Receipt },
+      { view: 'surveys', label: 'Surveys', icon: ListChecks },
+      { view: 'skills', label: 'Skills & Brags', icon: Sparkles },
+      { view: 'training', label: 'Training & Learning', icon: GraduationCap },
+      { view: 'loans', label: 'Loans & Advances', icon: Wallet },
+      { view: 'benefits', label: 'Benefits', icon: HeartHandshake },
+      { view: 'mentorship', label: 'Mentorship', icon: MessagesSquare },
+      { view: 'carpool', label: 'Carpool', icon: Car },
+      { view: 'bookings', label: 'Desk & Room Booking', icon: DoorOpen },
+      { view: 'mood', label: 'Mood & Wellness', icon: Smile },
+      { view: 'knowledge', label: 'Knowledge Base', icon: BookOpen },
+      { view: 'announcements', label: 'Announcements', icon: Megaphone },
+      { view: 'notifications', label: 'Notifications', icon: Bell },
+    ]
+  },
+  {
+    label: 'Manager & Admin',
+    roles: ['HRL2', 'HR', 'Admin', 'SuperAdmin', 'Manager', 'ManagerL2', 'OrganizationHead'],
+    items: [
+      { view: 'assets', label: 'Assets', icon: Package },
+      { view: 'visitors', label: 'Visitors', icon: DoorOpen },
+      { view: 'contractors', label: 'Contractors', icon: HardHat },
+      { view: 'internalMobility', label: 'Internal Mobility', icon: Repeat },
+      { view: 'compliance', label: 'Compliance', icon: ShieldCheck },
+      { view: 'governance', label: 'Governance', icon: Scale },
+      { view: 'dataUpload', label: 'Data Upload', icon: Upload },
+      { view: 'workforce', label: 'Workforce', icon: Users },
+      { view: 'resilience', label: 'Resilience', icon: Activity },
+      { view: 'readiness', label: 'Workforce Readiness', icon: ShieldCheck },
+      { view: 'spof', label: 'Single Point of Failure', icon: AlertTriangle },
+      { view: 'succession', label: 'Succession Planning', icon: GitBranch },
+      { view: 'skillGaps', label: 'Skill Gap Analysis', icon: TrendingUp },
+      { view: 'knowledgeConc', label: 'Knowledge Concentration', icon: BookOpen },
+      { view: 'whatIf', label: 'What-If Simulator', icon: BarChart3 },
+      { view: 'resilienceReport', label: 'Resilience Report', icon: FileText },
+      { view: 'resilienceChat', label: 'Resilience AI', icon: Bot },
     ]
   },
   {
@@ -32,10 +102,16 @@ const sections = [
     ]
   },
   {
+    label: 'Payroll & Reviews',
+    items: [
+      { view: 'payroll', label: 'Payroll', icon: Wallet },
+      { view: 'reviews', label: 'Performance Reviews', icon: Star },
+    ]
+  },
+  {
     label: 'Tools',
     items: [
       { view: 'overview', label: 'Overview', icon: Briefcase },
-      { view: 'directory', label: 'Directory', icon: Users },
       { view: 'calendar', label: 'Leave Calendar', icon: CalendarCheck },
       { view: 'settings', label: 'Settings', icon: Settings },
     ]

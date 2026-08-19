@@ -3,6 +3,7 @@ using Microsoft.AspNetCore.Http;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging.Abstractions;
 using Microsoft.Extensions.Configuration;
+using Microsoft.Extensions.Options;
 using RelisoftHR.Controllers;
 using RelisoftHR.Data;
 using RelisoftHR.DTOs;
@@ -25,7 +26,9 @@ public class LeaveControllerTests : IDisposable
         var notifLogger = new NullLogger<NotificationHelper>();
         var notifSvc = new NotificationService(_db, new NullLogger<NotificationService>());
         var notif = new NotificationHelper(emailService, notifSvc, _db, notifLogger);
-        _controller = new LeaveController(_db, emailService, notif, logger, new LeaveBalanceService(_db));
+        var carryForwardService = new LeaveCarryForwardService(
+            _db, Options.Create(new LeavePolicyOptions()), new NullLogger<LeaveCarryForwardService>());
+        _controller = new LeaveController(_db, emailService, notif, logger, new LeaveBalanceService(_db), carryForwardService, new LeaveAccrualService(_db));
         SetAuthenticatedEmployee(3);
     }
 
@@ -42,9 +45,24 @@ public class LeaveControllerTests : IDisposable
         };
     }
 
+    private async Task SeedLeaveBalance(int employeeId, int leaveTypeId, decimal allocated = 12)
+    {
+        _db.EmployeeLeaveBalances.Add(new RelisoftHR.Models.EmployeeLeaveBalance
+        {
+            EmployeeId = employeeId,
+            LeaveTypeId = leaveTypeId,
+            AllocatedLeaves = allocated,
+            UsedLeaves = 0,
+            RemainingLeaves = allocated
+        });
+        await _db.SaveChangesAsync();
+    }
+
     [Fact]
     public async Task ApplyLeave_SickLeave_ReturnsSuccess()
     {
+        await SeedLeaveBalance(3, 1);
+
         var ok = Assert.IsType<OkObjectResult>(await _controller.ApplyLeave(new ApplyLeaveRequest(
             EmployeeId: 3, LeaveTypeId: 1,
             StartDate: new DateTime(2026, 7, 20), EndDate: new DateTime(2026, 7, 20),
@@ -58,6 +76,8 @@ public class LeaveControllerTests : IDisposable
     [Fact]
     public async Task ApplyLeave_HalfDay_StoresPointFiveDayDuration()
     {
+        await SeedLeaveBalance(3, 1);
+
         var result = Assert.IsType<OkObjectResult>(await _controller.ApplyLeave(new ApplyLeaveRequest(
             EmployeeId: 3, LeaveTypeId: 1,
             StartDate: new DateTime(2026, 8, 3), EndDate: new DateTime(2026, 8, 3),
@@ -133,6 +153,7 @@ public class LeaveControllerTests : IDisposable
     [Fact]
     public async Task GetEmployeeRequests_ReturnsCorrectCount()
     {
+        await SeedLeaveBalance(3, 1);
         await _controller.ApplyLeave(new ApplyLeaveRequest(3, 1, new DateTime(2026, 7, 20), new DateTime(2026, 7, 20), false, "Sick"));
 
         var ok = Assert.IsType<OkObjectResult>(await _controller.GetEmployeeRequests(3));
@@ -143,6 +164,7 @@ public class LeaveControllerTests : IDisposable
     [Fact]
     public async Task GetEmployeeRequests_ReturnsOnlyAuthenticatedEmployeesRequests()
     {
+        await SeedLeaveBalance(3, 1);
         await _controller.ApplyLeave(new ApplyLeaveRequest(3, 1, new DateTime(2026, 7, 20), new DateTime(2026, 7, 20), false, "Mine"));
         _db.LeaveApplications.Add(new RelisoftHR.Models.LeaveApplication
         {
@@ -231,6 +253,7 @@ public class LeaveControllerTests : IDisposable
     [Fact]
     public async Task MakeDecision_ApproveLeave_UpdatesStatus()
     {
+        await SeedLeaveBalance(3, 1);
         await _controller.ApplyLeave(new ApplyLeaveRequest(3, 1, new DateTime(2026, 7, 20), new DateTime(2026, 7, 20), false, "Sick"));
         SetAuthenticatedEmployee(1);
 
@@ -246,6 +269,7 @@ public class LeaveControllerTests : IDisposable
     [Fact]
     public async Task MakeDecision_RejectLeave_UpdatesStatus()
     {
+        await SeedLeaveBalance(3, 1);
         await _controller.ApplyLeave(new ApplyLeaveRequest(3, 1, new DateTime(2026, 7, 20), new DateTime(2026, 7, 20), false, "Sick"));
         SetAuthenticatedEmployee(1);
 
@@ -262,8 +286,11 @@ public class LeaveControllerTests : IDisposable
     public async Task PlannedLeaveApproval_DeductsTheFullApprovedDurationFromSnapshot()
     {
         var employee = await _db.Employees.FindAsync(3);
+        var plannedLeave = await _db.LeaveTypes.FindAsync(2);
         Assert.NotNull(employee);
+        Assert.NotNull(plannedLeave);
         employee!.JoinDate = new DateTime(2026, 4, 15); // Four planned days earned in July.
+        plannedLeave!.RequiresAdvanceNotice = false;
         await _db.SaveChangesAsync();
 
         await _controller.ApplyLeave(new ApplyLeaveRequest(
@@ -348,7 +375,7 @@ public class LeaveControllerTests : IDisposable
         Assert.Equal(0, balance.UsedLeaves);
         Assert.Equal(12, balance.RemainingLeaves);
         Assert.Single(_db.LeaveApplicationHistories.Where(history => history.LeaveApplicationId == 1 && history.EventType == "Cancellation Approved"));
-        Assert.IsType<ConflictObjectResult>(await _controller.MakeDecision(new ReviewerDecisionRequest(1, 1, "cancel_approve")));
+        Assert.IsType<BadRequestObjectResult>(await _controller.MakeDecision(new ReviewerDecisionRequest(1, 1, "cancel_approve")));
         Assert.Equal(0, balance.UsedLeaves);
         Assert.Equal(12, balance.RemainingLeaves);
     }
@@ -379,6 +406,7 @@ public class LeaveControllerTests : IDisposable
     [Fact]
     public async Task Calendar_ReturnsEvents()
     {
+        await SeedLeaveBalance(3, 1);
         await _controller.ApplyLeave(new ApplyLeaveRequest(3, 1, new DateTime(2026, 7, 20), new DateTime(2026, 7, 20), false, "Sick"));
         var application = _db.LeaveApplications.Single();
         SetAuthenticatedEmployee(1);
@@ -395,6 +423,8 @@ public class LeaveControllerTests : IDisposable
     [Fact]
     public async Task ApplyLeave_DuplicateActiveRequest_IsRejected()
     {
+        await SeedLeaveBalance(3, 1);
+
         var request = new ApplyLeaveRequest(
             3, 1, new DateTime(2026, 7, 20), new DateTime(2026, 7, 20), false, "First request");
         Assert.IsType<OkObjectResult>(await _controller.ApplyLeave(request));

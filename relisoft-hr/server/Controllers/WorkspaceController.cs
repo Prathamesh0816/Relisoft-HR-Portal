@@ -13,11 +13,19 @@ public class WorkspaceController : ControllerBase
 {
     private readonly AppDbContext _db;
     private readonly ILeaveBalanceService _leaveBalanceService;
+    private readonly JoinerAnnouncementService _joinerService;
 
-    public WorkspaceController(AppDbContext db, ILeaveBalanceService leaveBalanceService)
+    public WorkspaceController(AppDbContext db, ILeaveBalanceService leaveBalanceService, JoinerAnnouncementService joinerService)
     {
         _db = db;
         _leaveBalanceService = leaveBalanceService;
+        _joinerService = joinerService;
+    }
+
+    private int GetUserId()
+    {
+        var claim = User.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)?.Value;
+        return claim != null && int.TryParse(claim, out var id) ? id : 0;
     }
 
     [HttpGet]
@@ -76,7 +84,10 @@ public class WorkspaceController : ControllerBase
             JoinDate = req.JoinDate,
             RoleId = req.Role,
             PrimaryTeamId = req.PrimaryTeamId,
-            ManagerCode = managerCode   // NEW
+            ManagerCode = managerCode,   // NEW
+            UanNumber = string.IsNullOrWhiteSpace(req.UanNumber) ? null : req.UanNumber.Trim(),
+            PanNumber = string.IsNullOrWhiteSpace(req.PanNumber) ? null : req.PanNumber.Trim(),
+            IsUnpaidIntern = req.IsUnpaidIntern
         };
 
         _db.Employees.Add(employee);
@@ -114,6 +125,8 @@ public class WorkspaceController : ControllerBase
 
         await _db.SaveChangesAsync();
 
+        await _joinerService.AnnounceJoinerAsync(employee, GetUserId());
+
         return Ok(new CreateEmployeeResponse(
             "Employee registered successfully.",
             username, tempPassword
@@ -140,6 +153,9 @@ public class WorkspaceController : ControllerBase
         employee.JoinDate = req.JoinDate;
         employee.RoleId = req.Role;
         employee.PrimaryTeamId = req.PrimaryTeamId;
+        employee.UanNumber = string.IsNullOrWhiteSpace(req.UanNumber) ? null : req.UanNumber.Trim();
+        employee.PanNumber = string.IsNullOrWhiteSpace(req.PanNumber) ? null : req.PanNumber.Trim();
+        employee.IsUnpaidIntern = req.IsUnpaidIntern;
         employee.UpdatedOn = DateTime.UtcNow;
 
         if (req.SalaryStructure != null)
@@ -380,7 +396,8 @@ public class WorkspaceController : ControllerBase
             e.PrimaryTeamId,
             teams,
             leaveBalances,
-            null
+            null,
+            e.UanNumber, e.PanNumber, e.IsUnpaidIntern
         );
     }
 

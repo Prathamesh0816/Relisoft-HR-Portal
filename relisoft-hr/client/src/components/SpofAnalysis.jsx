@@ -8,7 +8,7 @@ export default function SpofAnalysis() {
   const spofs = resilience.spofs || []
 
   useEffect(() => {
-    getSpofRanking().then((d) => setResilience({ spofs: d.spofs || [], loading: false })).catch(() => setResilience({ loading: false }))
+    getSpofRanking().then((d) => setResilience({ spofs: Array.isArray(d) ? d : (d.spofs || []), loading: false })).catch(() => setResilience({ loading: false }))
   }, [])
 
   const criticalityColor = (c) => {
@@ -33,9 +33,9 @@ export default function SpofAnalysis() {
                   <div className="text-xs text-muted mt-1">{spof.team || spof.department} · {spof.jobRole || spof.role}</div>
                 </div>
                 <div className="flex items-center gap-4 text-xs">
-                  <span className="font-bold text-navy dark:text-white">Score: {spof.score ?? 0}</span>
+                  <span className="font-bold text-navy dark:text-white">Score: {spof.spofScore ?? spof.score ?? 0}</span>
                   <span className="text-muted">Deps: {spof.dependencyCount ?? 0}</span>
-                  <span className="text-red-600 font-bold">${(spof.revenueImpact ?? 0).toLocaleString()}</span>
+                  <span className="text-red-600 font-bold">₹{(spof.revenueImpact ?? 0).toLocaleString('en-IN')}</span>
                 </div>
               </div>
             </div>

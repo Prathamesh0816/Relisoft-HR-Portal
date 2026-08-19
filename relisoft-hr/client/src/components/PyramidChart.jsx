@@ -12,7 +12,7 @@ export default function PyramidChart() {
   const roles = ['C-Level', 'OrganizationHead', 'ManagerL2', 'Manager', 'TeamLead', 'Employee']
   const bands = roles.map((role) => ({
     role,
-    count: data.employees.filter((e) => e.roleName === role).length,
+    count: data.employees.filter((e) => e.role === role).length,
     label: role === 'C-Level' ? 'C-Level Executives' :
            role === 'OrganizationHead' ? 'Organization Heads' :
            role === 'ManagerL2' ? 'Sr. Managers' :

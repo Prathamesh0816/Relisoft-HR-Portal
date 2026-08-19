@@ -1,7 +1,9 @@
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.Extensions.Configuration;
+using Microsoft.Extensions.Logging.Abstractions;
 using RelisoftHR.Controllers;
 using RelisoftHR.DTOs;
+using RelisoftHR.Services;
 
 namespace RelisoftHR.Tests;
 
@@ -19,7 +21,7 @@ public class AuthControllerTests
     {
         var db = TestDbContext.Create();
         var config = new ConfigurationBuilder().AddInMemoryCollection(_configValues!).Build();
-        _controller = new AuthController(db, config);
+        _controller = new AuthController(db, config, new EmailService(new NullLogger<EmailService>(), config), new NullLogger<AuthController>());
     }
 
     [Fact]
@@ -45,6 +47,52 @@ public class AuthControllerTests
     public async Task Login_UnknownUser_ReturnsUnauthorized()
     {
         var result = await _controller.Login(new LoginRequest("nonexistent", "password"));
+        Assert.IsType<UnauthorizedObjectResult>(result.Result);
+    }
+
+    [Fact]
+    public async Task Login_WithOfficialEmail_ReturnsOk()
+    {
+        var result = await _controller.Login(new LoginRequest("preeti.patil@relisofttechnologies.com", "password"));
+        var ok = Assert.IsType<OkObjectResult>(result.Result);
+        var response = Assert.IsType<LoginResponse>(ok.Value);
+        Assert.Equal("Preeti Patil", response.FullName);
+        Assert.Equal(1, response.EmployeeId);
+        Assert.NotEmpty(response.Token);
+    }
+
+    [Fact]
+    public async Task Login_WithOfficialEmailCaseInsensitive_ReturnsOk()
+    {
+        var result = await _controller.Login(new LoginRequest("Preeti.Patil@RelisoftTechnologies.com", "password"));
+        Assert.IsType<OkObjectResult>(result.Result);
+    }
+
+    [Fact]
+    public async Task Login_WithUppercaseName_ReturnsOk()
+    {
+        var result = await _controller.Login(new LoginRequest("Preeti", "password"));
+        Assert.IsType<OkObjectResult>(result.Result);
+    }
+
+    [Fact]
+    public async Task Login_WithForeignDomainEmail_ReturnsUnauthorized()
+    {
+        var result = await _controller.Login(new LoginRequest("preeti@gmail.com", "password"));
+        Assert.IsType<UnauthorizedObjectResult>(result.Result);
+    }
+
+    [Fact]
+    public async Task Login_WithUnknownRelisoftEmail_ReturnsUnauthorized()
+    {
+        var result = await _controller.Login(new LoginRequest("nobody@relisofttechnologies.com", "password"));
+        Assert.IsType<UnauthorizedObjectResult>(result.Result);
+    }
+
+    [Fact]
+    public async Task Login_WithRandomUsername_ReturnsUnauthorized()
+    {
+        var result = await _controller.Login(new LoginRequest("random@person.org", "password"));
         Assert.IsType<UnauthorizedObjectResult>(result.Result);
     }
 

@@ -33,6 +33,16 @@ export async function changePassword(oldPassword, newPassword) {
   return data
 }
 
+export async function forgotPassword(username) {
+  const { data } = await api.post('/api/auth/forgot-password', { username })
+  return data
+}
+
+export async function resetPassword(token, newPassword) {
+  const { data } = await api.post('/api/auth/reset-password', { token, newPassword })
+  return data
+}
+
 export async function loadWorkspace() {
   const { data } = await api.get('/api/workspace')
   return data
@@ -338,6 +348,11 @@ export async function getAllAssignments() {
 
 export async function getProbations() {
   const { data } = await api.get('/api/hr-v2/probations')
+  return data
+}
+
+export async function getInternPayStatus() {
+  const { data } = await api.get('/api/hr-v2/intern-pay-status')
   return data
 }
 
@@ -1239,5 +1254,344 @@ export async function processCarryForward(fromFinancialYear, processedById) {
 export async function getCarryForwardHistory(fy) {
   const params = fy ? { fy } : {}
   const { data } = await api.get('/api/leave/carry-forward/history', { params })
+  return data
+}
+
+// Payroll
+export async function getPayComponents(activeOnly = false) {
+  const { data } = await api.get('/api/payroll/components', { params: { activeOnly } })
+  return data
+}
+export async function createPayComponent(req) {
+  const { data } = await api.post('/api/payroll/components', req)
+  return data
+}
+export async function updatePayComponent(id, req) {
+  const { data } = await api.put(`/api/payroll/components/${id}`, req)
+  return data
+}
+export async function getSalaryStructure(employeeId) {
+  const { data } = await api.get(`/api/payroll/salary-structures/${employeeId}`)
+  return data
+}
+export async function setSalaryStructure(employeeId, req) {
+  const { data } = await api.put(`/api/payroll/salary-structures/${employeeId}`, req)
+  return data
+}
+export async function getPayRuns() {
+  const { data } = await api.get('/api/payroll/runs')
+  return data
+}
+export async function getPayRun(id) {
+  const { data } = await api.get(`/api/payroll/runs/${id}`)
+  return data
+}
+export async function createPayRun(req) {
+  const { data } = await api.post('/api/payroll/runs', req)
+  return data
+}
+export async function generatePayslips(id) {
+  const { data } = await api.post(`/api/payroll/runs/${id}/generate`)
+  return data
+}
+export async function processPayRun(id) {
+  const { data } = await api.post(`/api/payroll/runs/${id}/process`)
+  return data
+}
+export async function getMyPayslips(employeeId) {
+  const { data } = await api.get(`/api/payroll/payslips/employee/${employeeId}`)
+  return data
+}
+
+export async function downloadForm16(employeeId, year) {
+  const params = year ? `?year=${year}` : ''
+  const res = await api.get(`/api/payroll/form16/${employeeId}${params}`, { responseType: 'blob' })
+  const url = window.URL.createObjectURL(new Blob([res.data]))
+  const a = document.createElement('a')
+  a.href = url
+  a.download = `Form16_${employeeId}_${year || new Date().getFullYear()}.xlsx`
+  a.click()
+  window.URL.revokeObjectURL(url)
+  return { message: 'Form 16 downloaded.' }
+}
+
+// Performance reviews
+export async function getReview(id) {
+  const { data } = await api.get(`/api/reviews/${id}`)
+  return data
+}
+export async function getEmployeeReviews(employeeId) {
+  const { data } = await api.get(`/api/reviews/employee/${employeeId}`)
+  return data
+}
+export async function getReviewsHistory(managerEmployeeId) {
+  const params = managerEmployeeId ? { managerEmployeeId } : {}
+  const { data } = await api.get('/api/reviews/history', { params })
+  return data
+}
+export async function createReview(req) {
+  const { data } = await api.post('/api/reviews', req)
+  return data
+}
+export async function rateCriterion(id, req) {
+  const { data } = await api.post(`/api/reviews/${id}/criteria/rate`, req)
+  return data
+}
+export async function completeReview(id, req) {
+  const { data } = await api.post(`/api/reviews/${id}/complete`, req)
+  return data
+}
+
+export async function addPayslipLine(runId, payslipId, req) {
+  const { data } = await api.post(`/api/payroll/runs/${runId}/payslips/${payslipId}/lines`, req)
+  return data
+}
+
+export async function getKudos(receivedBy, givenBy) {
+  const { data } = await api.get('/api/recognition/kudos', { params: { receivedBy, givenBy } })
+  return data
+}
+
+export async function giveKudos(req) {
+  const { data } = await api.post('/api/recognition/kudos', req)
+  return data
+}
+
+export async function getRecognitionAwards() {
+  const { data } = await api.get('/api/recognition/awards')
+  return data
+}
+
+export async function createRecognitionAward(req) {
+  const { data } = await api.post('/api/recognition/awards', req)
+  return data
+}
+
+export async function awardRecognitionRecipients(awardId, req) {
+  const { data } = await api.post(`/api/recognition/awards/${awardId}/recipients`, req)
+  return data
+}
+
+export async function getFunFriday() {
+  const { data } = await api.get('/api/recognition/fun-friday')
+  return data
+}
+
+export async function createFunFriday(req) {
+  const { data } = await api.post('/api/recognition/fun-friday', req)
+  return data
+}
+
+export async function getRecognitionLeaderboard() {
+  const { data } = await api.get('/api/recognition/leaderboard')
+  return data
+}
+
+// ────── Recruitment / ATS ──────
+export async function getJobPostings(status) {
+  const params = status ? { status } : {}
+  const { data } = await api.get('/api/recruitment/jobs', { params })
+  return data
+}
+export async function createJobPosting(req) {
+  const { data } = await api.post('/api/recruitment/jobs', req)
+  return data
+}
+export async function updateJobPosting(id, req) {
+  const { data } = await api.put(`/api/recruitment/jobs/${id}`, req)
+  return data
+}
+export async function closeJobPosting(id) {
+  const { data } = await api.post(`/api/recruitment/jobs/${id}/close`)
+  return data
+}
+export async function getRecruitmentCandidates(jobId, stage) {
+  const params = {}
+  if (jobId) params.jobId = jobId
+  if (stage) params.stage = stage
+  const { data } = await api.get('/api/recruitment/candidates', { params })
+  return data
+}
+export async function createCandidate(req) {
+  const { data } = await api.post('/api/recruitment/candidates', req)
+  return data
+}
+export async function updateCandidate(id, req) {
+  const { data } = await api.put(`/api/recruitment/candidates/${id}`, req)
+  return data
+}
+export async function setCandidateStage(id, stage) {
+  const { data } = await api.post(`/api/recruitment/candidates/${id}/stage?stage=${stage}`)
+  return data
+}
+export async function getInterviews(candidateId) {
+  const params = candidateId ? { candidateId } : {}
+  const { data } = await api.get('/api/recruitment/interviews', { params })
+  return data
+}
+export async function createInterview(req) {
+  const { data } = await api.post('/api/recruitment/interviews', req)
+  return data
+}
+export async function updateInterview(id, req) {
+  const { data } = await api.put(`/api/recruitment/interviews/${id}`, req)
+  return data
+}
+export async function getOffers(status) {
+  const params = status ? { status } : {}
+  const { data } = await api.get('/api/recruitment/offers', { params })
+  return data
+}
+export async function createOffer(req) {
+  const { data } = await api.post('/api/recruitment/offers', req)
+  return data
+}
+export async function setOfferStatus(id, status) {
+  const { data } = await api.post(`/api/recruitment/offers/${id}/status?status=${status}`)
+  return data
+}
+
+export async function getMyProfile() {
+  const { data } = await api.get('/api/profile/me')
+  return data
+}
+
+export async function getProfile(employeeId) {
+  const { data } = await api.get(`/api/profile/${employeeId}`)
+  return data
+}
+
+export async function updateMyProfile(req) {
+  const { data } = await api.put('/api/profile/me', req)
+  return data
+}
+
+export async function updateProfile(employeeId, req) {
+  const { data } = await api.post(`/api/profile/${employeeId}`, req)
+  return data
+}
+
+export async function getProfileRequests(status, employeeId) {
+  const params = new URLSearchParams()
+  if (status) params.append('status', status)
+  if (employeeId) params.append('employeeId', employeeId)
+  const { data } = await api.get(`/api/profile/requests?${params}`)
+  return data
+}
+
+export async function getMyProfileRequests() {
+  const { data } = await api.get('/api/profile/requests/mine')
+  return data
+}
+
+export async function reviewProfileRequest(id, action, comments) {
+  const { data } = await api.post(`/api/profile/requests/${id}/review`, { action, comments })
+  return data
+}
+
+// ────── Phase 2 governance features ──────
+
+export async function getEncashments(employeeId) {
+  const params = employeeId ? { employeeId } : {}
+  const { data } = await api.get('/api/hr-v2/encashments', { params })
+  return data
+}
+
+export async function requestEncashment(req) {
+  const { data } = await api.post('/api/hr-v2/encashments', req)
+  return data
+}
+
+export async function approveEncashment(id, approvedBy) {
+  const { data } = await api.put(`/api/hr-v2/encashments/${id}/approve?approvedBy=${approvedBy}`)
+  return data
+}
+
+export async function rejectEncashment(id) {
+  const { data } = await api.put(`/api/hr-v2/encashments/${id}/reject`)
+  return data
+}
+
+export async function markEncashmentPaid(id) {
+  const { data } = await api.put(`/api/hr-v2/encashments/${id}/pay`)
+  return data
+}
+
+export async function getAuditLog(entityType, limit) {
+  const params = new URLSearchParams()
+  if (entityType) params.append('entityType', entityType)
+  if (limit) params.append('limit', limit)
+  const { data } = await api.get(`/api/hr-v2/audit-log?${params}`)
+  return data
+}
+
+export async function getAttendanceRegularizations(employeeId, status) {
+  const params = new URLSearchParams()
+  if (employeeId) params.append('employeeId', employeeId)
+  if (status) params.append('status', status)
+  const { data } = await api.get(`/api/hr-v2/attendance-regularizations?${params}`)
+  return data
+}
+
+export async function requestRegularization(req) {
+  const { data } = await api.post('/api/hr-v2/attendance-regularizations', req)
+  return data
+}
+
+export async function reviewRegularization(id, approve) {
+  const { data } = await api.put(`/api/hr-v2/attendance-regularizations/${id}/review`, { approve })
+  return data
+}
+
+export async function getVirtualIdCard(employeeId) {
+  const res = await api.get(`/api/hr-v2/id-card/${employeeId}`, { responseType: 'text' })
+  return res.data
+}
+
+export async function getGatePass(visitorId) {
+  const res = await api.get(`/api/hr-v2/gate-pass/${visitorId}`, { responseType: 'text' })
+  return res.data
+}
+
+export async function getExpiringDocuments(days) {
+  const params = days ? { days } : {}
+  const { data } = await api.get('/api/documents/expiring', { params })
+  return data
+}
+
+export async function uploadEmployeeDocument(formData) {
+  const { data } = await api.post('/api/documents/upload', formData, { headers: { 'Content-Type': 'multipart/form-data' } })
+  return data
+}
+
+export async function verifyDocument(id, verified, remarks) {
+  const { data } = await api.put(`/api/documents/${id}/verify`, { verified, remarks })
+  return data
+}
+
+export async function downloadDocument(id) {
+  const res = await api.get(`/api/documents/${id}/download`, { responseType: 'blob' })
+  const url = window.URL.createObjectURL(new Blob([res.data]))
+  const a = document.createElement('a')
+  a.href = url
+  a.download = `document_${id}`
+  a.click()
+  window.URL.revokeObjectURL(url)
+  return { message: 'Document downloaded.' }
+}
+
+export async function downloadPayslipZip(runId) {
+  const res = await api.get(`/api/payroll/runs/${runId}/export`, { responseType: 'blob' })
+  const url = window.URL.createObjectURL(new Blob([res.data]))
+  const a = document.createElement('a')
+  a.href = url
+  a.download = `Payslips_run_${runId}.zip`
+  a.click()
+  window.URL.revokeObjectURL(url)
+  return { message: 'Payslip archive downloaded.' }
+}
+
+export async function emailPayslips(runId) {
+  const { data } = await api.post(`/api/payroll/runs/${runId}/email-payslips`)
   return data
 }

@@ -26,13 +26,15 @@ public class HRFeaturesController : ControllerBase
     {
         var list = await _db.Announcements
             .Include(a => a.CreatedBy)
+            .Include(a => a.Employee)
             .Where(a => a.IsActive)
             .OrderByDescending(a => a.CreatedOn)
             .ToListAsync();
         return Ok(list.Select(a => new
         {
             a.Id, a.Title, a.Content, a.Category, a.Priority, a.CreatedOn,
-            CreatedByName = a.CreatedBy.FullName
+            CreatedByName = a.CreatedBy.FullName,
+            a.EmployeeId, EmployeeName = a.Employee?.FullName
         }));
     }
 

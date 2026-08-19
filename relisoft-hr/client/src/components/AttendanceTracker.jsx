@@ -1,17 +1,20 @@
 import { useState, useEffect } from 'react'
-import { getAttendance, clockIn, clockOut } from '../api'
+import { getAttendance, clockIn, clockOut, getAttendanceRegularizations, requestRegularization } from '../api'
 import useStore from '../store'
 import { Clock, LogIn, LogOut, CheckCircle2, AlertCircle } from 'lucide-react'
 
 export default function AttendanceTracker() {
-  const { currentUser, attendance, setAttendance } = useStore()
+  const { currentUser, attendance, setAttendance, setMessage } = useStore()
   const [records, setRecords] = useState([])
   const [today, setToday] = useState(null)
   const [loadingAction, setLoadingAction] = useState(false)
+  const [showReg, setShowReg] = useState(false)
+  const [regForm, setRegForm] = useState({ recordId: '', requestType: 'LateArrival', reason: '', submitting: false })
+  const [myRegularizations, setMyRegularizations] = useState([])
 
   const loadData = async () => {
     try {
-      const data = await getAttendance(currentUser?.id)
+      const data = await getAttendance(currentUser?.employeeId)
       const t = data.find(r => new Date(r.date).toDateString() === new Date().toDateString())
       setRecords(data)
       setToday(t || null)
@@ -19,7 +22,34 @@ export default function AttendanceTracker() {
     } catch {}
   }
 
-  useEffect(() => { loadData() }, [])
+  useEffect(() => { loadData(); loadRegularizations() }, [])
+
+  const loadRegularizations = async () => {
+    try {
+      const r = await getAttendanceRegularizations(currentUser?.employeeId)
+      setMyRegularizations(Array.isArray(r) ? r : r || [])
+    } catch {}
+  }
+
+  const handleRegularize = async (e) => {
+    e.preventDefault()
+    if (regForm.submitting) return
+    setRegForm((f) => ({ ...f, submitting: true }))
+    try {
+      await requestRegularization({
+        attendanceRecordId: Number(regForm.recordId),
+        requestType: regForm.requestType,
+        reason: regForm.reason
+      })
+      setMessage({ type: 'success', text: 'Regularization request submitted for HR approval.' })
+      setRegForm({ recordId: '', requestType: 'LateArrival', reason: '', submitting: false })
+      setShowReg(false)
+      loadRegularizations()
+    } catch (err) {
+      setMessage({ type: 'error', text: err.response?.data?.message || 'Regularization request failed.' })
+      setRegForm((f) => ({ ...f, submitting: false }))
+    }
+  }
 
   const handleClockIn = async () => {
     setLoadingAction(true)
@@ -147,6 +177,63 @@ export default function AttendanceTracker() {
             </div>
           </div>
         </div>
+      </div>
+
+      <div className="card-surface p-5">
+        <div className="flex items-center justify-between flex-wrap gap-2">
+          <div>
+            <h3 className="font-heading font-bold text-navy dark:text-white text-lg">Attendance regularization</h3>
+            <p className="text-xs text-muted dark:text-white/60 mt-1">Request corrections for late arrival, early exit, or missed punches.</p>
+          </div>
+          <button onClick={() => setShowReg(!showReg)} className="px-5 py-2.5 rounded-xl border border-navy/10 dark:border-white/10 text-navy/70 dark:text-white/70 font-bold text-sm hover:bg-navy/5">
+            {showReg ? 'Close' : 'Request correction'}
+          </button>
+        </div>
+        {showReg && (
+          <form onSubmit={handleRegularize} className="mt-4 grid md:grid-cols-4 gap-4">
+            <div>
+              <label className="text-xs font-bold text-navy/70 dark:text-white/70 uppercase tracking-wider">Attendance record</label>
+              <select value={regForm.recordId} disabled={regForm.submitting} onChange={(e) => setRegForm((f) => ({ ...f, recordId: e.target.value }))} required className="mt-1.5 w-full h-12 px-4 rounded-xl border border-navy/10 dark:border-white/10 bg-white dark:bg-[var(--bg-secondary)] text-navy dark:text-white">
+                <option value="">Select date</option>
+                {records.filter((r) => r.status === 'Late' || r.status === 'EarlyExit' || r.status === 'Absent' || r.status === 'MissedPunch').map((r) => (
+                  <option key={r.id} value={r.id}>{new Date(r.date).toLocaleDateString('en-IN')} — {r.status}</option>
+                ))}
+                {records.length > 0 && records.filter((r) => r.status === 'Late' || r.status === 'EarlyExit' || r.status === 'Absent' || r.status === 'MissedPunch').length === 0 && (
+                  <option value="" disabled>No eligible records (Late / Early / Missed)</option>
+                )}
+              </select>
+            </div>
+            <div>
+              <label className="text-xs font-bold text-navy/70 dark:text-white/70 uppercase tracking-wider">Request type</label>
+              <select value={regForm.requestType} disabled={regForm.submitting} onChange={(e) => setRegForm((f) => ({ ...f, requestType: e.target.value }))} className="mt-1.5 w-full h-12 px-4 rounded-xl border border-navy/10 dark:border-white/10 bg-white dark:bg-[var(--bg-secondary)] text-navy dark:text-white">
+                <option value="LateArrival">Late arrival</option>
+                <option value="EarlyExit">Early exit</option>
+                <option value="MissedPunch">Missed punch</option>
+              </select>
+            </div>
+            <div className="md:col-span-2">
+              <label className="text-xs font-bold text-navy/70 dark:text-white/70 uppercase tracking-wider">Reason</label>
+              <input value={regForm.reason} disabled={regForm.submitting} onChange={(e) => setRegForm((f) => ({ ...f, reason: e.target.value }))} placeholder="e.g. traffic, medical emergency" required className="mt-1.5 w-full h-12 px-4 rounded-xl border border-navy/10 dark:border-white/10 bg-white dark:bg-[var(--bg-secondary)] text-navy dark:text-white" />
+            </div>
+            <div className="md:col-span-4">
+              <button type="submit" disabled={regForm.submitting} className="gold-button px-6 py-3 rounded-xl font-bold text-sm">{regForm.submitting ? 'Submitting...' : 'Submit request'}</button>
+            </div>
+          </form>
+        )}
+        {myRegularizations.length > 0 && (
+          <div className="mt-4 space-y-2">
+            <h4 className="font-bold text-sm text-navy dark:text-white">My requests</h4>
+            {myRegularizations.map((r) => (
+              <div key={r.id} className="p-3 rounded-xl border border-navy/10 dark:border-white/10 bg-white dark:bg-[var(--bg-secondary)] flex items-center justify-between text-sm">
+                <div>
+                  <span className="font-bold text-navy dark:text-white">{r.requestType}</span>
+                  <span className="text-muted ml-2">{r.attendanceDate ? new Date(r.attendanceDate).toLocaleDateString('en-IN') : ''} · {r.reason}</span>
+                </div>
+                <span className={`px-2 py-0.5 rounded text-[10px] font-bold ${r.status === 'Approved' ? 'bg-emerald-50 text-emerald-700' : r.status === 'Rejected' ? 'bg-red-50 text-red-700' : 'bg-amber-50 text-amber-700'}`}>{r.status}</span>
+              </div>
+            ))}
+          </div>
+        )}
       </div>
     </div>
   )

@@ -36,68 +36,57 @@ namespace RelisoftHR.Migrations
                 nullable: false,
                 defaultValue: new DateTime(1, 1, 1, 0, 0, 0, 0, DateTimeKind.Unspecified));
 
-            migrationBuilder.UpdateData(
-                table: "Employees",
-                keyColumn: "Id",
-                keyValue: 1,
-                columns: new[] { "Department", "Designation", "Email", "JobRole", "JoinDate", "Location", "ManagerCode" },
-                values: new object[] { "", "", "", "", new DateTime(1, 1, 1, 0, 0, 0, 0, DateTimeKind.Unspecified), "", "EMP-002" });
+            migrationBuilder.Sql("""
+                IF EXISTS (SELECT 1 FROM [Employees] WHERE [Id] = 1)
+                AND EXISTS (SELECT 1 FROM [Employees] WHERE [EmployeeCode] = N'EMP-002')
+                    UPDATE [Employees] SET [ManagerCode] = N'EMP-002' WHERE [Id] = 1;
+                """);
 
-            migrationBuilder.UpdateData(
-                table: "Employees",
-                keyColumn: "Id",
-                keyValue: 2,
-                columns: new[] { "Department", "Designation", "Email", "JobRole", "JoinDate", "Location" },
-                values: new object[] { "", "", "", "", new DateTime(1, 1, 1, 0, 0, 0, 0, DateTimeKind.Unspecified), "" });
+            migrationBuilder.Sql("""
+                IF EXISTS (SELECT 1 FROM [Employees] WHERE [Id] = 2)
+                    UPDATE [Employees] SET [ManagerCode] = NULL WHERE [Id] = 2;
+                """);
 
-            migrationBuilder.UpdateData(
-                table: "Employees",
-                keyColumn: "Id",
-                keyValue: 3,
-                columns: new[] { "Department", "Designation", "Email", "JobRole", "JoinDate", "Location", "ManagerCode" },
-                values: new object[] { "", "", "", "", new DateTime(1, 1, 1, 0, 0, 0, 0, DateTimeKind.Unspecified), "", "EMP-004" });
+            migrationBuilder.Sql("""
+                IF EXISTS (SELECT 1 FROM [Employees] WHERE [Id] = 3)
+                AND EXISTS (SELECT 1 FROM [Employees] WHERE [EmployeeCode] = N'EMP-004')
+                    UPDATE [Employees] SET [ManagerCode] = N'EMP-004' WHERE [Id] = 3;
+                """);
 
-            migrationBuilder.UpdateData(
-                table: "Employees",
-                keyColumn: "Id",
-                keyValue: 4,
-                columns: new[] { "Department", "Designation", "Email", "JobRole", "JoinDate", "Location" },
-                values: new object[] { "", "", "", "", new DateTime(1, 1, 1, 0, 0, 0, 0, DateTimeKind.Unspecified), "" });
+            migrationBuilder.Sql("""
+                IF EXISTS (SELECT 1 FROM [Employees] WHERE [Id] = 4)
+                    UPDATE [Employees] SET [ManagerCode] = NULL WHERE [Id] = 4;
+                """);
 
-            migrationBuilder.UpdateData(
-                table: "Employees",
-                keyColumn: "Id",
-                keyValue: 5,
-                columns: new[] { "Department", "Designation", "Email", "JobRole", "JoinDate", "Location", "ManagerCode" },
-                values: new object[] { "", "", "", "", new DateTime(1, 1, 1, 0, 0, 0, 0, DateTimeKind.Unspecified), "", "EMP-004" });
+            migrationBuilder.Sql("""
+                IF EXISTS (SELECT 1 FROM [Employees] WHERE [Id] = 5)
+                AND EXISTS (SELECT 1 FROM [Employees] WHERE [EmployeeCode] = N'EMP-004')
+                    UPDATE [Employees] SET [ManagerCode] = N'EMP-004' WHERE [Id] = 5;
+                """);
 
-            migrationBuilder.UpdateData(
-                table: "Employees",
-                keyColumn: "Id",
-                keyValue: 6,
-                columns: new[] { "Department", "Designation", "Email", "JobRole", "JoinDate", "Location", "ManagerCode" },
-                values: new object[] { "", "", "", "", new DateTime(1, 1, 1, 0, 0, 0, 0, DateTimeKind.Unspecified), "", "EMP-004" });
+            migrationBuilder.Sql("""
+                IF EXISTS (SELECT 1 FROM [Employees] WHERE [Id] = 6)
+                AND EXISTS (SELECT 1 FROM [Employees] WHERE [EmployeeCode] = N'EMP-004')
+                    UPDATE [Employees] SET [ManagerCode] = N'EMP-004' WHERE [Id] = 6;
+                """);
 
-            migrationBuilder.UpdateData(
-                table: "Employees",
-                keyColumn: "Id",
-                keyValue: 7,
-                columns: new[] { "Department", "Designation", "Email", "JobRole", "JoinDate", "Location", "ManagerCode" },
-                values: new object[] { "", "", "", "", new DateTime(1, 1, 1, 0, 0, 0, 0, DateTimeKind.Unspecified), "", "EMP-004" });
+            migrationBuilder.Sql("""
+                IF EXISTS (SELECT 1 FROM [Employees] WHERE [Id] = 7)
+                AND EXISTS (SELECT 1 FROM [Employees] WHERE [EmployeeCode] = N'EMP-004')
+                    UPDATE [Employees] SET [ManagerCode] = N'EMP-004' WHERE [Id] = 7;
+                """);
 
-            migrationBuilder.UpdateData(
-                table: "Employees",
-                keyColumn: "Id",
-                keyValue: 8,
-                columns: new[] { "Department", "Designation", "Email", "JobRole", "JoinDate", "Location", "ManagerCode" },
-                values: new object[] { "", "", "", "", new DateTime(1, 1, 1, 0, 0, 0, 0, DateTimeKind.Unspecified), "", "EMP-002" });
+            migrationBuilder.Sql("""
+                IF EXISTS (SELECT 1 FROM [Employees] WHERE [Id] = 8)
+                AND EXISTS (SELECT 1 FROM [Employees] WHERE [EmployeeCode] = N'EMP-002')
+                    UPDATE [Employees] SET [ManagerCode] = N'EMP-002' WHERE [Id] = 8;
+                """);
 
-            migrationBuilder.UpdateData(
-                table: "Employees",
-                keyColumn: "Id",
-                keyValue: 9,
-                columns: new[] { "Department", "Designation", "Email", "JobRole", "JoinDate", "Location", "ManagerCode" },
-                values: new object[] { "", "", "", "", new DateTime(1, 1, 1, 0, 0, 0, 0, DateTimeKind.Unspecified), "", "EMP-002" });
+            migrationBuilder.Sql("""
+                IF EXISTS (SELECT 1 FROM [Employees] WHERE [Id] = 9)
+                AND EXISTS (SELECT 1 FROM [Employees] WHERE [EmployeeCode] = N'EMP-002')
+                    UPDATE [Employees] SET [ManagerCode] = N'EMP-002' WHERE [Id] = 9;
+                """);
 
             migrationBuilder.CreateIndex(
                 name: "IX_CompOffTransfers_CompOffCreditLeaveApplicationId",

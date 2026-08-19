@@ -4,16 +4,18 @@ import {
   getProbations, startProbation, extendProbation, confirmProbation,
   getAppraisalCycles, createAppraisalCycle, closeAppraisalCycle,
   getAppraisals, initAppraisal, submitSelfAppraisal, submitManagerReview,
-  convertInternToPermanent
+  convertInternToPermanent, getEmployeeReviews, getInternPayStatus
 } from '../api'
 
 export default function HrLifecycle() {
   const { setMessage, data, currentUser } = useStore()
   const [tab, setTab] = useState('probation')
   const [probations, setProbations] = useState([])
+  const [internPay, setInternPay] = useState([])
   const [cycles, setCycles] = useState([])
   const [appraisals, setAppraisals] = useState([])
   const [activeCycleId, setActiveCycleId] = useState('')
+  const [latestReviews, setLatestReviews] = useState({})
 
   const [probForm, setProbForm] = useState({ employeeId: '', startDate: '', probationMonths: 6 })
   const [extForm, setExtForm] = useState({ employeeId: '', extraMonths: 3, reason: '' })
@@ -25,8 +27,25 @@ export default function HrLifecycle() {
 
   const refresh = async () => {
     try { setProbations(await getProbations()) } catch {}
+    try { setInternPay(await getInternPayStatus()) } catch {}
     try { setCycles(await getAppraisalCycles()) } catch {}
-    try { setAppraisals(await getAppraisals()) } catch {}
+    try {
+      const a = await getAppraisals()
+      setAppraisals(a)
+      loadLatestReviews(a)
+    } catch {}
+  }
+
+  const loadLatestReviews = async (appraisalList) => {
+    const ids = [...new Set(appraisalList.map((a) => a.employeeId))]
+    const results = {}
+    await Promise.all(ids.map(async (id) => {
+      try {
+        const list = await getEmployeeReviews(id)
+        if (list?.length) results[id] = list[0]
+      } catch {}
+    }))
+    setLatestReviews(results)
   }
 
   const handleStartProbation = async () => {
@@ -136,6 +155,33 @@ export default function HrLifecycle() {
                 </div>
               ))}
             </div>
+            {internPay.length > 0 && (
+              <div className="rounded-xl border border-navy/10 dark:border-white/10 overflow-hidden">
+                <div className="px-4 py-3 bg-navy/5 dark:bg-white/5 font-bold text-xs text-navy/70 dark:text-white/70 uppercase tracking-wider">Intern pay eligibility (6-mo probation: 3 mo unpaid, paid after based on performance, good rating from month 2)</div>
+                <table className="w-full text-sm">
+                  <thead>
+                    <tr className="bg-navy/5 dark:bg-white/5">
+                      <th className="text-left px-4 py-2.5 text-xs font-bold text-navy/50 dark:text-white/50 uppercase tracking-wider">Employee</th>
+                      <th className="text-left px-4 py-2.5 text-xs font-bold text-navy/50 dark:text-white/50 uppercase tracking-wider">Type</th>
+                      <th className="text-right px-4 py-2.5 text-xs font-bold text-navy/50 dark:text-white/50 uppercase tracking-wider">Pay eligible</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {internPay.map((i) => (
+                      <tr key={i.employeeId} className="border-t border-navy/5 dark:border-white/5">
+                        <td className="px-4 py-2.5 font-bold text-navy dark:text-white">{i.fullName}</td>
+                        <td className="px-4 py-2.5 text-navy/70 dark:text-white/70">{i.employmentType}</td>
+                        <td className="px-4 py-2.5 text-right">
+                          <span className={`px-3 py-1 rounded-full text-[10px] font-bold ${i.isEligibleForPay ? 'bg-emerald-50 dark:bg-emerald-900/30 text-emerald-700 dark:text-emerald-400' : 'bg-red-50 dark:bg-red-900/30 text-red-600 dark:text-red-400'}`}>
+                            {i.isEligibleForPay ? 'Paid' : 'Unpaid'}
+                          </span>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            )}
           </div>
         )}
 
@@ -171,7 +217,17 @@ export default function HrLifecycle() {
                       a.status === 'Submitted' ? 'bg-amber-50 dark:bg-amber-900/30 text-amber-700' :
                       a.status === 'Completed' ? 'bg-emerald-50 dark:bg-emerald-900/30 text-emerald-700' : 'bg-blue-50 dark:bg-blue-900/30 text-blue-700'
                     }`}>{a.status}</span>
-                    {a.finalRating && <span className="ml-3 text-xs font-bold text-navy dark:text-white">Rating: {a.finalRating}/5</span>}
+                                        {a.finalRating && <span className="ml-3 text-xs font-bold text-navy dark:text-white">Rating: {a.finalRating}/5</span>}
+                    {latestReviews[a.employeeId] && (
+                      <span className="ml-3 text-[10px] px-2 py-0.5 rounded font-bold bg-blue-50 dark:bg-blue-900/30 text-blue-700">
+                        Latest review: {latestReviews[a.employeeId].overallRating ?? '—'}/5 {latestReviews[a.employeeId].overallAssessment ?? ''}
+                      </span>
+                    )}
+                    {latestReviews[a.employeeId]?.eligibleForRoleEnhancement && (
+                      <span className="ml-3 text-[10px] px-2 py-0.5 rounded font-bold bg-gold-1/10 text-gold-1">
+                        Eligible for role enhancement
+                      </span>
+                    )}
                   </div>
                   {a.status === 'Draft' && currentUser && String(currentUser.employeeId) === String(a.employeeId) && (
                     <button onClick={() => setSelfForm((s) => ({ ...s, appraisalId: String(a.id) }))} className="px-4 py-1.5 bg-navy dark:bg-navy-dark text-white font-bold text-xs rounded-xl">Self review</button>

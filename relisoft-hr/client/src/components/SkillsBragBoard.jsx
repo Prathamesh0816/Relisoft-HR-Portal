@@ -131,7 +131,7 @@ export default function SkillsBragBoard() {
                   <div className="text-xs text-muted">{s.employeeName} · {s.category}</div>
                   <div className="flex items-center justify-between mt-2">
                     <span className="text-xs font-bold text-muted">{s.endorsementCount} endorsements</span>
-                    <button onClick={() => handleEndorse(s.id)} disabled={s.employeeId === currentUser?.id}
+                    <button onClick={() => handleEndorse(s.id)} disabled={s.employeeId === currentUser?.employeeId}
                       className="flex items-center gap-1 px-2 py-1 rounded-lg bg-moss/10 text-moss text-xs font-bold hover:bg-moss/20 disabled:opacity-40">
                       <ThumbsUp size={12} /> Endorse
                     </button>
@@ -166,7 +166,7 @@ export default function SkillsBragBoard() {
                       <ThumbsUp size={14} /> {p.likeCount}
                     </button>
                     <span>{new Date(p.createdOn).toLocaleDateString()}</span>
-                    {p.employeeId === currentUser?.id && (
+                    {p.employeeId === currentUser?.employeeId && (
                       <button onClick={() => handleDeleteBrag(p.id)} className="text-red-400 hover:text-red-600 ml-auto"><Trash2 size={14} /></button>
                     )}
                   </div>

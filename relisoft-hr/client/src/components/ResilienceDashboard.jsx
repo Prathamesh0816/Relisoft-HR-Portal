@@ -59,8 +59,8 @@ export default function ResilienceDashboard() {
               <div className="text-xs text-muted font-bold">SPOFs</div>
             </div>
             <div className="p-4 rounded-xl border border-navy/10 dark:border-white/10 bg-white dark:bg-[var(--bg-secondary)] text-center">
-              <Dollar size={20} className="mx-auto mb-1 text-red-600" />
-              <div className="text-2xl font-bold text-red-700">${(health.revenueAtRisk ?? 0).toLocaleString()}</div>
+              <DollarSign size={20} className="mx-auto mb-1 text-red-600" />
+              <div className="text-2xl font-bold text-red-700">₹{(health.revenueAtRisk ?? 0).toLocaleString('en-IN')}</div>
               <div className="text-xs text-muted font-bold">Revenue at Risk</div>
             </div>
           </div>

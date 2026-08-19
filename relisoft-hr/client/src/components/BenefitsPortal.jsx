@@ -102,8 +102,8 @@ export default function BenefitsPortal() {
                   <h3 className="font-bold text-navy dark:text-white text-sm">{p.name}</h3>
                   <span className="text-[10px] px-2 py-0.5 rounded-full bg-amber-50 text-amber-700 font-bold inline-block mt-1 w-fit">{p.category}</span>
                   <div className="text-xs text-muted mt-2">
-                    <div>Employee: ${Number(p.employeeCost).toFixed(2)}/mo</div>
-                    <div>Employer: ${Number(p.employerCost).toFixed(2)}/mo</div>
+                    <div>Employee: ₹{Number(p.employeeCost).toLocaleString('en-IN', { minimumFractionDigits: 2 })}/mo</div>
+                    <div>Employer: ₹{Number(p.employerCost).toLocaleString('en-IN', { minimumFractionDigits: 2 })}/mo</div>
                   </div>
                   {p.description && <div className="text-xs text-muted mt-2">{p.description}</div>}
                   <div className="flex gap-2 mt-auto pt-3">

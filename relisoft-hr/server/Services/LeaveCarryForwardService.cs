@@ -57,6 +57,15 @@ public class LeaveCarryForwardService
     }
 
     /// <summary>
+    /// Financial year label using the standard April start (the default policy).
+    /// July 2026 → "FY2026", Feb 2027 → "FY2026", Apr 2027 → "FY2027".
+    /// </summary>
+    public static string GetFinancialYearFor(DateTime date)
+    {
+        return date.Month >= 4 ? $"FY{date.Year}" : $"FY{date.Year - 1}";
+    }
+
+    /// <summary>
     /// Get the previous financial year label.
     /// "FY2026" → "FY2025"
     /// </summary>

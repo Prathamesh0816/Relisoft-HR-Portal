@@ -11,4 +11,6 @@ public class Announcement
     public int CreatedById { get; set; }
     public Employee CreatedBy { get; set; } = null!;
     public DateTime CreatedOn { get; set; } = DateTime.UtcNow;
+    public int? EmployeeId { get; set; }
+    public Employee? Employee { get; set; }
 }

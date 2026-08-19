@@ -50,9 +50,12 @@ export default function HrRegistration() {
           role: Number(baseRoleId),
           primaryTeamId: Number(employeeForm.primaryTeamId),
           teamIds: employeeForm.teamIds.map(Number),
-          managerId: employeeForm.managerId ? Number(employeeForm.managerId) : null   // NEW
+          managerId: employeeForm.managerId ? Number(employeeForm.managerId) : null,   // NEW
+          uanNumber: employeeForm.uanNumber || null,
+          panNumber: employeeForm.panNumber || null,
+          isUnpaidIntern: employeeForm.isUnpaidIntern
       })
-        const defaults = { employeeCode: '', fullName: '', email: '', department: '', designation: '', jobRole: '', employmentType: 'Full-time', location: '', salaryStructure: { fixedPay: '', variablePay: '', pf: '', gratuity: '', insurance: '', otherDeductions: '' }, joinDate: new Date().toISOString().slice(0, 10), role: 1, primaryTeamId: String(teams[0]?.id || ''), teamIds: [String(teams[0]?.id || '')].filter(Boolean), submitting: false, managerId: '' }
+        const defaults = { employeeCode: '', fullName: '', email: '', department: '', designation: '', jobRole: '', employmentType: 'Full-time', location: '', salaryStructure: { fixedPay: '', variablePay: '', pf: '', gratuity: '', insurance: '', otherDeductions: '' }, joinDate: new Date().toISOString().slice(0, 10), role: 1, primaryTeamId: String(teams[0]?.id || ''), teamIds: [String(teams[0]?.id || '')].filter(Boolean), submitting: false, managerId: '', uanNumber: '', panNumber: '', isUnpaidIntern: false }
       resetForm('employeeForm', defaults)
       setMessage({ type: 'success', text: `${res.message} Username: ${res.loginUsername} | Temporary password: ${res.temporaryPassword}` })
       const fresh = await loadWorkspace()
@@ -98,6 +101,20 @@ export default function HrRegistration() {
           <div>
             <label className="text-xs font-bold text-navy/70 dark:text-white/70 uppercase tracking-wider">Location</label>
             <input value={employeeForm.location} disabled={employeeForm.submitting} onChange={(e) => updateForm('employeeForm', 'location', e.target.value)} placeholder="Bengaluru" required className="mt-1.5 w-full h-12 px-4 rounded-xl border border-navy/10 dark:border-white/10 bg-white dark:bg-[var(--bg-secondary)] focus:border-gold-1 focus:ring-4 focus:ring-gold-1/10 outline-none text-navy dark:text-white" />
+          </div>
+          <div>
+            <label className="text-xs font-bold text-navy/70 dark:text-white/70 uppercase tracking-wider">UAN (PF number)</label>
+            <input value={employeeForm.uanNumber} disabled={employeeForm.submitting} onChange={(e) => updateForm('employeeForm', 'uanNumber', e.target.value)} placeholder="123456789012" className="mt-1.5 w-full h-12 px-4 rounded-xl border border-navy/10 dark:border-white/10 bg-white dark:bg-[var(--bg-secondary)] focus:border-gold-1 focus:ring-4 focus:ring-gold-1/10 outline-none text-navy dark:text-white" />
+          </div>
+          <div>
+            <label className="text-xs font-bold text-navy/70 dark:text-white/70 uppercase tracking-wider">PAN (for TDS)</label>
+            <input value={employeeForm.panNumber} disabled={employeeForm.submitting} onChange={(e) => updateForm('employeeForm', 'panNumber', e.target.value)} placeholder="ABCDE1234F" className="mt-1.5 w-full h-12 px-4 rounded-xl border border-navy/10 dark:border-white/10 bg-white dark:bg-[var(--bg-secondary)] focus:border-gold-1 focus:ring-4 focus:ring-gold-1/10 outline-none text-navy dark:text-white" />
+          </div>
+          <div className="flex items-end pb-2">
+            <label className="flex items-center gap-2 text-xs font-bold text-navy/70 dark:text-white/70 cursor-pointer">
+              <input type="checkbox" checked={employeeForm.isUnpaidIntern} disabled={employeeForm.submitting} onChange={(e) => updateForm('employeeForm', 'isUnpaidIntern', e.target.checked)} className="w-4 h-4 rounded border-navy/20 text-gold-1" />
+              Unpaid intern (excluded from payroll generation)
+            </label>
           </div>
                   <div>
                       <label className="text-xs font-bold text-navy/70 dark:text-white/70 uppercase tracking-wider">System access</label>
