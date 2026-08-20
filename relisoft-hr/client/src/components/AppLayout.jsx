@@ -46,6 +46,7 @@ import NotificationCenter from './NotificationCenter'
 import AssetManagement from './AssetManagement'
 import MyAssets from './MyAssets'
 import ShiftManager from './ShiftManager'
+import ErrorBoundary from './ErrorBoundary'
 import VisitorManagement from './VisitorManagement'
 import ContractorManager from './ContractorManager'
 import InternalMobility from './InternalMobility'
@@ -192,6 +193,7 @@ export default function AppLayout({ onLogout }) {
               <p className="text-muted dark:text-white/60 text-xs md:text-sm mt-0.5">{m.subtitle}</p>
             </div>
           )}
+          <ErrorBoundary resetKey={activeView}>
           {activeView === 'hrHome' && <HrHome />}
           {activeView === 'hrControl' && <HrControlPanel />}
           {activeView === 'apply' && <LeaveHome />}
@@ -256,6 +258,7 @@ export default function AppLayout({ onLogout }) {
           {activeView === 'resilienceReport' && <ResilienceReport />}
           {activeView === 'resilienceChat' && <ResilienceAIChat />}
           {activeView === 'settings' && <Settings />}
+          </ErrorBoundary>
         </main>
       </div>
     </div>

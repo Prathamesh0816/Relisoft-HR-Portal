@@ -19,6 +19,7 @@ Thumbs.db
 
 # Uploaded documents / runtime data
 server/App_Data/
+relisoft-hr/server/App_Data/
 
 # Environment / secrets
 .env

@@ -199,7 +199,7 @@ npm run build
 
 ## Test Suite
 
-**126 tests total** (83 server + 43 client), all passing.
+**190 tests total** (83 server + 107 client), all passing.
 
 ### Server Tests (xUnit)
 
@@ -238,6 +238,7 @@ npx vitest run
 | `ReviewerInbox.test.jsx` | 4 | Inbox rendering |
 | `TicketManagement.test.jsx` | 2 | Heading, form fields |
 | `LoginPage.test.jsx` | 2 | Render, submit |
+| `RenderAllViews.test.jsx` | 64 | Every sidebar view renders without crashing (no white pages) |
 
 ---
 
@@ -424,7 +425,7 @@ Unblock-File -Path "C:\Path\To\RelisoftHR.exe"
 | Role Levels | 10 |
 | Total Views (all phases) | 60+ |
 | Tests (Server) | 83 — all passing |
-| Tests (Client) | 43 — all passing |
+| Tests (Client) | 107 — all passing (incl. 64 render-all-views smoke) |
 
 ## Phase Roadmap
 
