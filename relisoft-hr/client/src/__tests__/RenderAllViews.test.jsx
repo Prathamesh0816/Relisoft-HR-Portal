@@ -31,6 +31,7 @@ import HrOnboardingDashboard from '../components/HrOnboardingDashboard'
 import OffboardingDashboard from '../components/OffboardingDashboard'
 import CarryForwardAdmin from '../components/CarryForwardAdmin'
 import PayrollManagement from '../components/PayrollManagement'
+import PayrollStatutory from '../components/PayrollStatutory'
 import ReviewsPage from '../components/ReviewsPage'
 import Recognition from '../components/Recognition'
 import RewardsStore from '../components/RewardsStore'
@@ -86,7 +87,7 @@ const views = [
   ['LeadershipOverview', LeadershipOverview], ['LeaveCalendar', LeaveCalendar],
   ['CandidateOnboarding', CandidateOnboarding], ['HrOnboardingDashboard', HrOnboardingDashboard],
   ['OffboardingDashboard', OffboardingDashboard], ['CarryForwardAdmin', CarryForwardAdmin],
-  ['PayrollManagement', PayrollManagement], ['ReviewsPage', ReviewsPage], ['Recognition', Recognition],
+  ['PayrollManagement', PayrollManagement], ['PayrollStatutory', PayrollStatutory], ['ReviewsPage', ReviewsPage], ['Recognition', Recognition],
   ['RewardsStore', RewardsStore], ['Recruitment', Recruitment], ['Profile', Profile], ['Teams', Teams],
   ['HrLifecycle', HrLifecycle], ['HrDocsSalary', HrDocsSalary], ['HrAnalytics', HrAnalytics],
   ['PyramidChart', PyramidChart], ['EmployeeDashboard', EmployeeDashboard], ['AttendanceTracker', AttendanceTracker],

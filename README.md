@@ -29,7 +29,7 @@ demand (HRL2/HR session required):
 
 ```powershell
 .\scripts\seed-demo.ps1           # seeds + verifies the 10 key endpoints return 200
-.\scripts\sweep-endpoints.ps1     # sweeps all 147 GET endpoints, reports non-2xx
+.\scripts\sweep-endpoints.ps1     # sweeps all 149 GET endpoints, reports non-2xx
 ```
 
 Every non-2xx HTTP response shows a dedicated error page (see

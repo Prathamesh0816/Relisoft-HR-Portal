@@ -1615,6 +1615,22 @@ export async function downloadPayslipZip(runId) {
   return { message: 'Payslip archive downloaded.' }
 }
 
+export async function getStatutoryReport(runId) {
+  const { data } = await api.get(`/api/payroll/statutory/${runId}`)
+  return data
+}
+
+export async function exportStatutoryReport(runId) {
+  const res = await api.get(`/api/payroll/statutory/${runId}/export`, { responseType: 'blob' })
+  const url = window.URL.createObjectURL(new Blob([res.data]))
+  const a = document.createElement('a')
+  a.href = url
+  a.download = `Statutory_Register_run_${runId}.xlsx`
+  a.click()
+  window.URL.revokeObjectURL(url)
+  return { message: 'Statutory register downloaded.' }
+}
+
 export async function emailPayslips(runId) {
   const { data } = await api.post(`/api/payroll/runs/${runId}/email-payslips`)
   return data

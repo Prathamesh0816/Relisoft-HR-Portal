@@ -21,6 +21,7 @@ import CarryForwardAdmin from './CarryForwardAdmin'
 import Settings from './Settings'
 import ProjectBuilder from './ProjectBuilder'
 import PayrollManagement from './PayrollManagement'
+import PayrollStatutory from './PayrollStatutory'
 import ReviewsPage from './ReviewsPage'
 import Recognition from './Recognition'
 import RewardsStore from './RewardsStore'
@@ -88,6 +89,7 @@ const meta = {
   offboard: { label: 'HR', title: 'Offboarding dashboard', subtitle: 'Manage employee offboarding including asset handover and ID deactivation.' },
   carryForward: { label: 'HR', title: 'Year-end leave carry-forward', subtitle: 'Preview, process, and audit leave balance carry-forward across financial years.' },
   payroll: { label: 'Payroll', title: 'Payroll', subtitle: 'Salary structures, monthly pay runs, and payslips.' },
+  payrollStatutory: { label: 'Payroll', title: 'Statutory register', subtitle: 'PF, ESI and Professional Tax computed from processed pay runs.' },
   reviews: { label: 'Reviews', title: 'Performance reviews', subtitle: 'Yearly and 6-month scorecards, filled in by the reviewer.' },
   recognition: { label: 'Recognition', title: 'Recognition & awards', subtitle: 'Kudos, monthly/quarterly/annual awards, and Fun Friday celebrations.' },
   rewards: { label: 'Rewards', title: 'Rewards store', subtitle: 'Spend recognition points on rewards from the catalog.' },
@@ -227,6 +229,7 @@ export default function AppLayout({ onLogout }) {
           {activeView === 'offboard' && <OffboardingDashboard />}
           {activeView === 'carryForward' && <CarryForwardAdmin />}
           {activeView === 'payroll' && <PayrollManagement />}
+          {activeView === 'payrollStatutory' && <PayrollStatutory />}
           {activeView === 'reviews' && <ReviewsPage />}
           {activeView === 'recognition' && <Recognition />}
           {activeView === 'rewards' && <RewardsStore />}

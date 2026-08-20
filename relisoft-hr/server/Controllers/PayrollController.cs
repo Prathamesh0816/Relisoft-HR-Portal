@@ -570,6 +570,130 @@ public class PayrollController : ControllerBase
         return Ok(new { message = $"Payslips emailed to {sent} employee(s)." });
     }
 
+    // ────── Statutory register (PF / ESI / PT) ──────
+
+    [HttpGet("statutory/{runId}")]
+    public async Task<ActionResult<StatutoryReportDto>> GetStatutoryReport(int runId)
+    {
+        if (!await IsPayrollAdminAsync()) return Forbid();
+
+        var run = await _db.PayRuns
+            .Include(r => r.Payslips).ThenInclude(p => p.Lines)
+            .Include(r => r.Payslips).ThenInclude(p => p.Employee)
+            .AsNoTracking()
+            .FirstOrDefaultAsync(r => r.Id == runId);
+        if (run == null) return NotFound();
+        if (run.Status != PayRunStatus.Processed) return BadRequest(new { message = "Statutory register is only available for a processed pay run." });
+
+        var lines = new List<StatutoryLineDto>();
+        foreach (var payslip in run.Payslips.OrderBy(p => p.Employee?.FullName))
+        {
+            var basicLine = payslip.Lines
+                .Where(l => l.Type == PayComponentType.Earning && l.ComponentName.Contains("Basic", StringComparison.OrdinalIgnoreCase))
+                .OrderByDescending(l => l.Amount)
+                .FirstOrDefault();
+            var basic = basicLine?.Amount ?? payslip.GrossEarnings * 0.5m;
+            var tds = payslip.Lines
+                .Where(l => l.Type == PayComponentType.Deduction && l.ComponentName.Contains("TDS", StringComparison.OrdinalIgnoreCase))
+                .Sum(l => l.Amount);
+
+            lines.Add(StatutoryCalculator.ComputeLine(
+                payslip.EmployeeId,
+                payslip.Employee?.FullName ?? "Unknown",
+                payslip.Employee?.EmployeeCode ?? "",
+                basic, payslip.GrossEarnings, tds));
+        }
+
+        return Ok(new StatutoryReportDto(
+            run.Id, run.PeriodMonth, run.PeriodYear, lines, StatutoryCalculator.Totals(lines)));
+    }
+
+    [HttpGet("statutory/{runId}/export")]
+    public async Task<ActionResult> ExportStatutoryReport(int runId)
+    {
+        if (!await IsPayrollAdminAsync()) return Forbid();
+
+        var run = await _db.PayRuns
+            .Include(r => r.Payslips).ThenInclude(p => p.Lines)
+            .Include(r => r.Payslips).ThenInclude(p => p.Employee)
+            .AsNoTracking()
+            .FirstOrDefaultAsync(r => r.Id == runId);
+        if (run == null) return NotFound();
+        if (run.Status != PayRunStatus.Processed) return BadRequest(new { message = "Statutory register is only available for a processed pay run." });
+
+        var lines = new List<StatutoryLineDto>();
+        foreach (var payslip in run.Payslips.OrderBy(p => p.Employee?.FullName))
+        {
+            var basicLine = payslip.Lines
+                .Where(l => l.Type == PayComponentType.Earning && l.ComponentName.Contains("Basic", StringComparison.OrdinalIgnoreCase))
+                .OrderByDescending(l => l.Amount)
+                .FirstOrDefault();
+            var basic = basicLine?.Amount ?? payslip.GrossEarnings * 0.5m;
+            var tds = payslip.Lines
+                .Where(l => l.Type == PayComponentType.Deduction && l.ComponentName.Contains("TDS", StringComparison.OrdinalIgnoreCase))
+                .Sum(l => l.Amount);
+
+            lines.Add(StatutoryCalculator.ComputeLine(
+                payslip.EmployeeId,
+                payslip.Employee?.FullName ?? "Unknown",
+                payslip.Employee?.EmployeeCode ?? "",
+                basic, payslip.GrossEarnings, tds));
+        }
+
+        var totals = StatutoryCalculator.Totals(lines);
+
+        using var wb = new XLWorkbook();
+        var ws = wb.Worksheets.Add($"Statutory_{run.PeriodYear}_{run.PeriodMonth:D2}");
+        ws.Cell(1, 1).Value = "Relisoft Technologies Pvt. Ltd. - Statutory Payroll Register";
+        ws.Cell(2, 1).Value = $"Period: {new DateTime(2000, run.PeriodMonth, 1).ToString("MMMM")} {run.PeriodYear}";
+        ws.Range(1, 1, 1, 12).Merge();
+        ws.Range(1, 1, 2, 12).Style.Font.Bold = true;
+
+        var header = new[] { "Employee", "Code", "Basic", "Gross", "PF (Emp)", "PF (Emp)", "EPS", "EDLI", "ESI (Emp)", "ESI (Emp)", "PT", "TDS", "Net Pay" };
+        for (var i = 0; i < header.Length; i++) ws.Cell(4, i + 1).Value = header[i];
+        ws.Range(4, 1, 4, header.Length).Style.Font.Bold = true;
+
+        var row = 5;
+        foreach (var l in lines)
+        {
+            ws.Cell(row, 1).Value = l.EmployeeName;
+            ws.Cell(row, 2).Value = l.EmployeeCode;
+            ws.Cell(row, 3).Value = l.Basic;
+            ws.Cell(row, 4).Value = l.Gross;
+            ws.Cell(row, 5).Value = l.EmployeePf;
+            ws.Cell(row, 6).Value = l.EmployerPf;
+            ws.Cell(row, 7).Value = l.EmployerEps;
+            ws.Cell(row, 8).Value = l.EmployerEdli;
+            ws.Cell(row, 9).Value = l.EmployeeEsi;
+            ws.Cell(row, 10).Value = l.EmployerEsi;
+            ws.Cell(row, 11).Value = l.ProfessionalTax;
+            ws.Cell(row, 12).Value = l.Tds;
+            ws.Cell(row, 13).Value = l.NetPay;
+            row++;
+        }
+
+        ws.Cell(row, 1).Value = "TOTAL";
+        ws.Cell(row, 2).Value = "";
+        ws.Cell(row, 3).Value = totals.Basic;
+        ws.Cell(row, 4).Value = totals.Gross;
+        ws.Cell(row, 5).Value = totals.EmployeePf;
+        ws.Cell(row, 6).Value = totals.EmployerPf;
+        ws.Cell(row, 7).Value = totals.EmployerEps;
+        ws.Cell(row, 8).Value = totals.EmployerEdli;
+        ws.Cell(row, 9).Value = totals.EmployeeEsi;
+        ws.Cell(row, 10).Value = totals.EmployerEsi;
+        ws.Cell(row, 11).Value = totals.ProfessionalTax;
+        ws.Cell(row, 12).Value = totals.Tds;
+        ws.Range(row, 1, row, 13).Style.Font.Bold = true;
+
+        ws.Columns(1, 13).AdjustToContents();
+
+        using var ms = new MemoryStream();
+        wb.SaveAs(ms);
+        var fileName = $"Statutory_Register_{run.PeriodYear}_{run.PeriodMonth:D2}.xlsx";
+        return File(ms.ToArray(), "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", fileName);
+    }
+
     private static string BuildPayslipHtml(Payslip payslip, PayRun run)
     {
         var monthName = new DateTime(2000, run.PeriodMonth, 1).ToString("MMMM");

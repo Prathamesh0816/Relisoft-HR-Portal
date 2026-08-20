@@ -107,6 +107,7 @@ const sections = [
     label: 'Payroll & Reviews',
     items: [
       { view: 'payroll', label: 'Payroll', icon: Wallet },
+      { view: 'payrollStatutory', label: 'Statutory Register', icon: ShieldCheck },
       { view: 'reviews', label: 'Performance Reviews', icon: Star },
     ]
   },

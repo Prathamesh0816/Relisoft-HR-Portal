@@ -416,6 +416,22 @@ POST   /api/onboarding/upload-document/{id}  # Upload document
 POST   /api/admin/seed-demo                 # HRL2/HR — idempotent demo dataset (see "Demo Seeding")
 ```
 
+### Statutory Payroll (PF / ESI / PT)
+
+Computed from a processed pay run. Rules (India / Maharashtra) live in
+`server/Services/StatutoryCalculator.cs` (pure, unit-tested): PF 12% on basic
+capped at ₹15,000 wage ceiling, EPS 8.33% capped ₹1,250, EDLI 0.5%; ESI
+0.75% / 3.25% of gross when gross ≤ ₹21,000; PT slab ₹0/175/200/300; TDS read
+from the payslip's "TDS" deduction line.
+
+```
+GET   /api/payroll/statutory/{runId}              # payroll admin — statutory register
+GET   /api/payroll/statutory/{runId}/export       # payroll admin — Excel (ClosedXML)
+```
+
+Frontend view `payrollStatutory` (`client/src/components/PayrollStatutory.jsx`)
+is exposed to HRL2/HR/Manager/ManagerL2/OrganizationHead via `managerViews`.
+
 ---
 
 ## Bug Fixes History
