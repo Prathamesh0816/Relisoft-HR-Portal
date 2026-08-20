@@ -103,6 +103,10 @@ export default function PayrollManagement() {
       const lines = Object.entries(structureAmounts)
         .filter(([, amount]) => amount > 0)
         .map(([id, amount]) => ({ payComponentId: Number(id), monthlyAmount: Number(amount) }))
+        .filter(({ payComponentId }) => {
+          const comp = structureComponents.find((c) => c.id === payComponentId)
+          return comp ? !comp.isAuto : true
+        })
       await setSalaryStructure(structureEmployeeId, {
         employeeId: Number(structureEmployeeId),
         effectiveFrom: structureEffectiveFrom,
@@ -432,13 +436,17 @@ export default function PayrollManagement() {
                             <td className="px-4 py-3 font-bold text-navy dark:text-white">{c.name}</td>
                             <td className="px-4 py-3 text-navy/70 dark:text-white/70">{c.type}</td>
                             <td className="px-4 py-3 text-right">
-                              <input
-                                type="number"
-                                min="0"
-                                value={structureAmounts[c.id] ?? 0}
-                                onChange={(e) => setStructureAmounts({ ...structureAmounts, [c.id]: Number(e.target.value) })}
-                                className="h-9 w-40 px-3 rounded-lg border border-navy/10 dark:border-white/10 bg-white dark:bg-[var(--bg-secondary)] focus:border-gold-1 focus:ring-4 focus:ring-gold-1/10 outline-none transition-all text-right text-navy dark:text-white"
-                              />
+                              {c.isAuto ? (
+                                <span className="text-xs text-navy/40 dark:text-white/40">Auto — {c.rate}% of Basic (computed at generation)</span>
+                              ) : (
+                                <input
+                                  type="number"
+                                  min="0"
+                                  value={structureAmounts[c.id] ?? 0}
+                                  onChange={(e) => setStructureAmounts({ ...structureAmounts, [c.id]: Number(e.target.value) })}
+                                  className="h-9 w-40 px-3 rounded-lg border border-navy/10 dark:border-white/10 bg-white dark:bg-[var(--bg-secondary)] focus:border-gold-1 focus:ring-4 focus:ring-gold-1/10 outline-none transition-all text-right text-navy dark:text-white"
+                                />
+                              )}
                             </td>
                           </tr>
                         ))}

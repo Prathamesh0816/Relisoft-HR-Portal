@@ -14,14 +14,14 @@ export default function TimesheetTracker() {
   const [periodForm, setPeriodForm] = useState({ weekStart: '' })
 
   useEffect(() => {
-    getMyTimesheets().then((r) => setTimesheets({ entries: r.entries || [], loading: false }))
-    getTimesheetPeriods().then((r) => setTimesheets({ periods: r.periods || [] }))
-    if (isManager) getTimesheetApprovals().then((r) => setTimesheets({ approvals: r.entries || [] }))
+    getMyTimesheets().then((r) => setTimesheets({ entries: Array.isArray(r) ? r : (r.entries || []), loading: false }))
+    getTimesheetPeriods().then((r) => setTimesheets({ periods: Array.isArray(r) ? r : (r.periods || []) }))
+    if (isManager) getTimesheetApprovals().then((r) => setTimesheets({ approvals: Array.isArray(r) ? r : (r.entries || []) }))
   }, [])
 
   const refreshEntries = async () => {
     const r = await getMyTimesheets(filterDate || undefined)
-    setTimesheets({ entries: r.entries || [] })
+    setTimesheets({ entries: Array.isArray(r) ? r : (r.entries || []) })
   }
 
   const handleSubmitEntry = async (e) => {
@@ -61,17 +61,17 @@ export default function TimesheetTracker() {
       setMessage({ type: 'success', text: res.message || 'Period submitted.' })
       setPeriodForm({ weekStart: '' })
       const p = await getTimesheetPeriods()
-      setTimesheets({ periods: p.periods || [] })
+      setTimesheets({ periods: Array.isArray(p) ? p : (p.periods || []) })
     } catch (err) { setMessage({ type: 'error', text: err.response?.data?.message || 'Failed.' }) }
   }
 
   const handleApprove = async (id) => {
-    try { await approveTimesheet(id); setMessage({ type: 'success', text: 'Approved.' }); const a = await getTimesheetApprovals(); setTimesheets({ approvals: a.entries || [] }) }
+    try { await approveTimesheet(id); setMessage({ type: 'success', text: 'Approved.' }); const a = await getTimesheetApprovals(); setTimesheets({ approvals: Array.isArray(a) ? a : (a.entries || []) }) }
     catch { setMessage({ type: 'error', text: 'Failed.' }) }
   }
 
   const handleReject = async (id) => {
-    try { await rejectTimesheet(id); setMessage({ type: 'success', text: 'Rejected.' }); const a = await getTimesheetApprovals(); setTimesheets({ approvals: a.entries || [] }) }
+    try { await rejectTimesheet(id); setMessage({ type: 'success', text: 'Rejected.' }); const a = await getTimesheetApprovals(); setTimesheets({ approvals: Array.isArray(a) ? a : (a.entries || []) }) }
     catch { setMessage({ type: 'error', text: 'Failed.' }) }
   }
 
@@ -97,7 +97,7 @@ export default function TimesheetTracker() {
               <p className="text-muted text-sm mt-1">Total: {totalHours}h</p>
             </div>
             <div className="flex gap-2 items-center">
-              <input type="date" value={filterDate} onChange={(e) => { setFilterDate(e.target.value); getMyTimesheets(e.target.value || undefined).then((r) => setTimesheets({ entries: r.entries || [] })) }} className="input w-40" />
+              <input type="date" value={filterDate} onChange={(e) => { setFilterDate(e.target.value); getMyTimesheets(e.target.value || undefined).then((r) => setTimesheets({ entries: Array.isArray(r) ? r : (r.entries || []) })) }} className="input w-40" />
             </div>
           </div>
 

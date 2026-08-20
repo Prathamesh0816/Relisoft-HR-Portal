@@ -1,6 +1,6 @@
 # ReliSoft HR Portal
 
-> **Phase 1 — Core HR** is live: Employee registration, leave management, ticket system, and onboarding/offboarding.  
+> **Phases 1–6 are live**: Core HR, Payroll, Performance, Engagement, Workplace, Governance and Workforce Resilience.  
 > Built for ReliSoft Technologies Private Limited.
 
 ---
@@ -36,6 +36,10 @@ Open **http://localhost:5173**
 
 All users share password: **`password`**
 
+> **Login rule:** you can sign in with either your **name** (e.g. `preeti`) or your official
+> **ReliSoft email** (e.g. `preeti.patil@relisofttechnologies.com`). Emails from other
+> domains are rejected. Matching is case-insensitive.
+
 | Username | Name | Role |
 |---|---|---|
 | `preeti` | Preeti Patil | HR L2 |
@@ -53,9 +57,9 @@ All users share password: **`password`**
 
 ---
 
-## Phase 1 — Core HR (Current)
+## Phase 1 — Core HR (Live)
 
-The first phase covers the essential HR operations needed for day-to-day workforce management.
+The core HR operations needed for day-to-day workforce management.
 
 ### Features
 
@@ -79,7 +83,7 @@ The first phase covers the essential HR operations needed for day-to-day workfor
 
 ---
 
-## Phase 2 — Extended HR (Planned)
+## Phase 2 — Extended HR (Live)
 
 Extended HR features that build on the Phase 1 foundation.
 
@@ -88,17 +92,23 @@ Extended HR features that build on the Phase 1 foundation.
 | **Projects & Teams** | Project CRUD, team management, team lead assignment |
 | **Org Chart** | Visual hierarchy pyramid from Organization Head down to teams |
 | **HR Analytics** | KPIs, headcount tracking, department distribution, attrition insights |
-| **Attendance** | Clock in/out, attendance history, daily records |
+| **Attendance** | Clock in/out, attendance history, daily records, **regularization requests with review/approval** |
 | **Announcements** | Company-wide announcements and updates |
 | **Knowledge Base** | HR policies, FAQs, company guides |
 | **Employee Dashboard** | Personal workspace with quick-access tiles |
 | **Probation & Appraisal** | Probation cycles, performance reviews, intern-to-permanent conversion |
 | **Salary & Documents** | Salary discussions, auto-generate offer letters, joining letters, Form 16 |
 | **Asset Management** | Track company assets, assignments, and returns |
+| **Password Management** | Forgot password (email token) and reset password flow |
+| **Leave Encashment** | Request encashment of unused leave balance, approve/reject/pay, balance auto-adjusted |
+| **Audit Trail** | Every approval/change logged to a searchable audit log |
+| **Virtual ID Card** | On-demand printable employee ID card |
+| **Visitor Gate Pass** | Printable gate pass for registered visitors |
+| **Payslip Export** | Bulk payslip ZIP download and bulk email of payslips per payroll run |
 
 ---
 
-## Phase 3 — Employee Experience (Planned)
+## Phase 3 — Employee Experience (Live)
 
 Engagement and workplace tools.
 
@@ -114,7 +124,7 @@ Engagement and workplace tools.
 
 ---
 
-## Phase 4 — Workplace & Productivity (Planned)
+## Phase 4 — Workplace & Productivity (Live)
 
 Workplace management and productivity tools.
 
@@ -131,7 +141,7 @@ Workplace management and productivity tools.
 
 ---
 
-## Phase 5 — Governance & Compliance (Planned)
+## Phase 5 — Governance & Compliance (Live)
 
 Enterprise governance features.
 
@@ -140,11 +150,11 @@ Enterprise governance features.
 | **Internal Mobility** | Internal job postings, applications, shortlisting |
 | **Compliance Tracker** | Regulatory requirements, compliance records, dashboard |
 | **Contractor Management** | Vendor contracts, contractor employee management |
-| **HR Docs & Templates** | Document templates, auto-generation, employee documents |
+| **HR Docs & Templates** | Document templates, auto-generation, employee documents, per-employee OneDrive storage |
 
 ---
 
-## Phase 6 — Workforce Resilience (Planned)
+## Phase 6 — Workforce Resilience (Live)
 
 AI-powered workforce intelligence (TruPulse AI).
 
@@ -159,7 +169,7 @@ AI-powered workforce intelligence (TruPulse AI).
 | **Knowledge Concentration** | Bus-factor risk analysis |
 | **Workforce Readiness** | Project pipeline capacity utilization |
 | **AI Assistant** | Natural language queries about workforce data |
-| **Governance Panel** | Human-in-the-loop feedback and override management |
+| **Governance Panel** | Human-in-the-loop feedback and override management, audit log, encashment, regularization, documents, ID card, gate pass |
 
 ---
 
@@ -167,12 +177,24 @@ AI-powered workforce intelligence (TruPulse AI).
 
 | Problem | Fix |
 |---|---|
-| **Can't log in** | Server must be running (localhost:5049). Use any username with password `password`. |
+| **Can't log in** | Server must be running (localhost:5049). Use a username or a `@relisofttechnologies.com` email with password `password`. |
 | **Blank page** | Both terminals must be running. Refresh (F5). Check F12 Console for errors. |
 | **"Failed to fetch"** | Server stopped. `Ctrl+C` in server window, then `dotnet run` again. |
 | **SQL errors** | Database is created automatically. If migration fails, run `dotnet ef database update` in the server folder. |
 | **Windows blocks server** | Run `Unblock-File` on the `.dll` and `.exe` files, then restart. |
 | **Port in use** | Close the other program or change ports in config files. |
+| **"Too many login attempts"** | Login is rate-limited (20 attempts / 5 min per IP). Wait a few minutes. |
+
+---
+
+## Security & Production
+
+- **Login restriction** — only names or official `@relisofttechnologies.com` emails are accepted.
+- **Rate limiting** — login endpoint limited to 20 attempts per IP per 5 minutes.
+- **Demo mode** — demo users and default passwords are kept for demos; `appsettings.Production.json` locks down `AllowedHosts`/CORS and disables Swagger.
+- **Upload validation** — document uploads are capped at 10 MB and limited to PDF/PNG/JPG/DOC/DOCX/XLS/XLSX/TXT/HTML.
+- **JWT** — production refuses to start with the default dev key; set `Jwt__Key` (32+ chars) as an environment variable.
+- **Secrets** — never commit secrets. Before real go-live configure SMTP (`Email:SmtpHost`), OneDrive Graph (`OneDrive:*`), and a production SQL Server.
 
 ---
 

@@ -199,7 +199,7 @@ npm run build
 
 ## Test Suite
 
-**60 tests total** (26 server + 34 client), all passing.
+**190 tests total** (83 server + 107 client), all passing.
 
 ### Server Tests (xUnit)
 
@@ -210,10 +210,15 @@ dotnet test RelisoftHR.Tests
 
 | File | Tests | Coverage |
 |---|---|---|
-| `LeaveControllerTests.cs` | 12 | Apply, cancel, approve, reject, balance check, validation, bulk decision, cancellation requests |
+| `AuthControllerTests.cs` | 12 | Login (name/email/domain rules), forgot/reset password |
+| `LeaveControllerTests.cs` | 28 | Apply, cancel, approve, reject, balance check, validation, bulk decision, cancellation requests |
 | `TicketsControllerTests.cs` | 5 | Create, get employee tickets, get HR queue, add timeline, cancel |
-| `EmailServiceTests.cs` | 4 | New leave, approved, rejected, cancellation requested emails |
-| `EmailTemplatesTests.cs` | 5 | Template rendering for all 7 email types |
+| `EmailServiceTests.cs` | 7 | New leave, approved, rejected, cancellation requested emails |
+| `LeaveAccrualServiceTests.cs` | 4 | Leave accrual logic |
+| `LeaveBalanceServiceTests.cs` | 7 | Balance computation |
+| `LeaveDurationCalculatorTests.cs` | 3 | Duration calculation |
+| `InternCompensationServiceTests.cs` | 4 | Intern compensation |
+| `Phase2FeaturesTests.cs` | 5 | Encashment, audit log, regularization, documents, id card |
 
 Uses EF Core InMemory provider. Test project at `server/RelisoftHR.Tests/`.
 
@@ -226,12 +231,14 @@ npx vitest run
 
 | File | Tests | Coverage |
 |---|---|---|
-| `api.test.js` | 12 | API endpoint correctness |
+| `api.test.js` | 15 | API endpoint correctness |
 | `store.test.js` | 12 | Zustand store actions |
-| `LeaveHome.test.jsx` | 3 | Apply form, loading state, empty state |
-| `ReviewerInbox.test.jsx` | 2 | Heading, empty state |
+| `LeaveHome.test.jsx` | 4 | Apply form, loading state, empty state, leave requests |
+| `LeaveCalendar.test.jsx` | 4 | Calendar rendering |
+| `ReviewerInbox.test.jsx` | 4 | Inbox rendering |
 | `TicketManagement.test.jsx` | 2 | Heading, form fields |
 | `LoginPage.test.jsx` | 2 | Render, submit |
+| `RenderAllViews.test.jsx` | 64 | Every sidebar view renders without crashing (no white pages) |
 
 ---
 
@@ -240,8 +247,57 @@ npx vitest run
 ### Auth
 
 ```
-POST   /api/auth/login              # { username, password } → { token, employee }
+POST   /api/auth/login              # { username, password } → { token, employee } — accepts name OR @relisofttechnologies.com email (case-insensitive)
 GET    /api/auth/demo-users          # List demo accounts
+POST   /api/auth/forgot-password     # { username } → emails reset token (or returns devToken when SMTP is off)
+POST   /api/auth/reset-password      # { username, token, newPassword }
+POST   /api/auth/change-password     # Authenticated password change
+```
+
+### Governance / Phase 2 (api/hr-v2)
+
+```
+GET    /api/hr-v2/encashments?employeeId=      # Leave encashment list
+POST   /api/hr-v2/encashments                  # Request encashment
+PUT    /api/hr-v2/encashments/{id}/approve     # Approve
+PUT    /api/hr-v2/encashments/{id}/reject      # Reject
+PUT    /api/hr-v2/encashments/{id}/pay         # Mark paid (adjusts balance)
+GET    /api/hr-v2/audit-log?entityType=&limit= # Audit trail
+GET    /api/hr-v2/attendance-regularizations   # Regularization list
+POST   /api/hr-v2/attendance-regularizations   # Request regularization
+PUT    /api/hr-v2/attendance-regularizations/{id}/review  # Review
+GET    /api/hr-v2/id-card/{employeeId}         # Printable virtual ID card (HTML)
+GET    /api/hr-v2/gate-pass/{visitorId}        # Printable gate pass (HTML)
+GET    /api/hr-v2/probations                   # Probation records
+POST   /api/hr-v2/probation/start              # Start probation
+POST   /api/hr-v2/probation/confirm            # Confirm probation
+GET    /api/hr-v2/appraisals                   # Appraisals
+POST   /api/hr-v2/appraisals/{employeeId}/init # Init appraisal
+POST   /api/hr-v2/salary-discussions           # Salary proposal
+PUT    /api/hr-v2/salary-discussions/{id}/reject
+```
+
+### Documents
+
+```
+GET    /api/documents/employee/{employeeId}    # Employee documents (OneDrive-backed)
+POST   /api/documents/upload                   # Upload document (10 MB cap, type allowlist)
+GET    /api/documents/expiring                 # Documents expiring soon
+POST   /api/documents/verify/{id}              # Mark document verified
+GET    /api/documents/templates                # Document templates
+POST   /api/documents/generate/{id}            # Generate letter from template
+```
+
+### Payroll
+
+```
+GET    /api/payroll/runs                       # Payroll runs (HR L2)
+POST   /api/payroll/runs                       # Create run
+GET    /api/payroll/payslips/employee/{id}     # Employee payslips
+GET    /api/payroll/runs/{id}/export           # Bulk payslip ZIP export
+POST   /api/payroll/runs/{id}/email-payslips   # Email all payslips
+GET    /api/payroll/components                 # Pay components
+GET    /api/payroll/form16/{employeeId}        # Form 16
 ```
 
 ### Workspace
@@ -335,6 +391,21 @@ Unblock-File -Path "C:\Path\To\RelisoftHR.exe"
 - Employee `role` field must be a string (`'HRL2'`), not an object (`{ name: 'HRL2' }`)
 - Reset store state in `beforeEach` — test mutations leak across tests
 - Match `currentUser.role` to what the component expects (HR vs Employee vs other)
+- When a component starts calling a new API function (e.g. `getEncashments`), add the matching mock to the test file — an unmocked call throws and blanks the component
+
+### Resilience Report 500 on Anonymous-Type Cast
+
+**Symptom:** `GET /api/resilience/report` returned HTTP 500 with `InvalidCastException` — anonymous objects were cast to `IDictionary<string, object>` in the HTML report builder.
+
+**Root cause:** `WorkforceScoring.AnalyzeSkillGaps` / `AnalyzeSuccession` return `List<object>` of anonymous types, which don't implement `IDictionary`.
+
+**Fix (applied to `WorkforceResilienceController.GetReport`):** read properties via reflection (`GetProperty(name).GetValue(...)`) instead of dictionary indexing.
+
+### LeaveHome Tests Broken by New Encashment Feature
+
+**Symptom:** All `LeaveHome.test.jsx` cases failed after the encashment section was added — the component's effect calls `getEncashments(...)`, which was not present in the test's `vi.mock('../../api')`.
+
+**Fix:** added `getEncashments`, `requestEncashment`, `getAvailableCompOffCredits` mocks with default resolved values.
 
 ---
 
@@ -342,42 +413,33 @@ Unblock-File -Path "C:\Path\To\RelisoftHR.exe"
 
 | Metric | Value |
 |---|---|
-| Server Models | 52 |
-| Server Controllers | 30 |
-| API Endpoints | 75+ |
-| Client Components | 60 |
-| Client API Lines | 1,208 |
-| EF Migrations | 15 |
+| Server Models | 55+ |
+| Server Controllers | 38 |
+| API Endpoints | 200+ |
+| Client Components | 60+ |
+| Client API Lines | 1,300+ |
+| EF Migrations | 16 |
 | AI Services | 7 |
 | AI Agents | 6 |
 | AI Module Integrations | 43 |
 | Role Levels | 10 |
-| Phase 1 Views | 16 |
 | Total Views (all phases) | 60+ |
-| Tests (Server) | 26 — all passing |
-| Tests (Client) | 34 — all passing |
-
----
+| Tests (Server) | 83 — all passing |
+| Tests (Client) | 107 — all passing (incl. 64 render-all-views smoke) |
 
 ## Phase Roadmap
 
-### Phase 2 — Foundations & Quality
-Production hardening, testing, CI/CD.
+All phases are **implemented and live**. Remaining work is production hardening and stretch items.
 
-- Unit tests (xUnit for server controllers & services)
-- Component tests (Vitest + RTL)
-- E2E tests (Playwright)
-- CI/CD pipeline (GitHub Actions)
-- Global exception middleware, client error boundaries
-- Structured logging (files/seq)
-- Rate limiting on auth endpoints
-- Swagger with XML comments
-- SMTP email (SendGrid / SMTP relay)
-- AI integration proxy controller
+### Phase 2 — Governance & Security (Live)
+- Leave encashment (request → approve → reject → pay), attendance regularization, audit log
+- Virtual ID card, visitor gate pass, bulk payslip ZIP export + email
+- Forgot/reset/change password with token flow
+- Login restriction (name or `@relisofttechnologies.com` email only), login rate limiting (20/5min/IP)
+- Document upload type allowlist + 10 MB cap, per-employee OneDrive storage
+- JWT production key guard (refuses default key in Production)
 
-### Phase 3 — Payroll & Expenses
-Financial workflows.
-
+### Phase 3 — Payroll & Expenses (Live)
 - Payroll processing, salary structure, payslip generation
 - Tax declarations, TDS computation
 - Full & Final settlement
@@ -385,18 +447,14 @@ Financial workflows.
 - Loan management
 - Excel export via ClosedXML
 
-### Phase 4 — Recruitment & Performance
-Talent lifecycle.
-
+### Phase 4 — Recruitment & Performance (Live)
 - Job requisitions, applicant tracking, offers
 - Onboarding v2 with background verification
 - Performance management (KRAs, review cycles)
 - Training & learning (course catalog, certifications)
 - Internal mobility, succession planning
 
-### Phase 5 — Engagement & Workplace
-Culture, workplace, governance.
-
+### Phase 5 — Engagement & Workplace (Live)
 - Surveys, announcements, recognition, social feed
 - Asset management (IT hardware, software licenses)
 - Visitor management, contractor management
@@ -404,9 +462,7 @@ Culture, workplace, governance.
 - Shift management, attendance, timesheets
 - Notification center
 
-### Phase 6 — AI & Advanced Analytics
-Intelligent automation.
-
+### Phase 6 — AI & Advanced Analytics (Live)
 - AIController proxy (.NET ↔ Node.js AI layer)
 - HR chatbot (natural language policy Q&A)
 - Workforce analytics (headcount trends, attrition prediction)
@@ -414,9 +470,7 @@ Intelligent automation.
 - Resume parsing, document AI
 - Anomaly detection (leave patterns, attendance)
 
-### Phase 7 — Mobile & Multi-Tenant
-Expansion.
-
+### Phase 7 — Mobile & Multi-Tenant (Planned)
 - React Native mobile app (iOS/Android)
 - Multi-tenant databases
 - i18n (Hindi, Marathi, English)

@@ -238,68 +238,90 @@ public class PayrollController : ControllerBase
             .Where(s => eligibleEmployeeIds.Contains(s.EmployeeId))
             .ToListAsync();
 
-        var componentIds = structures.SelectMany(s => s.Lines.Select(l => l.PayComponentId)).Distinct().ToList();
-        var components = await _db.PayComponents.AsNoTracking()
-            .Where(c => componentIds.Contains(c.Id))
-            .ToDictionaryAsync(c => c.Id);
+        var components = await _db.PayComponents.AsNoTracking().ToListAsync();
+        var compById = components.ToDictionary(c => c.Id);
+        var compByName = components.ToDictionary(c => c.Name, StringComparer.OrdinalIgnoreCase);
 
-        var employeeLines = structures
-            .Select(s => new
+        var employeeLines = new Dictionary<int, List<PayslipLine>>();
+        foreach (var s in structures)
+        {
+            var lines = new List<PayslipLine>();
+            foreach (var l in s.Lines)
             {
-                EmployeeId = s.EmployeeId,
-                Lines = s.Lines
-                    .Where(l => components.ContainsKey(l.PayComponentId))
-                    .Select(l => new
-                    {
-                        l.PayComponentId,
-                        components[l.PayComponentId].Name,
-                        components[l.PayComponentId].Type,
-                        l.MonthlyAmount
-                    })
-                    .ToList()
-            })
-            .Where(e => e.Lines.Count > 0)
-            .ToList();
+                if (!compById.TryGetValue(l.PayComponentId, out var comp)) continue;
+                lines.Add(new PayslipLine { PayComponentId = comp.Id, ComponentName = comp.Name, Type = comp.Type, Amount = l.MonthlyAmount });
+            }
+            if (lines.Count > 0) employeeLines[s.EmployeeId] = lines;
+        }
+
+        // Fallback: employees without a payroll structure use the legacy SalaryStructure
+        // (the one used by offer letters / salary approval / encashment) so no one is silently missed.
+        var legacyIds = eligibleEmployeeIds.Where(id => !employeeLines.ContainsKey(id)).ToList();
+        if (legacyIds.Count > 0)
+        {
+            var legacy = await _db.SalaryStructures.AsNoTracking()
+                .Where(s => legacyIds.Contains(s.EmployeeId))
+                .ToListAsync();
+            foreach (var s in legacy)
+            {
+                var lines = new List<PayslipLine>();
+                AddLegacyLine(lines, compByName, "Basic", PayComponentType.Earning, s.FixedPay / 12m);
+                AddLegacyLine(lines, compByName, "Variable Pay", PayComponentType.Earning, s.VariablePay / 12m);
+                AddLegacyLine(lines, compByName, "PF", PayComponentType.Deduction, s.PF / 12m);
+                AddLegacyLine(lines, compByName, "Gratuity", PayComponentType.Deduction, s.Gratuity / 12m);
+                AddLegacyLine(lines, compByName, "Insurance", PayComponentType.Deduction, s.Insurance / 12m);
+                AddLegacyLine(lines, compByName, "Other Deductions", PayComponentType.Deduction, s.OtherDeductions / 12m);
+                if (lines.Count > 0) employeeLines[s.EmployeeId] = lines;
+            }
+        }
 
         _db.Payslips.RemoveRange(run.Payslips);
         await _db.SaveChangesAsync();
 
-        foreach (var employee in employeeLines)
+        foreach (var (employeeId, lines) in employeeLines)
         {
             var payslip = new Payslip
             {
                 PayRunId = run.Id,
-                EmployeeId = employee.EmployeeId,
-                Lines = employee.Lines.Select(l => new PayslipLine
-                {
-                    PayComponentId = l.PayComponentId,
-                    ComponentName = l.Name,
-                    Type = l.Type,
-                    Amount = l.MonthlyAmount
-                }).ToList()
+                EmployeeId = employeeId,
+                Lines = lines
             };
 
             // Auto-computed deductions (e.g. PF at a % of Basic Salary) are calculated
             // on generation so statutory amounts stay consistent with the basic pay.
-            var basic = payslip.Lines
+            var basic = lines
                 .FirstOrDefault(l => l.Type == PayComponentType.Earning &&
                     l.ComponentName.Contains("Basic", StringComparison.OrdinalIgnoreCase));
-            foreach (var line in payslip.Lines.Where(l => l.Type == PayComponentType.Deduction).ToList())
+            foreach (var line in lines.Where(l => l.Type == PayComponentType.Deduction).ToList())
             {
-                if (!components.TryGetValue(line.PayComponentId, out var component) || !component.IsAuto || component.Rate <= 0)
+                if (line.PayComponentId == 0) continue;
+                if (!compById.TryGetValue(line.PayComponentId, out var component) || !component.IsAuto || component.Rate <= 0)
                     continue;
-                var basis = basic?.Amount ?? payslip.Lines.Where(l => l.Type == PayComponentType.Earning).Sum(l => l.Amount);
+                var basis = basic?.Amount ?? lines.Where(l => l.Type == PayComponentType.Earning).Sum(l => l.Amount);
                 line.Amount = Math.Round(basis * component.Rate / 100m, 2);
             }
 
-            payslip.GrossEarnings = payslip.Lines.Where(l => l.Type == PayComponentType.Earning).Sum(l => l.Amount);
-            payslip.TotalDeductions = payslip.Lines.Where(l => l.Type == PayComponentType.Deduction).Sum(l => l.Amount);
+            payslip.GrossEarnings = lines.Where(l => l.Type == PayComponentType.Earning).Sum(l => l.Amount);
+            payslip.TotalDeductions = lines.Where(l => l.Type == PayComponentType.Deduction).Sum(l => l.Amount);
             payslip.NetPay = payslip.GrossEarnings - payslip.TotalDeductions;
             _db.Payslips.Add(payslip);
         }
 
         await _db.SaveChangesAsync();
         return NoContent();
+    }
+
+    private static void AddLegacyLine(List<PayslipLine> lines, Dictionary<string, PayComponent> compByName, string name, PayComponentType type, decimal monthly)
+    {
+        if (monthly <= 0) return;
+        var comp = compByName.TryGetValue(name, out var c) ? c : null;
+        lines.Add(new PayslipLine
+        {
+            PayComponentId = comp?.Id ?? 0,
+            ComponentName = comp?.Name ?? name,
+            Type = comp?.Type ?? type,
+            Amount = Math.Round(monthly, 2)
+        });
     }
 
     [HttpPost("runs/{id}/process")]
@@ -340,6 +362,7 @@ public class PayrollController : ControllerBase
         var component = await _db.PayComponents.AsNoTracking().FirstOrDefaultAsync(c => c.Id == req.PayComponentId);
         if (component == null) return NotFound(new { message = "Pay component not found." });
         if (req.Amount == 0) return BadRequest(new { message = "Amount cannot be zero." });
+        if (req.Amount < 0) return BadRequest(new { message = "Amount cannot be negative." });
 
         payslip.Lines.Add(new PayslipLine
         {
@@ -359,11 +382,16 @@ public class PayrollController : ControllerBase
     [HttpGet("payslips/employee/{employeeId}")]
     public async Task<ActionResult<List<PayslipDto>>> GetPayslipsForEmployee(int employeeId)
     {
+        var currentEmployeeId = GetAuthenticatedEmployeeId();
+        if (currentEmployeeId == null) return Unauthorized();
+        var isAdmin = await IsPayrollAdminAsync();
+        if (!isAdmin && currentEmployeeId.Value != employeeId) return Forbid();
+
         var runs = await _db.PayRuns
             .Include(r => r.Payslips)
             .ThenInclude(p => p.Lines)
             .AsNoTracking()
-            .Where(r => r.Payslips.Any(p => p.EmployeeId == employeeId))
+            .Where(r => r.Status == PayRunStatus.Processed && r.Payslips.Any(p => p.EmployeeId == employeeId))
             .OrderByDescending(r => r.PeriodYear)
             .ThenByDescending(r => r.PeriodMonth)
             .ToListAsync();

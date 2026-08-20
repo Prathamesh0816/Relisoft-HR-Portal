@@ -319,14 +319,26 @@ public class WorkforceResilienceController : ControllerBase
 
         var gapRows = string.Concat(gaps.Select(g =>
         {
-            var dict = (IDictionary<string, object>)g;
-            return $"<tr><td>{dict["Team"]}</td><td>{dict["KnowledgeArea"]}</td><td>{dict["AvgProficiency"]}</td><td>{dict["DocumentationLevel"]}</td><td>{dict["RiskLevel"]}</td><td>{dict["Suggestion"]}</td></tr>";
+            var t = g.GetType();
+            var team = t.GetProperty("Team")?.GetValue(g)?.ToString() ?? "";
+            var area = t.GetProperty("KnowledgeArea")?.GetValue(g)?.ToString() ?? "";
+            var avg = t.GetProperty("AvgProficiency")?.GetValue(g)?.ToString() ?? "";
+            var docLevel = t.GetProperty("DocumentationLevel")?.GetValue(g)?.ToString() ?? "";
+            var risk = t.GetProperty("RiskLevel")?.GetValue(g)?.ToString() ?? "";
+            var suggestion = t.GetProperty("Suggestion")?.GetValue(g)?.ToString() ?? "";
+            return $"<tr><td>{team}</td><td>{area}</td><td>{avg}</td><td>{docLevel}</td><td>{risk}</td><td>{suggestion}</td></tr>";
         }));
 
         var succRows = string.Concat(succession.Select(s =>
         {
-            var dict = (IDictionary<string, object>)s;
-            return $"<tr><td>{dict["FullName"]}</td><td>{dict["Team"]}</td><td>{dict["Role"]}</td><td>{dict["ReadinessLevel"]}</td><td>{dict["ReadinessScore"]}</td><td>{dict["HasBackup"]}</td></tr>";
+            var t = s.GetType();
+            var name = t.GetProperty("FullName")?.GetValue(s)?.ToString() ?? "";
+            var team = t.GetProperty("Team")?.GetValue(s)?.ToString() ?? "";
+            var role = t.GetProperty("Role")?.GetValue(s)?.ToString() ?? "";
+            var level = t.GetProperty("ReadinessLevel")?.GetValue(s)?.ToString() ?? "";
+            var score = t.GetProperty("ReadinessScore")?.GetValue(s)?.ToString() ?? "";
+            var backup = t.GetProperty("HasBackup")?.GetValue(s)?.ToString() ?? "";
+            return $"<tr><td>{name}</td><td>{team}</td><td>{role}</td><td>{level}</td><td>{score}</td><td>{backup}</td></tr>";
         }));
 
         var concentJson = JsonSerializer.Serialize(concentration, new JsonSerializerOptions { WriteIndented = true });

@@ -11,6 +11,7 @@ export default function GovernancePanel() {
   const [form, setForm] = useState({ employeeName: '', action: '', decision: 'accept', reason: '' })
   const feedbacks = resilience.feedbacks || []
   const [loading, setLoading] = useState(false)
+  const [p2Tab, setP2Tab] = useState('audit')
   const [audit, setAudit] = useState([])
   const [encashments, setEncashments] = useState([])
   const [regularizations, setRegularizations] = useState([])
@@ -119,7 +120,6 @@ export default function GovernancePanel() {
     { key: 'idcard', label: 'Virtual ID Card', icon: BadgeCheck },
     { key: 'gatepass', label: 'Gate Pass', icon: DoorOpen },
   ]
-  const [p2Tab, setP2Tab] = useState('audit')
 
   const filteredAudit = audit.filter((a) => {
     if (!filter) return true
