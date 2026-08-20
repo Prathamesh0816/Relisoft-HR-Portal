@@ -443,6 +443,37 @@ GET   /api/payroll/statutory/{runId}/export       # payroll admin — Excel (Clo
 Frontend view `payrollStatutory` (`client/src/components/PayrollStatutory.jsx`)
 is exposed to HRL2/HR/Manager/ManagerL2/OrganizationHead via `managerViews`.
 
+### OneDrive for Business (Microsoft Graph)
+
+`server/Services/OneDriveStorageService.cs` stores employee documents (uploaded via
+`DocumentController`) under each employee's OneDrive in the folder
+`ReliSoft HR/Documents/`, and returns the file's web URL. It uses the
+client-credentials OAuth flow with an app-only token (cached and refreshed 5 min
+before expiry) so no user login is required.
+
+**Storage resolution (first match wins):**
+1. `OneDrive:BasePath` + `TenantId` + `ClientId` + `ClientSecret` set → **real OneDrive**
+   (Microsoft Graph `PUT /users/{email}/drive/root:/...:/content`).
+2. `OneDrive:BasePath` set but no credentials → local folder under `BasePath`.
+3. Nothing configured → **local fallback** `server/App_Data/OneDrive/<email>/`
+   (dev default; gitignored).
+
+**To enable real OneDrive (go-live):**
+1. In Azure AD, register an app, enable the **Application** permission
+   `Files.ReadWrite.All` on Microsoft Graph, and grant admin consent.
+2. Put the tenant ID, client ID and a client secret in `appsettings.json`:
+   ```json
+   "OneDrive": {
+     "BasePath": "C:\\ReliSoft\\OneDrive",
+     "FolderPath": "ReliSoft HR/Documents",
+     "TenantId": "<tenant>",
+     "ClientId": "<app-id>",
+     "ClientSecret": "<secret>"
+   }
+   ```
+3. Employees must exist in the same tenant so Graph can resolve
+   `users/{email}/drive`. `BasePath` doubles as the local fallback directory.
+
 ---
 
 ## Bug Fixes History

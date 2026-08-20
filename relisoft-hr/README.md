@@ -104,6 +104,7 @@ Extended HR features that build on the Phase 1 foundation.
 | **Audit Trail** | Every approval/change logged to a searchable audit log |
 | **Virtual ID Card** | On-demand printable employee ID card |
 | **Visitor Gate Pass** | Printable gate pass for registered visitors |
+| **OneDrive Document Storage** | Employee documents stored in OneDrive for Business via Microsoft Graph (local fallback in dev) |
 | **Payslip Export** | Bulk payslip ZIP download and bulk email of payslips per payroll run |
 | **Payroll Workflow** | Draft → Ready → Verified → Paid pipeline, unpaid-employee report per run |
 | **Auto Salary Disbursement** | Background job pays the monthly run automatically on the last working day of each month (skips weekends/holidays, 5-day catch-up) |
