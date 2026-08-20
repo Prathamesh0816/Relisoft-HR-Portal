@@ -6,6 +6,7 @@ const useStore = create((set, get) => ({
   currentUser: null,
   activeView: 'login',
   message: null,
+  apiError: null,
   data: {
     employees: [],
     projects: [],
@@ -71,8 +72,9 @@ const useStore = create((set, get) => ({
 
   setLoading: (loading) => set({ loading }),
   setCurrentUser: (user) => set({ currentUser: user }),
-  setActiveView: (view) => set({ activeView: view, message: null }),
+  setActiveView: (view) => set({ activeView: view, message: null, apiError: null }),
   setMessage: (message) => set({ message }),
+  setApiError: (apiError) => set({ apiError }),
   setData: (data) => set({ data }),
   updateAuthForm: (field, value) => set((s) => ({ authForm: { ...s.authForm, [field]: value } })),
   updateForm: (form, field, value) => set((s) => ({ [form]: { ...s[form], [field]: value } })),
@@ -150,7 +152,7 @@ const useStore = create((set, get) => ({
   setContractors: (data) => set((s) => ({ contractors: { ...s.contractors, ...data } })),
   setResilience: (data) => set((s) => ({ resilience: { ...s.resilience, ...data } })),
   logout: () => set({
-    currentUser: null, activeView: 'login', message: null,
+    currentUser: null, activeView: 'login', message: null, apiError: null,
   reviewer: { reviewerId: '', reviewerName: '', requests: [], cancellationRequests: [], recentDecisions: [], loading: false },
     myLeaves: { employeeId: '', requests: [], loading: false },
     employeeTickets: { employeeId: '', tickets: [], loading: false },

@@ -158,6 +158,7 @@ using (var scope = app.Services.CreateScope())
     await DemoDataSeeder.SeedAsync(db);
     await PayrollDefaultsSeeder.SeedAsync(db);
     await AppraisalCycleSeeder.SeedAsync(db);
+    await DemoSeedService.SeedAsync(db);
 }
 
 app.Run();

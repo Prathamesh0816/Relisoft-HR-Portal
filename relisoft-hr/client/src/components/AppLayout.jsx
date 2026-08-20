@@ -1,6 +1,7 @@
 import LeaveReports from './LeaveReports'
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import useStore from '../store'
+import HttpErrorPage from './HttpErrorPage'
 import Sidebar from './Sidebar'
 import LeaveHome from './LeaveHome'
 import EmployeeOnboarding from './EmployeeOnboarding'
@@ -20,6 +21,7 @@ import CarryForwardAdmin from './CarryForwardAdmin'
 import Settings from './Settings'
 import ProjectBuilder from './ProjectBuilder'
 import PayrollManagement from './PayrollManagement'
+import PayrollStatutory from './PayrollStatutory'
 import ReviewsPage from './ReviewsPage'
 import Recognition from './Recognition'
 import RewardsStore from './RewardsStore'
@@ -87,6 +89,7 @@ const meta = {
   offboard: { label: 'HR', title: 'Offboarding dashboard', subtitle: 'Manage employee offboarding including asset handover and ID deactivation.' },
   carryForward: { label: 'HR', title: 'Year-end leave carry-forward', subtitle: 'Preview, process, and audit leave balance carry-forward across financial years.' },
   payroll: { label: 'Payroll', title: 'Payroll', subtitle: 'Salary structures, monthly pay runs, and payslips.' },
+  payrollStatutory: { label: 'Payroll', title: 'Statutory register', subtitle: 'PF, ESI and Professional Tax computed from processed pay runs.' },
   reviews: { label: 'Reviews', title: 'Performance reviews', subtitle: 'Yearly and 6-month scorecards, filled in by the reviewer.' },
   recognition: { label: 'Recognition', title: 'Recognition & awards', subtitle: 'Kudos, monthly/quarterly/annual awards, and Fun Friday celebrations.' },
   rewards: { label: 'Rewards', title: 'Rewards store', subtitle: 'Spend recognition points on rewards from the catalog.' },
@@ -136,9 +139,15 @@ const meta = {
 }
 
 export default function AppLayout({ onLogout }) {
-  const { activeView, currentUser } = useStore()
+  const { activeView, currentUser, apiError, setApiError } = useStore()
   const [sidebarOpen, setSidebarOpen] = useState(false)
   const m = meta[activeView] || meta.apply
+
+  useEffect(() => {
+    const handler = (e) => setApiError(e.detail)
+    window.addEventListener('relisoft:api-error', handler)
+    return () => window.removeEventListener('relisoft:api-error', handler)
+  }, [setApiError])
 
   const goHome = () => useStore.getState().setActiveView(
     ['HRL2', 'HR'].includes(useStore.getState().currentUser?.role) ? 'hrHome'
@@ -186,13 +195,21 @@ export default function AppLayout({ onLogout }) {
           </div>
         </div>
         <main className="flex-1 min-w-0 p-4 md:p-6 space-y-4">
-          {activeView !== 'hrHome' && (
+          {apiError && (
+            <HttpErrorPage
+              status={apiError.status}
+              message={apiError.message}
+              onBack={() => setApiError(null)}
+            />
+          )}
+          {!apiError && activeView !== 'hrHome' && (
             <div className="card-surface p-4 md:p-5">
               <span className="section-kicker">{m.label}</span>
               <h2 className="section-title text-xl md:text-2xl mt-1">{m.title}</h2>
               <p className="text-muted dark:text-white/60 text-xs md:text-sm mt-0.5">{m.subtitle}</p>
             </div>
           )}
+          {!apiError && (
           <ErrorBoundary resetKey={activeView}>
           {activeView === 'hrHome' && <HrHome />}
           {activeView === 'hrControl' && <HrControlPanel />}
@@ -212,6 +229,7 @@ export default function AppLayout({ onLogout }) {
           {activeView === 'offboard' && <OffboardingDashboard />}
           {activeView === 'carryForward' && <CarryForwardAdmin />}
           {activeView === 'payroll' && <PayrollManagement />}
+          {activeView === 'payrollStatutory' && <PayrollStatutory />}
           {activeView === 'reviews' && <ReviewsPage />}
           {activeView === 'recognition' && <Recognition />}
           {activeView === 'rewards' && <RewardsStore />}
@@ -259,6 +277,7 @@ export default function AppLayout({ onLogout }) {
           {activeView === 'resilienceChat' && <ResilienceAIChat />}
           {activeView === 'settings' && <Settings />}
           </ErrorBoundary>
+          )}
         </main>
       </div>
     </div>

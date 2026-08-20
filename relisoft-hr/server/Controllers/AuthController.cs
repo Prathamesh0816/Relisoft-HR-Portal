@@ -219,7 +219,7 @@ public class AuthController : ControllerBase
         {
             "assets", "shifts", "visitors", "contractors", "internalMobility", "compliance", "governance",
             "dataUpload", "workforce", "resilience", "readiness", "spof", "succession",
-            "skillGaps", "knowledgeConc", "whatIf", "resilienceReport", "resilienceChat"
+            "skillGaps", "knowledgeConc", "whatIf", "resilienceReport", "resilienceChat", "payrollStatutory"
         };
 
         var views = role switch

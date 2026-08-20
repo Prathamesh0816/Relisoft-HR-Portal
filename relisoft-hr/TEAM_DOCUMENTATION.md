@@ -721,4 +721,44 @@ npm run dev          # starts .NET (:5049) + Vite (:5173)
 
 ---
 
+## 16. Demo Seeding & Error Pages
+
+### Demo seed (why there are no blank screens / empty 404s)
+
+`DemoSeedService.cs` runs at backend startup (and on demand via
+`POST /api/admin/seed-demo`, HRL2/HR only) and fills every module with realistic
+sample records so every screen has data. It is idempotent — safe to run again.
+It covers: onboarding (checklist + steps + profile + offer-letter document),
+probation, salary structures, a processed pay run with payslips, surveys with
+responses, completed performance reviews, recognition awards + kudos, assets +
+assignments, shifts, announcements, knowledge base, holidays, attendance,
+timesheets, salary discussions, encashments, regularizations, an in-progress
+offboarding, visitors, and a downloadable medical-certificate file.
+
+Helpers (from the repo root):
+
+```powershell
+.\scripts\seed-demo.ps1        # seed + verify the 10 key detail endpoints return 200
+.\scripts\sweep-endpoints.ps1  # sweep all 147 GET endpoints; zero 404/500 after seeding
+```
+
+### Error pages (every negative status code has a design)
+
+The frontend intercepts failing/negative HTTP statuses and shows a dedicated
+designed page instead of a white screen:
+
+- `client/src/components/HttpErrorPage.jsx` — pages for `400, 401, 403, 404,
+  405, 409, 422, 429, 500, 502, 503, 504` plus generic and offline variants,
+  each with contextual buttons (dashboard / login / back / retry / wait).
+- `client/src/api.js` — axios response interceptor dispatches a
+  `relisoft:api-error` event for page-worthy statuses; 400s remain inline
+  business validation; auth endpoints are excluded.
+- `client/src/store.js` — holds `apiError`, cleared on navigation/logout.
+- `client/src/components/AppLayout.jsx` — renders the error page in place of
+  the active view while `apiError` is set.
+
+`ErrorBoundary.jsx` remains the fallback for uncaught render exceptions.
+
+---
+
 © 2026 ReliSoft Technologies Private Limited. All rights reserved.

@@ -14,9 +14,28 @@ api.interceptors.request.use((config) => {
 api.interceptors.response.use(
   (res) => res,
   (err) => {
-    if (err.response?.status === 401) {
+    const status = err.response?.status || 0
+    const url = err.config?.url || ''
+    const isAuth = url.includes('/api/auth/')
+
+    // 401 on an auth endpoint (bad credentials) is handled by the login form.
+    if (status === 401 && isAuth) return Promise.reject(err)
+
+    // Network failures (no response) and page-worthy HTTP errors are routed to
+    // the designed error pages. 400s are expected business validation and are
+    // handled by each view's own error message instead.
+    const pageWorthy = [401, 403, 404, 405, 409, 422, 429, 500, 502, 503, 504].includes(status)
+    if (pageWorthy || (status === 0 && url)) {
+      window.dispatchEvent(new CustomEvent('relisoft:api-error', {
+        detail: {
+          status: status === 0 ? 'offline' : status,
+          message: err.response?.data?.message || (status === 0 ? 'Cannot reach the server.' : err.message),
+        },
+      }))
+    }
+
+    if (status === 401 && !isAuth) {
       localStorage.removeItem('relisoft-hr-user')
-      window.location.reload()
     }
     return Promise.reject(err)
   }
@@ -1594,6 +1613,22 @@ export async function downloadPayslipZip(runId) {
   a.click()
   window.URL.revokeObjectURL(url)
   return { message: 'Payslip archive downloaded.' }
+}
+
+export async function getStatutoryReport(runId) {
+  const { data } = await api.get(`/api/payroll/statutory/${runId}`)
+  return data
+}
+
+export async function exportStatutoryReport(runId) {
+  const res = await api.get(`/api/payroll/statutory/${runId}/export`, { responseType: 'blob' })
+  const url = window.URL.createObjectURL(new Blob([res.data]))
+  const a = document.createElement('a')
+  a.href = url
+  a.download = `Statutory_Register_run_${runId}.xlsx`
+  a.click()
+  window.URL.revokeObjectURL(url)
+  return { message: 'Statutory register downloaded.' }
 }
 
 export async function emailPayslips(runId) {

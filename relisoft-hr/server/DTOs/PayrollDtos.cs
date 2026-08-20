@@ -25,3 +25,18 @@ public record PayRunDetailDto(
     int Id, int PeriodMonth, int PeriodYear, string Status,
     DateTime? ProcessedOn, int PayslipCount, decimal TotalNetPay,
     List<PayslipDto> Payslips);
+
+public record StatutoryLineDto(
+    int EmployeeId, string EmployeeName, string EmployeeCode,
+    decimal Basic, decimal Gross,
+    decimal EmployeePf, decimal EmployerPf, decimal EmployerEps, decimal EmployerEdli,
+    decimal EmployeeEsi, decimal EmployerEsi, decimal ProfessionalTax, decimal Tds, decimal NetPay);
+
+public record StatutoryTotalsDto(
+    decimal Basic, decimal Gross,
+    decimal EmployeePf, decimal EmployerPf, decimal EmployerEps, decimal EmployerEdli,
+    decimal EmployeeEsi, decimal EmployerEsi, decimal ProfessionalTax, decimal Tds);
+
+public record StatutoryReportDto(
+    int RunId, int PeriodMonth, int PeriodYear,
+    List<StatutoryLineDto> Employees, StatutoryTotalsDto Totals);

@@ -11,6 +11,8 @@ Full-stack enterprise HRMS for ReliSoft Technologies Private Limited. .NET 10 + 
 - [Setup](#setup)
 - [Production Deployment](#production-deployment)
 - [Test Suite](#test-suite)
+- [Error Pages (Negative Status Codes)](#error-pages-negative-status-codes)
+- [Demo Seeding & No-404 Guarantee](#demo-seeding--no-404-guarantee)
 - [API Endpoints](#api-endpoints)
 - [Bug Fixes History](#bug-fixes-history)
 - [Project Stats](#project-stats)
@@ -242,6 +244,71 @@ npx vitest run
 
 ---
 
+## Error Pages (Negative Status Codes)
+
+Every non-2xx HTTP response that would otherwise blank a screen is routed to a
+dedicated, designed error page instead of a white screen.
+
+### Client wiring
+
+| Piece | Location | Responsibility |
+|---|---|---|
+| `HttpErrorPage.jsx` | `client/src/components/` | Designed pages for `400, 401, 403, 404, 405, 409, 422, 429, 500, 502, 503, 504`, plus generic and offline variants. Each page has a distinct icon/tone and contextual actions: **Go to dashboard**, **Log in again** (401), **Go back** (403/404/405), **Try again** (retryable), **I waited, retry now** (429/503). |
+| Axios response interceptor | `client/src/api.js` | Dispatches a `relisoft:api-error` CustomEvent for page-worthy statuses (`401,403,404,405,409,422,429,500,502,503,504`) and network failures (`status 0`). 400s are treated as ordinary business validation (each view shows its own inline error). Auth endpoints are excluded so a failed login shows the form's inline error. On non-auth 401 the stored session is cleared. |
+| Zustand store | `client/src/store.js` | Adds `apiError` + `setApiError`; cleared automatically on `setActiveView` and `logout`. |
+| `AppLayout.jsx` | `client/src/components/` | Listens for `relisoft:api-error`, renders `<HttpErrorPage>` in place of the active view while `apiError` is set, and clears it on navigation. |
+
+The existing `ErrorBoundary` remains the last line of defence for uncaught
+render exceptions.
+
+---
+
+## Demo Seeding & No-404 Guarantee
+
+The application ships with a deterministic, idempotent demo dataset so every
+screen and every route has data — the API sweep reports **zero 404s**.
+
+### Seeder
+
+`server/Services/DemoSeedService.cs` runs automatically at startup (called from
+`Program.cs` after the base seeders) and is exposed on demand via:
+
+```
+POST /api/admin/seed-demo        # HRL2 / HR / Admin / SuperAdmin only
+```
+
+Each section is guarded (only seeds when the demo record is missing), so it is
+safe to run repeatedly. It seeds: completed onboarding + checklist steps +
+profile + offer-letter document (id 1), probation records, salary structures,
+a processed pay run **with id 1** (payslips + lines), a survey with questions +
+responses, completed performance reviews (id 1) with criterion scores,
+recognition award (id 1) + recipients + kudos, assets + assignments, shift
+templates + assignments, announcements, knowledge-base articles, holidays,
+attendance for the last two weeks, approved timesheets, salary discussions,
+leave encashments, attendance regularizations, an in-progress offboarding,
+visitors, and a real medical-certificate file so
+`GET /api/leave/{id}/download-medical` serves a downloadable file.
+
+### Scripts
+
+| Script | Purpose |
+|---|---|
+| `scripts/seed-demo.ps1` | Logs in as `preeti`, calls `POST /api/admin/seed-demo`, prints the per-section counts, then verifies the 10 detail endpoints that previously 404'd all return 200. Exits 1 on failure. |
+| `scripts/sweep-endpoints.ps1` | Logs in as `preeti`, pulls the Swagger spec, and calls every GET endpoint (147 total), reporting any non-2xx. Used to prove no route-level 404/500. |
+
+```powershell
+# from the repo root
+.\scripts\seed-demo.ps1
+.\scripts\sweep-endpoints.ps1
+```
+
+Record IDs used by the demo are pinned (`runs/1`, `surveys/1`, `reviews/1`,
+`awards/1`, `documents/1`, employee-scoped routes keyed to employee 1) via
+`SET IDENTITY_INSERT`, so the demo is stable even on a database that already
+contains data at higher IDs.
+
+---
+
 ## API Endpoints
 
 ### Auth
@@ -342,6 +409,28 @@ GET    /api/onboarding/profile/{id}         # Get onboarding profile
 POST   /api/onboarding/profile              # Save/update profile
 POST   /api/onboarding/upload-document/{id}  # Upload document
 ```
+
+### Admin / Demo Seed
+
+```
+POST   /api/admin/seed-demo                 # HRL2/HR — idempotent demo dataset (see "Demo Seeding")
+```
+
+### Statutory Payroll (PF / ESI / PT)
+
+Computed from a processed pay run. Rules (India / Maharashtra) live in
+`server/Services/StatutoryCalculator.cs` (pure, unit-tested): PF 12% on basic
+capped at ₹15,000 wage ceiling, EPS 8.33% capped ₹1,250, EDLI 0.5%; ESI
+0.75% / 3.25% of gross when gross ≤ ₹21,000; PT slab ₹0/175/200/300; TDS read
+from the payslip's "TDS" deduction line.
+
+```
+GET   /api/payroll/statutory/{runId}              # payroll admin — statutory register
+GET   /api/payroll/statutory/{runId}/export       # payroll admin — Excel (ClosedXML)
+```
+
+Frontend view `payrollStatutory` (`client/src/components/PayrollStatutory.jsx`)
+is exposed to HRL2/HR/Manager/ManagerL2/OrganizationHead via `managerViews`.
 
 ---
 
@@ -505,7 +594,7 @@ All phases are **implemented and live**. Remaining work is production hardening 
 | **TLM** | **Test Lifecycle Management** | End-to-end testing process — test planning, case design, execution, defect tracking, and closure for enterprise modules |
 | **LQM** | **Local Quality Management** | Quality standards and governance at the team/project level — process audits, quality metrics, compliance checks, and continuous improvement |
 
-Demo data seeded: 2 projects, 4 teams, 7 leave balances, 3 leave applications, 3 support tickets with timeline events.
+Demo data seeded: 2 projects, 4 teams, 7 leave balances, 3 leave applications, 3 support tickets with timeline events, plus the full DemoSeedService dataset (see [Demo Seeding & No-404 Guarantee](#demo-seeding--no-404-guarantee)).
 
 ---
 

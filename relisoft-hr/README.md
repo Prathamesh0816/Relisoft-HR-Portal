@@ -178,12 +178,21 @@ AI-powered workforce intelligence (TruPulse AI).
 | Problem | Fix |
 |---|---|
 | **Can't log in** | Server must be running (localhost:5049). Use a username or a `@relisofttechnologies.com` email with password `password`. |
-| **Blank page** | Both terminals must be running. Refresh (F5). Check F12 Console for errors. |
+| **Blank page** | Both terminals must be running. Refresh (F5). Check F12 Console for errors. Any non-2xx API response now shows a designed error page (401/403/404/429/500/…), never a blank screen. |
 | **"Failed to fetch"** | Server stopped. `Ctrl+C` in server window, then `dotnet run` again. |
 | **SQL errors** | Database is created automatically. If migration fails, run `dotnet ef database update` in the server folder. |
+| **Record not found (404)** | The demo dataset is seeded automatically at startup. To reseed/verify on demand, run `..\scripts\seed-demo.ps1` from `relisoft-hr`. |
 | **Windows blocks server** | Run `Unblock-File` on the `.dll` and `.exe` files, then restart. |
 | **Port in use** | Close the other program or change ports in config files. |
 | **"Too many login attempts"** | Login is rate-limited (20 attempts / 5 min per IP). Wait a few minutes. |
+
+---
+
+## Demo Data & Error Pages
+
+- **Auto-seeded demo data** — every module has realistic sample records (onboarding, probation, payroll runs/payslips, surveys, reviews, awards, assets, shifts, attendance, timesheets, holidays, visitors, and more). Seed automatically at startup; re-run any time via `POST /api/admin/seed-demo` (HRL2/HR) or the `..\scripts\seed-demo.ps1` helper.
+- **No-404 guarantee** — the API is swept after seeding and returns **zero 404s** across all 147 GET endpoints (`..\scripts\sweep-endpoints.ps1`).
+- **Error pages** — every failing/negative HTTP status (`400, 401, 403, 404, 405, 409, 422, 429, 500, 502, 503, 504` and offline) renders a purpose-designed page with contextual actions (retry, back, login, dashboard) instead of a blank screen.
 
 ---
 
