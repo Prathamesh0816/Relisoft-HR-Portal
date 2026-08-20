@@ -291,6 +291,11 @@ export async function oneClickOnboard(employeeId) {
   return data
 }
 
+export async function assignAssetsToCandidate(employeeId, assetIds) {
+  const { data } = await api.post(`/api/onboarding-v2/candidate/${employeeId}/assign-assets`, { assetIds })
+  return data
+}
+
 export async function bulkOnboard(candidates) {
   const { data } = await api.post('/api/onboarding-v2/bulk-onboard', candidates)
   return data

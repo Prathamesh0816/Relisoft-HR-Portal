@@ -50,6 +50,7 @@ const sections = [
     label: 'Employee',
     items: [
       { view: 'profile', label: 'My Profile', icon: UserCircle },
+      { view: 'myAssets', label: 'My Assets', icon: Package },
       { view: 'employeeDashboard', label: 'Dashboard', icon: LayoutDashboard },
       { view: 'apply', label: 'Apply Leave', icon: CalendarCheck },
       { view: 'onboarding', label: 'My Onboarding', icon: UserPlus },
@@ -76,6 +77,7 @@ const sections = [
     roles: ['HRL2', 'HR', 'Admin', 'SuperAdmin', 'Manager', 'ManagerL2', 'OrganizationHead'],
     items: [
       { view: 'assets', label: 'Assets', icon: Package },
+      { view: 'shifts', label: 'Shifts', icon: Clock },
       { view: 'visitors', label: 'Visitors', icon: DoorOpen },
       { view: 'contractors', label: 'Contractors', icon: HardHat },
       { view: 'internalMobility', label: 'Internal Mobility', icon: Repeat },

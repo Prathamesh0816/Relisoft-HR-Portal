@@ -44,6 +44,8 @@ import KnowledgeBase from './KnowledgeBase'
 import Announcements from './Announcements'
 import NotificationCenter from './NotificationCenter'
 import AssetManagement from './AssetManagement'
+import MyAssets from './MyAssets'
+import ShiftManager from './ShiftManager'
 import VisitorManagement from './VisitorManagement'
 import ContractorManager from './ContractorManager'
 import InternalMobility from './InternalMobility'
@@ -109,6 +111,7 @@ const meta = {
   announcements: { label: 'Employee', title: 'Announcements', subtitle: 'Company-wide news and updates.' },
   notifications: { label: 'Employee', title: 'Notifications', subtitle: 'Your in-app notifications and alerts.' },
   assets: { label: 'Manager', title: 'Asset management', subtitle: 'Inventory, assignments, and returns across the company.' },
+  shifts: { label: 'Manager', title: 'Shift management', subtitle: 'Define and manage shift schedules.' },
   visitors: { label: 'Manager', title: 'Visitor management', subtitle: 'Pre-register, check in, and check out office visitors.' },
   contractors: { label: 'Manager', title: 'Contractors', subtitle: 'Manage vendors and their on-site employees.' },
   internalMobility: { label: 'Manager', title: 'Internal mobility', subtitle: 'Post internal jobs, review applications, and shortlist.' },
@@ -126,6 +129,7 @@ const meta = {
   resilienceReport: { label: 'Manager', title: 'Resilience report', subtitle: 'Consolidated resilience insights and recommendations.' },
   resilienceChat: { label: 'Manager', title: 'Resilience AI', subtitle: 'Chat with AI about your workforce resilience.' },
   profile: { label: 'Employee', title: 'My profile', subtitle: 'View and manage your employee profile.' },
+  myAssets: { label: 'Employee', title: 'My assets', subtitle: 'View the assets assigned to you and request returns.' },
   teams: { label: 'Employee', title: 'Teams & hierarchy', subtitle: 'Teams, team leads, projects, and reporting lines.' },
   settings: { label: 'Account', title: 'Settings', subtitle: 'Manage your account settings and preferences.' }
 }
@@ -233,6 +237,8 @@ export default function AppLayout({ onLogout }) {
           {activeView === 'announcements' && <Announcements />}
           {activeView === 'notifications' && <NotificationCenter />}
           {activeView === 'assets' && <AssetManagement />}
+          {activeView === 'myAssets' && <MyAssets />}
+          {activeView === 'shifts' && <ShiftManager />}
           {activeView === 'visitors' && <VisitorManagement />}
           {activeView === 'contractors' && <ContractorManager />}
           {activeView === 'internalMobility' && <InternalMobility />}

@@ -13,11 +13,13 @@ public class OnboardingV2Controller : ControllerBase
 {
     private readonly AppDbContext _db;
     private readonly JoinerAnnouncementService _joinerService;
+    private readonly NotificationHelper _notif;
 
-    public OnboardingV2Controller(AppDbContext db, JoinerAnnouncementService joinerService)
+    public OnboardingV2Controller(AppDbContext db, JoinerAnnouncementService joinerService, NotificationHelper notif)
     {
         _db = db;
         _joinerService = joinerService;
+        _notif = notif;
     }
 
     private int GetUserId()
@@ -132,6 +134,40 @@ public class OnboardingV2Controller : ControllerBase
         await _db.SaveChangesAsync();
 
         return Ok(new { message = "Onboarding approved. Proceeding with steps.", onboardingId = onboarding.Id });
+    }
+
+    [HttpPost("candidate/{employeeId}/assign-assets")]
+    public async Task<ActionResult> AssignAssets(int employeeId, [FromBody] AssignAssetsRequest req)
+    {
+        var emp = await _db.Employees.FindAsync(employeeId);
+        if (emp == null) return NotFound();
+
+        var assets = await _db.Assets.Where(a => req.AssetIds.Contains(a.Id)).ToListAsync();
+        var assigned = new List<string>();
+        foreach (var asset in assets)
+        {
+            if (asset.Status != "Available") continue;
+            _db.EmployeeAssets.Add(new EmployeeAsset
+            {
+                EmployeeId = employeeId,
+                AssetId = asset.Id,
+                AssignedOn = DateTime.UtcNow
+            });
+            asset.Status = "Assigned";
+            assigned.Add(asset.Name);
+        }
+        await _db.SaveChangesAsync();
+
+        if (assigned.Count > 0)
+        {
+            await _notif.NotifyEmployeeAsync(emp.Id, emp, "Assets Assigned",
+                $"Assets assigned during onboarding: {string.Join(", ", assigned)}.", "asset",
+                "Assets Assigned",
+                EmailTemplates.AssetAssigned(emp.FullName, string.Join(", ", assigned), ""),
+                link: "/my-assets");
+        }
+
+        return Ok(new { message = $"{assigned.Count} asset(s) assigned.", assigned });
     }
 
     [HttpPost("step/{stepId}/complete")]
@@ -312,6 +348,18 @@ public class OnboardingV2Controller : ControllerBase
             .FirstOrDefaultAsync(o => o.Id == offboardingId);
         if (offboarding == null) return NotFound();
 
+        // Return all outstanding assets to the pool as part of the handover.
+        var outstanding = await _db.EmployeeAssets
+            .Include(ea => ea.Asset)
+            .Where(ea => ea.EmployeeId == offboarding.EmployeeId && ea.ReturnedOn == null)
+            .ToListAsync();
+        foreach (var ea in outstanding)
+        {
+            ea.ReturnedOn = DateTime.UtcNow;
+            ea.Status = "Returned";
+            if (ea.Asset != null) ea.Asset.Status = "Available";
+        }
+
         offboarding.Status = "Completed";
         offboarding.CompletedOn = DateTime.UtcNow;
         offboarding.AssetsReturnedOn = DateTime.UtcNow;
@@ -327,7 +375,7 @@ public class OnboardingV2Controller : ControllerBase
         }
 
         await _db.SaveChangesAsync();
-        return Ok(new { message = "Offboarding completed. Employee separated." });
+        return Ok(new { message = "Offboarding completed. Employee separated and outstanding assets returned.", returnedAssets = outstanding.Count });
     }
 
     [HttpGet("offboardings")]
@@ -385,3 +433,5 @@ public class OnboardingV2Controller : ControllerBase
 }
 
 public record CompleteStepRequest(string? TriggerEvent);
+
+public record AssignAssetsRequest(List<int> AssetIds);

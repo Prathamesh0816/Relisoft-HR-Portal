@@ -211,13 +211,13 @@ public class AuthController : ControllerBase
         {
             "profile", "teams", "employeeDashboard", "attendance", "timesheets", "mood", "skills", "training",
             "loans", "benefits", "mentorship", "carpool", "bookings", "knowledge",
-            "announcements", "surveys", "expenses", "notifications", "recruitment"
+            "announcements", "surveys", "expenses", "notifications", "recruitment", "myAssets"
         };
 
         // Manager / HR admin views
         var managerViews = new[]
         {
-            "assets", "visitors", "contractors", "internalMobility", "compliance", "governance",
+            "assets", "shifts", "visitors", "contractors", "internalMobility", "compliance", "governance",
             "dataUpload", "workforce", "resilience", "readiness", "spof", "succession",
             "skillGaps", "knowledgeConc", "whatIf", "resilienceReport", "resilienceChat"
         };
