@@ -8,6 +8,9 @@ const mockCancelLeave = vi.fn()
 const mockRequestCancellation = vi.fn()
 const mockCheckLeaveBalance = vi.fn()
 const mockGetCompOffTransfers = vi.fn()
+const mockGetAvailableCompOffCredits = vi.fn()
+const mockGetEncashments = vi.fn()
+const mockRequestEncashment = vi.fn()
 
 vi.mock('../../api', () => ({
   applyLeave: (...args) => mockApplyLeave(...args),
@@ -22,6 +25,9 @@ vi.mock('../../api', () => ({
   downloadMedicalCertificate: vi.fn(),
   applyCompOff: vi.fn(),
   transferCompOff: vi.fn(),
+  getAvailableCompOffCredits: (...args) => mockGetAvailableCompOffCredits(...args),
+  getEncashments: (...args) => mockGetEncashments(...args),
+  requestEncashment: (...args) => mockRequestEncashment(...args),
 }))
 
 const mockStore = {
@@ -58,6 +64,8 @@ describe('LeaveHome', () => {
     mockStore.myLeaves = { employeeId: '', requests: [], loading: false }
     mockGetMyLeaveRequests.mockResolvedValue({ requests: [] })
     mockGetCompOffTransfers.mockResolvedValue([])
+    mockGetAvailableCompOffCredits.mockResolvedValue([])
+    mockGetEncashments.mockResolvedValue([])
     mockCheckLeaveBalance.mockResolvedValue({ remaining: 10, allocated: 12, used: 2 })
   })
 

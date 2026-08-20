@@ -3,7 +3,7 @@
 > **One document to answer everything.** Read this before asking a teammate, before writing code, and before starting your Phase 2 R&D.
 >
 > **Owner:** ReliSoft Technologies HR Product Team
-> **Status:** Phase 1 live · Phase 2 (Payroll · Onboarding/Offboarding · Performance Review) in R&D
+> **Status:** Phase 1 live · Phase 2–6 live (Payroll · Governance · Performance · Engagement · Workforce Resilience) · Phase 7 (Mobile/Multi-tenant) planned
 > **Last updated:** August 2026
 
 ---
@@ -79,9 +79,9 @@ Product ambitions (as planned in README):
 | **Leave Policy** | Leave types, carry-forward, comp-off, floater holidays, sandwich leave | HR |
 | **Settings** | Change password | All |
 
-### 3.2 Phase 2 — Partially Built (V2 "HrLifecycle" features exist in code)
+### 3.2 Phase 2 — Built & Live (V2 "HrLifecycle" + Governance)
 
-The following are **already coded end-to-end but basic** (usable for demos, need enhancement for production):
+The following are **coded end-to-end and working** (demo data seeded):
 
 | Feature | Backend | Frontend | What it does today |
 |---|---|---|---|
@@ -92,6 +92,14 @@ The following are **already coded end-to-end but basic** (usable for demos, need
 | **Intern → Permanent conversion** | `HRV2Controller` (`/api/hr-v2/intern-convert`) | `HrLifecycle.jsx` (Intern tab) | Converts intern to full-time, updates designation/role, marks onboarding complete |
 | **Salary structure (simple)** | `SalaryStructure.cs` model | via salary discussion | Fixed pay, variable pay, PF, gratuity, insurance, other deductions; `TotalCtc = Fixed + Variable` |
 | **Attendance** | `AttendanceRecord.cs` model + `AttendanceTracker.jsx` | Clock in/out, history | Basic presence records |
+| **Leave encashment** | `Phase2FeaturesController` (`/api/hr-v2/encashments*`) | `LeaveHome.jsx`, `GovernancePanel.jsx` | Request → approve → reject → pay; adjusts balance |
+| **Audit log** | `Phase2FeaturesController` (`/api/hr-v2/audit-log`) + `AuditLogService` | `GovernancePanel.jsx` | Every approval/change logged (payroll, profile, documents, phase 2) |
+| **Attendance regularization** | `Phase2FeaturesController` (`/api/hr-v2/attendance-regularizations*`) | `AttendanceTracker.jsx` | Request + review/approve |
+| **Virtual ID card** | `Phase2FeaturesController` (`/api/hr-v2/id-card/{id}`) | `Directory.jsx`, `GovernancePanel.jsx` | Printable HTML ID card |
+| **Gate pass** | `Phase2FeaturesController` (`/api/hr-v2/gate-pass/{id}`) | `VisitorManagement.jsx`, `GovernancePanel.jsx` | Printable HTML gate pass |
+| **Bulk payslip export / email** | `PayrollController` (`/api/payroll/runs/{id}/export`, `/email-payslips`) | `PayrollManagement.jsx` | ZIP download + bulk email |
+| **Documents (OneDrive)** | `DocumentController` (`/api/documents/*`) | `HrDocsSalary.jsx` | Upload → per-employee OneDrive folder, expiring, verify, templates, generate |
+| **Forgot/reset password** | `AuthController` (`/api/auth/forgot-password`, `/reset-password`) | `LoginPage.jsx` | 30-min tokens; `devToken` returned when SMTP off |
 
 ### 3.3 Additional Modules With Models/Code Already Present
 
@@ -109,14 +117,16 @@ These have **models and controllers** in the repo (many are wired to UI too), ev
 
 | Layer | Count | How to run |
 |---|---|---|
-| Server (xUnit) | 26 tests, all passing | `dotnet test RelisoftHR.Tests` (in `server/`) |
-| Client (Vitest + RTL) | 34 tests, all passing | `npx vitest run` (in `client/`) |
+| Server (xUnit) | 83 tests, all passing | `dotnet test RelisoftHR.sln` (in `relisoft-hr/`) |
+| Client (Vitest + RTL) | 43 tests, all passing | `npx vitest run` (in `client/`) |
 
-Coverage focuses on **Leave** (12), **Tickets** (5), **Email** (4+5), and core client components. **Phase 2 modules have NO automated tests yet — plan them from day one.**
+Coverage includes **Leave** (28), **Tickets** (5), **Auth/login rules** (12), **Phase 2 governance** (5), email & leave-calculation services, and core client components.
 
 ### 3.5 Demo Logins
 
 All users share password: **`password`**
+
+> **Login rule:** sign in with your **name** (e.g. `preeti`) or official **`@relisofttechnologies.com` email** (e.g. `preeti.patil@relisofttechnologies.com`). Foreign domains and unknown emails are rejected. Case-insensitive.
 
 | Username | Name | Role |
 |---|---|---|
@@ -135,14 +145,15 @@ All users share password: **`password`**
 |---|---|---|---|
 | 1 | **Hard-coded salary split** — salary approval auto-computes FixedPay = 60%, VariablePay = 20%, PF = 12%, Gratuity = 5%, `Insurance = 5000`, OtherDeductions = 3% | `HRV2Controller.cs` (salary approve, ~line 241–248) | Wrong for real employees; magic numbers. Replace with configurable **pay-heads + grades** system (section 9). |
 | 2 | **Hard-coded values elsewhere** — 30-day notice in offboarding (`AddDays(30)`), username from email prefix, default password `password` for onboarded users | `OnboardingV2Controller.cs` (`OneClickOnboard`, `OneClickOffboard`, `BulkOffboard`) | Notice period & default creds must come from policy config; generate secure temp passwords. |
-| 3 | **No server-side authorization** — permissions are checked on the **client** by `currentUser.role`; any API endpoint is callable if you have a token | All controllers | Phase 2 must enforce RBAC on the backend (attribute/authorization per role) before exposing payroll/payslip data. |
+| 3 | **No server-side authorization** — permissions are checked on the **client** by `currentUser.role`; any API endpoint is callable if you have a token | All controllers | Enforce RBAC on the backend (attribute/authorization per role) before exposing payroll/payslip data. Rate limiting + login domain rules are in place, but per-role auth is not. |
 | 4 | **Appraisal final rating = manager rating** — no calibration/moderation step yet | `HRV2Controller.SubmitManagerReview` | Add calibration phase + `CalibratedRating` per section 11.2. |
 | 5 | **Onboarding/offboarding steps are auto-stamped all at once** in one-click paths — no per-owner SLA tracking | `OnboardingV2Controller` | Upgrade to owner + SLA workflow (section 10). |
-| 6 | **Email is in-memory/logging only** — `EmailService` writes to log, no real SMTP yet | `Services/EmailService.cs` | Wire SendGrid/SMTP; letters & payslips in Phase 2 depend on it. |
-| 7 | **No automated tests for any Phase 2 module** (probation, appraisal, salary, onboarding/offboarding v2) | `server/RelisoftHR.Tests/`, `client/src/__tests__/` | Existing suite covers only leave/tickets/email/core UI (26 + 34). Add tests with every Phase 2 task (section 13). |
+| 6 | **Email is in-memory/logging only** — `EmailService` writes to log, no real SMTP yet | `Services/EmailService.cs` | Wire SendGrid/SMTP; letters & payslips depend on it. |
+| 7 | ~~No automated tests for Phase 2 modules~~ **FIXED** — `Phase2FeaturesTests.cs` (5) + `AuthControllerTests.cs` (12, login rules) added; suite is 83 server + 43 client | `server/RelisoftHR.Tests/`, `client/src/__tests__/` | Add tests with every future task (section 13). |
 | 8 | **Docs vs code mismatch** — `specs/architecture.md` describes MERN + MongoDB, actual code is .NET 10 + React + SQL Server | `specs/architecture.md` | Treat specs as design reference only; code against the real stack (section 2). |
-| 9 | **No audit trail on state changes** — most models track `CreatedOn`/`UpdatedOn` but not who approved/changed what | Various controllers | Add `ApprovedBy`/`ChangedBy` + workflow log table for approvals per section 14. |
+| 9 | ~~No audit trail on state changes~~ **FIXED** — `AuditLogService` wired into Payroll/Profile/Documents/Phase 2; searchable via `/api/hr-v2/audit-log` | `Services/AuditLogService.cs`, `Phase2FeaturesController` | Extend audit coverage to remaining controllers as you build. |
 | 10 | **Attendance model is minimal** (clock in/out only, no validation or permissions) | `Models/AttendanceRecord.cs` | Enough to seed payroll paid-days; needs validation before payroll production. |
+| 11 | **Security hardening done** (keep in mind for prod): login rate limit (20/5min/IP), login accepts name or `@relisofttechnologies.com` email only, document upload allowlist + 10 MB cap, JWT prod key guard, `appsettings.Production.json` disables Swagger and locks hosts/CORS. Demo users intentionally kept enabled. | `Program.cs`, `AuthController.cs`, `DocumentController.cs`, `appsettings.Production.json` | Before real go-live: SMTP, OneDrive Graph, prod SQL Server, `Jwt__Key` env var. |
 
 ---
 
@@ -335,6 +346,8 @@ Complete (POST /api/onboarding-v2/offboard-complete/{id})
 |---|---|
 | All server endpoints | `server/Controllers/*.cs` |
 | Phase 2 lifecycle endpoints (probation/appraisal/salary/intern) | `server/Controllers/HRV2Controller.cs` |
+| Phase 2 governance endpoints (encashment/audit/regularization/id-card/gate-pass) | `server/Controllers/Phase2FeaturesController.cs` |
+| Audit logging service | `server/Services/AuditLogService.cs` |
 | Onboarding/offboarding endpoints | `server/Controllers/OnboardingV2Controller.cs` and `OnboardingController.cs` |
 | Database tables / entities | `server/Models/*.cs` |
 | Request/response shapes | `server/DTOs/*.cs` (Phase 2 DTOs in `HrV2Dtos.cs`) |
@@ -344,6 +357,7 @@ Complete (POST /api/onboarding-v2/offboard-complete/{id})
 | All API client functions | `client/src/api.js` |
 | Global state | `client/src/store.js` |
 | Phase 2 lifecycle UI | `client/src/components/HrLifecycle.jsx`, `HrDocsSalary.jsx` |
+| Phase 2 governance UI (audit/encashment/regularization/documents/ID card/gate pass + feedback) | `client/src/components/GovernancePanel.jsx` |
 | Onboarding/offboarding UI | `HrOnboardingDashboard.jsx`, `EmployeeOnboarding.jsx`, `CandidateOnboarding.jsx`, `OffboardingDashboard.jsx` |
 | Design specs (reference) | `specs/modules/*.md` (payroll, performance, onboarding, separation, fnf, etc.) |
 

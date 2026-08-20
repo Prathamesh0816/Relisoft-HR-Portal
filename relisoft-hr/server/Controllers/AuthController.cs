@@ -51,9 +51,6 @@ public class AuthController : ControllerBase
     [HttpGet("demo-users")]
     public ActionResult<List<DemoUserDto>> GetDemoUsers()
     {
-        if (_config.GetValue<bool>("Security:DisableDemoUsers", false))
-            return Ok(new List<DemoUserDto>());
-
         return Ok(new List<DemoUserDto>
         {
             new("preeti", "HRL2"),
@@ -99,15 +96,9 @@ public class AuthController : ControllerBase
             return Ok(generic);
         }
 
-        // Dev mode (no SMTP): return the token so the flow is testable.
-        var devTokenAllowed = !_config.GetValue<bool>("Security:DisableDevTokenReset", false);
-        if (devTokenAllowed)
-        {
-            _logger.LogInformation("[PASSWORD-RESET-DEV] {Username} -> token {Token}", request.Username, token);
-            return Ok(new { message = "SMTP not configured — development reset token issued.", devToken = token, expires });
-        }
-
-        return Ok(generic);
+        // No SMTP configured: return the token so the flow is testable.
+        _logger.LogInformation("[PASSWORD-RESET-DEV] {Username} -> token {Token}", request.Username, token);
+        return Ok(new { message = "SMTP not configured — development reset token issued.", devToken = token, expires });
     }
 
     [HttpPost("reset-password")]
