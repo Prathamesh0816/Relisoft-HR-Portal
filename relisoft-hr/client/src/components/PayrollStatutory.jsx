@@ -21,7 +21,7 @@ export default function PayrollStatutory() {
   const loadRuns = useCallback(async () => {
     try {
       const list = await getPayRuns()
-      const processed = (list || []).filter((r) => r.status === 'Processed')
+      const processed = (list || []).filter((r) => r.status !== 'Draft')
       setRuns(processed)
       if (processed.length && !runId) setRunId(String(processed[0].id))
     } catch (err) {

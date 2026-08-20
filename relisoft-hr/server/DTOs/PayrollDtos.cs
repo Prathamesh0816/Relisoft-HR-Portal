@@ -9,7 +9,10 @@ public record EmployeeSalaryStructureDto(int EmployeeId, string EmployeeName, Da
 public record SalaryLineInput(int PayComponentId, decimal MonthlyAmount);
 public record SetSalaryStructureRequest(int EmployeeId, DateTime EffectiveFrom, List<SalaryLineInput> Lines);
 
-public record PayRunDto(int Id, int PeriodMonth, int PeriodYear, string Status, DateTime? ProcessedOn, int PayslipCount, decimal TotalNetPay);
+public record PayRunDto(
+    int Id, int PeriodMonth, int PeriodYear, string Status, DateTime? ProcessedOn,
+    DateTime? ReadyOn, DateTime? VerifiedOn, DateTime? PaidOn, bool AutoDisbursed,
+    int PayslipCount, decimal TotalNetPay);
 public record CreatePayRunRequest(int PeriodMonth, int PeriodYear);
 
 public record PayslipLineDto(string ComponentName, string Type, decimal Amount);
@@ -23,8 +26,12 @@ public record AddPayslipLineRequest(int PayComponentId, decimal Amount);
 
 public record PayRunDetailDto(
     int Id, int PeriodMonth, int PeriodYear, string Status,
-    DateTime? ProcessedOn, int PayslipCount, decimal TotalNetPay,
+    DateTime? ProcessedOn, DateTime? ReadyOn, DateTime? VerifiedOn, DateTime? PaidOn, bool AutoDisbursed,
+    int PayslipCount, decimal TotalNetPay,
     List<PayslipDto> Payslips);
+
+public record UnpaidEmployeeDto(
+    int EmployeeId, string EmployeeName, string EmployeeCode, string Department, string Reason);
 
 public record StatutoryLineDto(
     int EmployeeId, string EmployeeName, string EmployeeCode,

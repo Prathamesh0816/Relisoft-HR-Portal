@@ -250,7 +250,7 @@ public static class DemoSeedService
             await db.SaveChangesAsync();
         }
 
-        // Guarantee a Processed pay run with Id = 1 so /api/payroll/runs/1 and
+        // Guarantee a Processed/Paid pay run with Id = 1 so /api/payroll/runs/1 and
         // /api/payroll/runs/1/export are deterministic (existing runs may start at a higher id).
         var seededRun = await db.PayRuns.AsNoTracking().FirstOrDefaultAsync(r => r.Id == 1);
         if (seededRun == null)
@@ -259,10 +259,20 @@ public static class DemoSeedService
             var now = DateTime.UtcNow.AddMonths(-1);
             await db.Database.ExecuteSqlInterpolatedAsync($@"
                 SET IDENTITY_INSERT PayRuns ON;
-                INSERT INTO PayRuns (Id, PeriodMonth, PeriodYear, Status, ProcessedOn, CreatedOn)
-                VALUES (1, {now.Month}, {now.Year}, {(int)PayRunStatus.Processed}, {now}, {now});
+                INSERT INTO PayRuns (Id, PeriodMonth, PeriodYear, Status, ProcessedOn, PaidOn, AutoDisbursed, CreatedOn)
+                VALUES (1, {now.Month}, {now.Year}, {(int)PayRunStatus.Paid}, {now}, {now}, 0, {now});
                 SET IDENTITY_INSERT PayRuns OFF;");
             r = r with { PayRuns = r.PayRuns + 1 };
+        }
+        else if (seededRun.Status != PayRunStatus.Paid)
+        {
+            // Existing demo DBs carry run 1 as "Ready" (the old Processed value). Mark it
+            // Paid so the demo shows a completed salary-shot run.
+            await db.Database.ExecuteSqlInterpolatedAsync($@"
+                UPDATE PayRuns SET Status = {(int)PayRunStatus.Paid},
+                    ProcessedOn = COALESCE(ProcessedOn, {DateTime.UtcNow}),
+                    PaidOn = COALESCE(PaidOn, {DateTime.UtcNow})
+                WHERE Id = 1;");
         }
 
         // Payslips for the seeded run.

@@ -357,9 +357,20 @@ POST   /api/documents/generate/{id}            # Generate letter from template
 
 ### Payroll
 
+Run lifecycle: **Draft → Ready → Verified → Paid** (`server/Services/PayrollRunService.cs`).
+A background job (`PayrollDisbursementBackgroundJob`, config section `Payroll`) auto-runs the
+pipeline on the **last working day of every month** (skips weekends and company holidays) and
+has a 5-day catch-up window for a missed previous-month run.
+
 ```
 GET    /api/payroll/runs                       # Payroll runs (HR L2)
 POST   /api/payroll/runs                       # Create run
+GET    /api/payroll/runs/{id}                  # Run detail (status + timestamps + payslips)
+POST   /api/payroll/runs/{id}/generate         # Build/refresh payslips (Draft only)
+POST   /api/payroll/runs/{id}/ready            # Submit for verification (Draft → Ready)
+POST   /api/payroll/runs/{id}/verify           # Sign off payroll (Ready → Verified)
+POST   /api/payroll/runs/{id}/pay              # Salary shot (Verified → Paid, emails payslips)
+GET    /api/payroll/runs/{id}/unpaid           # Eligible employees missing from the run
 GET    /api/payroll/payslips/employee/{id}     # Employee payslips
 GET    /api/payroll/runs/{id}/export           # Bulk payslip ZIP export
 POST   /api/payroll/runs/{id}/email-payslips   # Email all payslips

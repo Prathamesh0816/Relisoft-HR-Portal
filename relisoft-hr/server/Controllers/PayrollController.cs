@@ -21,16 +21,16 @@ public class PayrollController : ControllerBase
 
     private readonly AppDbContext _db;
     private readonly IEmailService _emailService;
-    private readonly IInternCompensationService _internComp;
     private readonly IAuditLogService _audit;
+    private readonly PayrollRunService _payrollRuns;
     private readonly ILogger<PayrollController> _logger;
 
-    public PayrollController(AppDbContext db, IEmailService emailService, IInternCompensationService internComp, IAuditLogService audit, ILogger<PayrollController> logger)
+    public PayrollController(AppDbContext db, IEmailService emailService, IAuditLogService audit, PayrollRunService payrollRuns, ILogger<PayrollController> logger)
     {
         _db = db;
         _emailService = emailService;
-        _internComp = internComp;
         _audit = audit;
+        _payrollRuns = payrollRuns;
         _logger = logger;
     }
 
@@ -182,7 +182,8 @@ public class PayrollController : ControllerBase
 
         var detail = new PayRunDetailDto(
             run.Id, run.PeriodMonth, run.PeriodYear, run.Status.ToString(),
-            run.ProcessedOn, run.Payslips.Count, run.Payslips.Sum(p => p.NetPay),
+            run.ProcessedOn, run.ReadyOn, run.VerifiedOn, run.PaidOn, run.AutoDisbursed,
+            run.Payslips.Count, run.Payslips.Sum(p => p.NetPay),
             run.Payslips.Select(p => MapPayslip(p, run, employees.GetValueOrDefault(p.EmployeeId)?.FullName ?? "Unknown")).ToList());
 
         return Ok(detail);
@@ -202,146 +203,121 @@ public class PayrollController : ControllerBase
         await _db.SaveChangesAsync();
         return Ok(new { id = run.Id, message = "Pay run created." });
     }
-
-    [HttpPost("runs/{id}/generate")]
+[HttpPost("runs/{id}/generate")]
     public async Task<ActionResult> GeneratePayslips(int id)
     {
         if (!await IsPayrollAdminAsync()) return Forbid();
         var run = await _db.PayRuns
             .Include(r => r.Payslips)
-            .ThenInclude(p => p.Lines)
             .FirstOrDefaultAsync(r => r.Id == id);
         if (run == null) return NotFound();
         if (run.Status != PayRunStatus.Draft) return BadRequest(new { message = "Only a draft pay run's payslips can be regenerated." });
 
-        var activeEmployees = await _db.Employees.AsNoTracking()
-            .Where(e => e.Status == "Active")
-            .Select(e => new { e.Id, e.EmploymentType, e.IsUnpaidIntern })
-            .ToListAsync();
-
-        var eligibleEmployeeIds = new List<int>();
-        foreach (var emp in activeEmployees)
-        {
-            if (emp.EmploymentType == "Intern" || emp.EmploymentType == "Probation")
-            {
-                if (await _internComp.IsEligibleForPayAsync(emp.Id, DateTime.UtcNow))
-                    eligibleEmployeeIds.Add(emp.Id);
-            }
-            else if (!emp.IsUnpaidIntern)
-            {
-                eligibleEmployeeIds.Add(emp.Id);
-            }
-        }
-
-        var structures = await _db.EmployeeSalaryStructures.AsNoTracking()
-            .Include(s => s.Lines)
-            .Where(s => eligibleEmployeeIds.Contains(s.EmployeeId))
-            .ToListAsync();
-
-        var components = await _db.PayComponents.AsNoTracking().ToListAsync();
-        var compById = components.ToDictionary(c => c.Id);
-        var compByName = components.ToDictionary(c => c.Name, StringComparer.OrdinalIgnoreCase);
-
-        var employeeLines = new Dictionary<int, List<PayslipLine>>();
-        foreach (var s in structures)
-        {
-            var lines = new List<PayslipLine>();
-            foreach (var l in s.Lines)
-            {
-                if (!compById.TryGetValue(l.PayComponentId, out var comp)) continue;
-                lines.Add(new PayslipLine { PayComponentId = comp.Id, ComponentName = comp.Name, Type = comp.Type, Amount = l.MonthlyAmount });
-            }
-            if (lines.Count > 0) employeeLines[s.EmployeeId] = lines;
-        }
-
-        // Fallback: employees without a payroll structure use the legacy SalaryStructure
-        // (the one used by offer letters / salary approval / encashment) so no one is silently missed.
-        var legacyIds = eligibleEmployeeIds.Where(id => !employeeLines.ContainsKey(id)).ToList();
-        if (legacyIds.Count > 0)
-        {
-            var legacy = await _db.SalaryStructures.AsNoTracking()
-                .Where(s => legacyIds.Contains(s.EmployeeId))
-                .ToListAsync();
-            foreach (var s in legacy)
-            {
-                var lines = new List<PayslipLine>();
-                AddLegacyLine(lines, compByName, "Basic", PayComponentType.Earning, s.FixedPay / 12m);
-                AddLegacyLine(lines, compByName, "Variable Pay", PayComponentType.Earning, s.VariablePay / 12m);
-                AddLegacyLine(lines, compByName, "PF", PayComponentType.Deduction, s.PF / 12m);
-                AddLegacyLine(lines, compByName, "Gratuity", PayComponentType.Deduction, s.Gratuity / 12m);
-                AddLegacyLine(lines, compByName, "Insurance", PayComponentType.Deduction, s.Insurance / 12m);
-                AddLegacyLine(lines, compByName, "Other Deductions", PayComponentType.Deduction, s.OtherDeductions / 12m);
-                if (lines.Count > 0) employeeLines[s.EmployeeId] = lines;
-            }
-        }
-
-        _db.Payslips.RemoveRange(run.Payslips);
-        await _db.SaveChangesAsync();
-
-        foreach (var (employeeId, lines) in employeeLines)
-        {
-            var payslip = new Payslip
-            {
-                PayRunId = run.Id,
-                EmployeeId = employeeId,
-                Lines = lines
-            };
-
-            // Auto-computed deductions (e.g. PF at a % of Basic Salary) are calculated
-            // on generation so statutory amounts stay consistent with the basic pay.
-            var basic = lines
-                .FirstOrDefault(l => l.Type == PayComponentType.Earning &&
-                    l.ComponentName.Contains("Basic", StringComparison.OrdinalIgnoreCase));
-            foreach (var line in lines.Where(l => l.Type == PayComponentType.Deduction).ToList())
-            {
-                if (line.PayComponentId == 0) continue;
-                if (!compById.TryGetValue(line.PayComponentId, out var component) || !component.IsAuto || component.Rate <= 0)
-                    continue;
-                var basis = basic?.Amount ?? lines.Where(l => l.Type == PayComponentType.Earning).Sum(l => l.Amount);
-                line.Amount = Math.Round(basis * component.Rate / 100m, 2);
-            }
-
-            payslip.GrossEarnings = lines.Where(l => l.Type == PayComponentType.Earning).Sum(l => l.Amount);
-            payslip.TotalDeductions = lines.Where(l => l.Type == PayComponentType.Deduction).Sum(l => l.Amount);
-            payslip.NetPay = payslip.GrossEarnings - payslip.TotalDeductions;
-            _db.Payslips.Add(payslip);
-        }
-
-        await _db.SaveChangesAsync();
+        await _payrollRuns.GeneratePayslipsAsync(run);
         return NoContent();
     }
 
-    private static void AddLegacyLine(List<PayslipLine> lines, Dictionary<string, PayComponent> compByName, string name, PayComponentType type, decimal monthly)
-    {
-        if (monthly <= 0) return;
-        var comp = compByName.TryGetValue(name, out var c) ? c : null;
-        lines.Add(new PayslipLine
-        {
-            PayComponentId = comp?.Id ?? 0,
-            ComponentName = comp?.Name ?? name,
-            Type = comp?.Type ?? type,
-            Amount = Math.Round(monthly, 2)
-        });
-    }
+    // ────── Verification & disbursement pipeline ──────
+    // Draft → Ready (submit for verification) → Verified (sign-off) → Paid (salary shot).
 
-    [HttpPost("runs/{id}/process")]
-    public async Task<ActionResult> ProcessPayRun(int id)
+    [HttpPost("runs/{id}/ready")]
+    public async Task<ActionResult> ReadyForVerification(int id)
     {
         if (!await IsPayrollAdminAsync()) return Forbid();
         var run = await _db.PayRuns
             .Include(r => r.Payslips)
-            .ThenInclude(p => p.Lines)
             .FirstOrDefaultAsync(r => r.Id == id);
         if (run == null) return NotFound();
-        if (run.Status != PayRunStatus.Draft) return BadRequest(new { message = "Only a draft pay run can be processed." });
-        if (run.Payslips.Count == 0) return BadRequest(new { message = "Generate payslips before processing this pay run." });
+        if (run.Status != PayRunStatus.Draft) return BadRequest(new { message = "Only a draft pay run can be submitted for verification." });
+        if (run.Payslips.Count == 0) return BadRequest(new { message = "Generate payslips before submitting this pay run." });
 
-        run.Status = PayRunStatus.Processed;
-        run.ProcessedOn = DateTime.UtcNow;
+        run.Status = PayRunStatus.Ready;
+        run.ReadyOn = DateTime.UtcNow;
+        run.ProcessedOn ??= DateTime.UtcNow;
         await _db.SaveChangesAsync();
-
-        _ = SendPayslipEmailsAsync(run);
+        await _audit.LogAsync(GetAuthenticatedEmployeeId(), await GetActorNameAsync(),
+            "PayRunSubmitted", "PayRun", run.Id, $"Pay run for {run.PeriodMonth}/{run.PeriodYear} submitted for verification.");
         return NoContent();
+    }
+
+    [HttpPost("runs/{id}/verify")]
+    public async Task<ActionResult> VerifyPayRun(int id)
+    {
+        if (!await IsPayrollAdminAsync()) return Forbid();
+        var run = await _db.PayRuns
+            .Include(r => r.Payslips)
+            .FirstOrDefaultAsync(r => r.Id == id);
+        if (run == null) return NotFound();
+        if (run.Status != PayRunStatus.Ready) return BadRequest(new { message = "Only a ready pay run can be verified." });
+        if (run.Payslips.Count == 0) return BadRequest(new { message = "Generate payslips before verifying this pay run." });
+
+        var actorId = GetAuthenticatedEmployeeId();
+        run.Status = PayRunStatus.Verified;
+        run.VerifiedOn = DateTime.UtcNow;
+        run.VerifiedBy = actorId;
+        await _db.SaveChangesAsync();
+        await _audit.LogAsync(actorId, await GetActorNameAsync(),
+            "PayRunVerified", "PayRun", run.Id, $"Pay run for {run.PeriodMonth}/{run.PeriodYear} verified.");
+        return NoContent();
+    }
+
+    [HttpPost("runs/{id}/pay")]
+    public async Task<ActionResult> PayPayRun(int id)
+    {
+        if (!await IsPayrollAdminAsync()) return Forbid();
+        var run = await _db.PayRuns
+            .Include(r => r.Payslips)
+            .FirstOrDefaultAsync(r => r.Id == id);
+        if (run == null) return NotFound();
+        if (run.Status != PayRunStatus.Verified) return BadRequest(new { message = "Only a verified pay run can be disbursed." });
+
+        var actorId = GetAuthenticatedEmployeeId();
+        run.Status = PayRunStatus.Paid;
+        run.PaidOn = DateTime.UtcNow;
+        run.PaidBy = actorId;
+        await _db.SaveChangesAsync();
+        await _audit.LogAsync(actorId, await GetActorNameAsync(),
+            "PayRunDisbursed", "PayRun", run.Id, $"Salary disbursed for {run.PeriodMonth}/{run.PeriodYear}.");
+        await _payrollRuns.EmailPayslipsAsync(run);
+        return NoContent();
+    }
+
+    [HttpGet("runs/{id}/unpaid")]
+    public async Task<ActionResult<List<UnpaidEmployeeDto>>> GetUnpaidEmployees(int id)
+    {
+        if (!await IsPayrollAdminAsync()) return Forbid();
+        var run = await _db.PayRuns.AsNoTracking().FirstOrDefaultAsync(r => r.Id == id);
+        if (run == null) return NotFound();
+
+        var eligibleIds = await _payrollRuns.GetEligibleEmployeeIdsAsync(DateTime.UtcNow);
+        var paidIds = await _db.Payslips.AsNoTracking()
+            .Where(p => p.PayRunId == id)
+            .Select(p => p.EmployeeId)
+            .ToListAsync();
+
+        var unpaidIds = eligibleIds.Except(paidIds).ToList();
+        if (unpaidIds.Count == 0) return Ok(new List<UnpaidEmployeeDto>());
+
+        var employees = await _db.Employees.AsNoTracking()
+            .Where(e => unpaidIds.Contains(e.Id))
+            .Select(e => new { e.Id, e.FullName, e.EmployeeCode, e.Department })
+            .ToListAsync();
+
+        var structuredIds = await _db.EmployeeSalaryStructures.AsNoTracking()
+            .Where(s => unpaidIds.Contains(s.EmployeeId))
+            .Select(s => s.EmployeeId)
+            .ToListAsync();
+        var legacyIds = await _db.SalaryStructures.AsNoTracking()
+            .Where(s => unpaidIds.Contains(s.EmployeeId))
+            .Select(s => s.EmployeeId)
+            .ToListAsync();
+        var withStructure = structuredIds.Concat(legacyIds).ToHashSet();
+
+        return Ok(employees.Select(e => new UnpaidEmployeeDto(
+            e.Id, e.FullName, e.EmployeeCode ?? "", e.Department ?? "",
+            withStructure.Contains(e.Id)
+                ? "Eligible but no payslip in this run"
+                : "No salary structure on file")).ToList());
     }
 
     // ────── Payslips ──────
@@ -391,7 +367,7 @@ public class PayrollController : ControllerBase
             .Include(r => r.Payslips)
             .ThenInclude(p => p.Lines)
             .AsNoTracking()
-            .Where(r => r.Status == PayRunStatus.Processed && r.Payslips.Any(p => p.EmployeeId == employeeId))
+            .Where(r => r.Status != PayRunStatus.Draft && r.Payslips.Any(p => p.EmployeeId == employeeId))
             .OrderByDescending(r => r.PeriodYear)
             .ThenByDescending(r => r.PeriodMonth)
             .ToListAsync();
@@ -424,7 +400,7 @@ public class PayrollController : ControllerBase
             .Include(p => p.PayRun)
             .Include(p => p.Lines)
             .AsNoTracking()
-            .Where(p => p.EmployeeId == employeeId && p.PayRun!.PeriodYear == targetYear && p.PayRun!.Status == PayRunStatus.Processed)
+            .Where(p => p.EmployeeId == employeeId && p.PayRun!.PeriodYear == targetYear && p.PayRun!.Status != PayRunStatus.Draft)
             .OrderBy(p => p.PayRun!.PeriodMonth)
             .ToListAsync();
 
@@ -583,7 +559,7 @@ public class PayrollController : ControllerBase
             .AsNoTracking()
             .FirstOrDefaultAsync(r => r.Id == runId);
         if (run == null) return NotFound();
-        if (run.Status != PayRunStatus.Processed) return BadRequest(new { message = "Statutory register is only available for a processed pay run." });
+        if (run.Status == PayRunStatus.Draft) return BadRequest(new { message = "Statutory register is only available once the pay run has generated payslips (Ready or later)." });
 
         var lines = new List<StatutoryLineDto>();
         foreach (var payslip in run.Payslips.OrderBy(p => p.Employee?.FullName))
@@ -619,7 +595,7 @@ public class PayrollController : ControllerBase
             .AsNoTracking()
             .FirstOrDefaultAsync(r => r.Id == runId);
         if (run == null) return NotFound();
-        if (run.Status != PayRunStatus.Processed) return BadRequest(new { message = "Statutory register is only available for a processed pay run." });
+        if (run.Status == PayRunStatus.Draft) return BadRequest(new { message = "Statutory register is only available once the pay run has generated payslips (Ready or later)." });
 
         var lines = new List<StatutoryLineDto>();
         foreach (var payslip in run.Payslips.OrderBy(p => p.Employee?.FullName))
@@ -747,37 +723,13 @@ td:first-child{{font-weight:600}}tfoot td{{font-weight:800;background:#f8fafc}}
 
     private static PayRunDto MapRun(PayRun r) =>
         new(r.Id, r.PeriodMonth, r.PeriodYear, r.Status.ToString(), r.ProcessedOn,
+            r.ReadyOn, r.VerifiedOn, r.PaidOn, r.AutoDisbursed,
             r.Payslips.Count, r.Payslips.Sum(p => p.NetPay));
 
     private static PayslipDto MapPayslip(Payslip p, PayRun run, string employeeName) =>
         new(p.Id, run.Id, run.PeriodMonth, run.PeriodYear, p.EmployeeId, employeeName,
             p.GrossEarnings, p.TotalDeductions, p.NetPay,
             p.Lines.Select(l => new PayslipLineDto(l.ComponentName, l.Type.ToString(), l.Amount)).ToList());
-
-    private async Task SendPayslipEmailsAsync(PayRun run)
-    {
-        var employeeIds = run.Payslips.Select(p => p.EmployeeId).Distinct().ToList();
-        var employees = await _db.Employees.AsNoTracking()
-            .Where(e => employeeIds.Contains(e.Id))
-            .ToDictionaryAsync(e => e.Id);
-
-        var monthName = new DateTime(2000, run.PeriodMonth, 1).ToString("MMMM");
-        foreach (var payslip in run.Payslips)
-        {
-            if (!employees.TryGetValue(payslip.EmployeeId, out var employee) || string.IsNullOrEmpty(employee.Email))
-                continue;
-            try
-            {
-                await _emailService.SendEmailAsync(employee.Email,
-                    $"Your payslip for {monthName} {run.PeriodYear}",
-                    EmailTemplates.Payslip(employee.FullName, monthName, run.PeriodYear, payslip));
-            }
-            catch (Exception ex)
-            {
-                _logger.LogError(ex, "Failed to send payslip email to {Email}", employee.Email);
-            }
-        }
-    }
 
     private async Task<bool> IsPayrollAdminAsync()
     {

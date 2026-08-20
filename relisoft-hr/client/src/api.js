@@ -1318,8 +1318,20 @@ export async function generatePayslips(id) {
   const { data } = await api.post(`/api/payroll/runs/${id}/generate`)
   return data
 }
-export async function processPayRun(id) {
-  const { data } = await api.post(`/api/payroll/runs/${id}/process`)
+export async function readyPayRun(id) {
+  const { data } = await api.post(`/api/payroll/runs/${id}/ready`)
+  return data
+}
+export async function verifyPayRun(id) {
+  const { data } = await api.post(`/api/payroll/runs/${id}/verify`)
+  return data
+}
+export async function payPayRun(id) {
+  const { data } = await api.post(`/api/payroll/runs/${id}/pay`)
+  return data
+}
+export async function getUnpaidEmployees(id) {
+  const { data } = await api.get(`/api/payroll/runs/${id}/unpaid`)
   return data
 }
 export async function getMyPayslips(employeeId) {

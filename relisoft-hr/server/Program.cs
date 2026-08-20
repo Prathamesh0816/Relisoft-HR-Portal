@@ -84,6 +84,11 @@ builder.Services.Configure<LeavePolicyOptions>(builder.Configuration.GetSection(
 builder.Services.AddScoped<LeaveCarryForwardService>();
 builder.Services.AddHostedService<LeaveCarryForwardBackgroundJob>();
 
+// Payroll pipeline + automatic salary disbursement on the last working day of each month
+builder.Services.Configure<PayrollOptions>(builder.Configuration.GetSection("Payroll"));
+builder.Services.AddScoped<PayrollRunService>();
+builder.Services.AddHostedService<PayrollDisbursementBackgroundJob>();
+
 var corsOrigins = (builder.Configuration["CorsOrigins"] ?? "http://localhost:5173")
     .Split(',', StringSplitOptions.TrimEntries | StringSplitOptions.RemoveEmptyEntries);
 builder.Services.AddCors(options =>

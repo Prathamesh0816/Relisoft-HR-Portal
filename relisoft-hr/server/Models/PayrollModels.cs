@@ -11,8 +11,10 @@ public enum PayComponentType
 
 public enum PayRunStatus
 {
-    Draft = 0,
-    Processed = 1
+    Draft = 0,      // created, payslips being built / edited
+    Ready = 1,      // generated, submitted for verification (was "Processed" in earlier builds)
+    Verified = 2,   // verified / signed off by a payroll admin
+    Paid = 3        // salary disbursed ("salary shot")
 }
 
 public class PayComponent
@@ -67,6 +69,12 @@ public class PayRun
     public int PeriodYear { get; set; }
     public PayRunStatus Status { get; set; } = PayRunStatus.Draft;
     public DateTime? ProcessedOn { get; set; }
+    public DateTime? ReadyOn { get; set; }
+    public DateTime? VerifiedOn { get; set; }
+    public int? VerifiedBy { get; set; }
+    public DateTime? PaidOn { get; set; }
+    public int? PaidBy { get; set; }
+    public bool AutoDisbursed { get; set; }
     public DateTime CreatedOn { get; set; } = DateTime.UtcNow;
 
     public ICollection<Payslip> Payslips { get; set; } = new List<Payslip>();

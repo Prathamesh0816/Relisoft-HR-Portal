@@ -3,7 +3,8 @@ import useStore from '../store'
 import {
   getPayComponents, createPayComponent, updatePayComponent,
   getSalaryStructure, setSalaryStructure,
-  getPayRuns, getPayRun, createPayRun, generatePayslips, processPayRun,
+  getPayRuns, getPayRun, createPayRun, generatePayslips,
+  readyPayRun, verifyPayRun, payPayRun, getUnpaidEmployees,
   getMyPayslips, addPayslipLine, downloadForm16,
   downloadPayslipZip, emailPayslips
 } from '../api'
@@ -12,6 +13,17 @@ const MONTHS = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 
 const monthName = (m) => MONTHS[m - 1] || ''
 const fmt = (n) => '₹' + (n ?? 0).toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
 const PAYROLL_ADMIN_ROLES = ['HRL2', 'HR', 'Admin', 'SuperAdmin']
+
+const statusBadge = (status) => {
+  const styles = {
+    Draft: 'bg-amber-50 dark:bg-amber-900/30 text-amber-700 dark:text-amber-400',
+    Ready: 'bg-sky-50 dark:bg-sky-900/30 text-sky-700 dark:text-sky-400',
+    Verified: 'bg-violet-50 dark:bg-violet-900/30 text-violet-700 dark:text-violet-400',
+    Paid: 'bg-emerald-50 dark:bg-emerald-900/30 text-emerald-700 dark:text-emerald-400',
+  }
+  return <span className={`px-3 py-1 rounded-full text-[10px] font-bold ${styles[status] || styles.Draft}`}>{status}</span>
+}
+const fmtDate = (d) => d ? new Date(d).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' }) : '—'
 
 export default function PayrollManagement() {
   const { currentUser, data, setMessage } = useStore()
@@ -30,6 +42,7 @@ export default function PayrollManagement() {
   const [newRun, setNewRun] = useState({ month: new Date().getMonth() + 1, year: new Date().getFullYear() })
   const [componentForm, setComponentForm] = useState({ name: '', type: 'Earning', description: '', isAuto: false, rate: 0 })
   const [lineForm, setLineForm] = useState({ payslipId: '', payComponentId: '', amount: '' })
+  const [unpaid, setUnpaid] = useState([])
   const [loading, setLoading] = useState(false)
 
   const loadMyPayslips = useCallback(async () => {
@@ -169,6 +182,11 @@ export default function PayrollManagement() {
     } catch (err) {
       setMessage({ type: 'error', text: err.response?.data?.message || 'Failed to load pay run.' })
     }
+    try {
+      setUnpaid(await getUnpaidEmployees(id))
+    } catch {
+      setUnpaid([])
+    }
   }
 
   const handleGenerate = async () => {
@@ -183,15 +201,39 @@ export default function PayrollManagement() {
     }
   }
 
-  const handleProcess = async () => {
+  const handleReady = async () => {
     if (!selectedRun) return
     try {
-      await processPayRun(selectedRun.id)
-      setMessage({ type: 'success', text: 'Pay run processed. Payslips emailed.' })
+      await readyPayRun(selectedRun.id)
+      setMessage({ type: 'success', text: 'Pay run submitted for verification.' })
       await openRun(selectedRun.id)
       await loadRuns()
     } catch (err) {
-      setMessage({ type: 'error', text: err.response?.data?.message || 'Failed to process pay run.' })
+      setMessage({ type: 'error', text: err.response?.data?.message || 'Failed to submit pay run.' })
+    }
+  }
+
+  const handleVerify = async () => {
+    if (!selectedRun) return
+    try {
+      await verifyPayRun(selectedRun.id)
+      setMessage({ type: 'success', text: 'Pay run verified.' })
+      await openRun(selectedRun.id)
+      await loadRuns()
+    } catch (err) {
+      setMessage({ type: 'error', text: err.response?.data?.message || 'Failed to verify pay run.' })
+    }
+  }
+
+  const handlePay = async () => {
+    if (!selectedRun) return
+    try {
+      await payPayRun(selectedRun.id)
+      setMessage({ type: 'success', text: 'Salary disbursed. Payslips emailed to everyone.' })
+      await openRun(selectedRun.id)
+      await loadRuns()
+    } catch (err) {
+      setMessage({ type: 'error', text: err.response?.data?.message || 'Failed to disburse salary.' })
     }
   }
 
@@ -288,9 +330,9 @@ export default function PayrollManagement() {
                           </tr>
                         ))}
                       </tbody>
-                    </table>
-                  </div>
-                )}
+</table>
+                </div>
+              )}
               </div>
             ))
           )}
@@ -505,9 +547,7 @@ export default function PayrollManagement() {
                         <tr key={run.id} className="border-t border-navy/5 dark:border-white/5">
                           <td className="px-4 py-3 font-bold text-navy dark:text-white">{monthName(run.periodMonth)} {run.periodYear}</td>
                           <td className="px-4 py-3">
-                            <span className={`px-3 py-1 rounded-full text-[10px] font-bold ${run.status === 'Processed' ? 'bg-emerald-50 dark:bg-emerald-900/30 text-emerald-700 dark:text-emerald-400' : 'bg-amber-50 dark:bg-amber-900/30 text-amber-700 dark:text-amber-400'}`}>
-                              {run.status}
-                            </span>
+                            {statusBadge(run.status)}
                           </td>
                           <td className="px-4 py-3 text-right text-navy/70 dark:text-white/70">{run.payslipCount}</td>
                           <td className="px-4 py-3 text-right font-bold text-navy dark:text-white">{fmt(run.totalNetPay)}</td>
@@ -526,18 +566,44 @@ export default function PayrollManagement() {
                   <div className="flex items-center justify-between flex-wrap gap-2 mb-3">
                     <h4 className="font-bold text-navy dark:text-white text-sm">
                       {monthName(selectedRun.periodMonth)} {selectedRun.periodYear}
-                      <span className={`ml-2 px-3 py-1 rounded-full text-[10px] font-bold ${selectedRun.status === 'Processed' ? 'bg-emerald-50 dark:bg-emerald-900/30 text-emerald-700 dark:text-emerald-400' : 'bg-amber-50 dark:bg-amber-900/30 text-amber-700 dark:text-amber-400'}`}>
-                        {selectedRun.status}
-                      </span>
+                      <span className="ml-2 inline-block align-middle">{statusBadge(selectedRun.status)}</span>
                     </h4>
                     <button onClick={() => setSelectedRun(null)} className="px-3 py-1.5 rounded-lg border border-navy/10 dark:border-white/10 text-navy/70 dark:text-white/70 font-bold text-xs hover:bg-navy/5">Close</button>
                   </div>
                   {selectedRun.status === 'Draft' && (
                     <div className="flex flex-wrap gap-2 mb-3">
                       <button onClick={handleGenerate} className="px-4 py-2 rounded-lg border border-navy/10 dark:border-white/10 text-navy/70 dark:text-white/70 font-bold text-xs hover:bg-navy/5">Generate/refresh payslips</button>
-                      <button onClick={handleProcess} disabled={selectedRun.payslipCount === 0} className="gold-button px-4 py-2 rounded-lg font-bold text-xs disabled:opacity-40">
-                        Process (emails everyone)
+                      <button onClick={handleReady} disabled={selectedRun.payslipCount === 0} className="gold-button px-4 py-2 rounded-lg font-bold text-xs disabled:opacity-40">
+                        Submit for verification
                       </button>
+                    </div>
+                  )}
+                  {selectedRun.status === 'Ready' && (
+                    <div className="flex flex-wrap gap-2 mb-3">
+                      <button onClick={handleVerify} disabled={selectedRun.payslipCount === 0} className="gold-button px-4 py-2 rounded-lg font-bold text-xs disabled:opacity-40">
+                        Verify payroll
+                      </button>
+                    </div>
+                  )}
+                  {selectedRun.status === 'Verified' && (
+                    <div className="flex flex-wrap gap-2 mb-3">
+                      <button onClick={handlePay} className="gold-button px-4 py-2 rounded-lg font-bold text-xs">
+                        Mark as paid — salary shot
+                      </button>
+                    </div>
+                  )}
+                  {selectedRun.status === 'Paid' && (
+                    <div className="mb-3 p-3 rounded-xl border border-emerald-200 dark:border-emerald-800 bg-emerald-50/40 dark:bg-emerald-900/20 text-xs text-navy/70 dark:text-white/70">
+                      Salary disbursed on {fmtDate(selectedRun.paidOn)}
+                      {selectedRun.autoDisbursed && <span className="ml-2 px-2 py-0.5 rounded-full bg-emerald-100 dark:bg-emerald-900/40 text-emerald-700 dark:text-emerald-300 font-bold">Automatic</span>}
+                    </div>
+                  )}
+                  {(selectedRun.status === 'Ready' || selectedRun.status === 'Verified' || selectedRun.status === 'Paid') && (
+                    <div className="mb-3 grid grid-cols-2 md:grid-cols-4 gap-2 text-[11px] text-navy/60 dark:text-white/60">
+                      <div>Submitted: <b className="text-navy dark:text-white">{fmtDate(selectedRun.readyOn)}</b></div>
+                      <div>Verified: <b className="text-navy dark:text-white">{fmtDate(selectedRun.verifiedOn)}</b></div>
+                      <div>Paid: <b className="text-navy dark:text-white">{fmtDate(selectedRun.paidOn)}</b></div>
+                      <div>Processed: <b className="text-navy dark:text-white">{fmtDate(selectedRun.processedOn)}</b></div>
                     </div>
                   )}
                   {selectedRun.payslipCount > 0 && (
@@ -593,6 +659,21 @@ export default function PayrollManagement() {
                           ))}
                         </tbody>
                       </table>
+                    </div>
+                  )}
+                  {unpaid.length > 0 && (
+                    <div className="mt-3 p-3 rounded-xl border border-red-200 dark:border-red-900 bg-red-50/40 dark:bg-red-900/20">
+                      <div className="text-xs font-bold text-red-700 dark:text-red-400 uppercase tracking-wider mb-2">
+                        Unpaid employees ({unpaid.length}) — eligible but missing from this run
+                      </div>
+                      <div className="space-y-1.5">
+                        {unpaid.map((u) => (
+                          <div key={u.employeeId} className="flex items-center justify-between text-xs text-navy/80 dark:text-white/80">
+                            <span className="font-bold">{u.employeeName} <span className="text-navy/40 dark:text-white/40">({u.employeeCode})</span></span>
+                            <span className="text-red-600 dark:text-red-400">{u.reason}</span>
+                          </div>
+                        ))}
+                      </div>
                     </div>
                   )}
                 </div>
