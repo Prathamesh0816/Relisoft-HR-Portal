@@ -1,6 +1,7 @@
 import LeaveReports from './LeaveReports'
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import useStore from '../store'
+import HttpErrorPage from './HttpErrorPage'
 import Sidebar from './Sidebar'
 import LeaveHome from './LeaveHome'
 import EmployeeOnboarding from './EmployeeOnboarding'
@@ -136,9 +137,15 @@ const meta = {
 }
 
 export default function AppLayout({ onLogout }) {
-  const { activeView, currentUser } = useStore()
+  const { activeView, currentUser, apiError, setApiError } = useStore()
   const [sidebarOpen, setSidebarOpen] = useState(false)
   const m = meta[activeView] || meta.apply
+
+  useEffect(() => {
+    const handler = (e) => setApiError(e.detail)
+    window.addEventListener('relisoft:api-error', handler)
+    return () => window.removeEventListener('relisoft:api-error', handler)
+  }, [setApiError])
 
   const goHome = () => useStore.getState().setActiveView(
     ['HRL2', 'HR'].includes(useStore.getState().currentUser?.role) ? 'hrHome'
@@ -186,13 +193,21 @@ export default function AppLayout({ onLogout }) {
           </div>
         </div>
         <main className="flex-1 min-w-0 p-4 md:p-6 space-y-4">
-          {activeView !== 'hrHome' && (
+          {apiError && (
+            <HttpErrorPage
+              status={apiError.status}
+              message={apiError.message}
+              onBack={() => setApiError(null)}
+            />
+          )}
+          {!apiError && activeView !== 'hrHome' && (
             <div className="card-surface p-4 md:p-5">
               <span className="section-kicker">{m.label}</span>
               <h2 className="section-title text-xl md:text-2xl mt-1">{m.title}</h2>
               <p className="text-muted dark:text-white/60 text-xs md:text-sm mt-0.5">{m.subtitle}</p>
             </div>
           )}
+          {!apiError && (
           <ErrorBoundary resetKey={activeView}>
           {activeView === 'hrHome' && <HrHome />}
           {activeView === 'hrControl' && <HrControlPanel />}
@@ -259,6 +274,7 @@ export default function AppLayout({ onLogout }) {
           {activeView === 'resilienceChat' && <ResilienceAIChat />}
           {activeView === 'settings' && <Settings />}
           </ErrorBoundary>
+          )}
         </main>
       </div>
     </div>
