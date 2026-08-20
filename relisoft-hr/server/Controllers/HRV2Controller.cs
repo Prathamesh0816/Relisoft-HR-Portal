@@ -3,6 +3,7 @@ using Microsoft.EntityFrameworkCore;
 using RelisoftHR.Data;
 using RelisoftHR.DTOs;
 using RelisoftHR.Models;
+using RelisoftHR.Services;
 
 namespace RelisoftHR.Controllers;
 
@@ -11,8 +12,13 @@ namespace RelisoftHR.Controllers;
 public class HRV2Controller : ControllerBase
 {
     private readonly AppDbContext _db;
+    private readonly IInternCompensationService _internComp;
 
-    public HRV2Controller(AppDbContext db) => _db = db;
+    public HRV2Controller(AppDbContext db, IInternCompensationService internComp)
+    {
+        _db = db;
+        _internComp = internComp;
+    }
 
     // ────── Probation ──────
 
@@ -263,6 +269,13 @@ public class HRV2Controller : ControllerBase
     }
 
     // ────── Intern → Permanent ──────
+
+    [HttpGet("intern-pay-status")]
+    public async Task<ActionResult<List<InternPayStatusDto>>> GetInternPayStatus()
+    {
+        var list = await _internComp.EvaluateAllAsync(DateTime.UtcNow);
+        return Ok(list);
+    }
 
     [HttpPost("intern-convert")]
     public async Task<ActionResult> ConvertInternToPermanent(InternConversionRequest req)

@@ -10,8 +10,8 @@ export default function WhatIfSimulator() {
   const [scenarioName, setScenarioName] = useState('')
 
   useEffect(() => {
-    getWorkforceEmployees().then((d) => setResilience({ employees: d.employees || [] }))
-    getResilienceScenarios().then((d) => setResilience({ scenarios: d.scenarios || [] })).catch(() => {})
+    getWorkforceEmployees().then((d) => setResilience({ employees: Array.isArray(d) ? d : (d.employees || []) }))
+    getResilienceScenarios().then((d) => setResilience({ scenarios: Array.isArray(d) ? d : (d.scenarios || []) })).catch(() => {})
   }, [])
 
   const toggleEmployee = (id) => {
@@ -28,7 +28,7 @@ export default function WhatIfSimulator() {
     if (!resilience.whatIf) return
     await createResilienceScenario({ name: scenarioName || 'Untitled Scenario', data: resilience.whatIf })
     const scenarios = await getResilienceScenarios()
-    setResilience({ scenarios: scenarios.scenarios || [] })
+    setResilience({ scenarios: Array.isArray(scenarios) ? scenarios : (scenarios.scenarios || []) })
     setScenarioName('')
   }
 

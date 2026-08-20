@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react'
 import useStore from '../store'
-import { applyLeave, getMyLeaveRequests, cancelLeave, requestCancellation, loadWorkspace, checkLeaveBalance, applyCompOff, getFloaterUsage, uploadMedicalCertificate, downloadMedicalCertificate, transferCompOff, getCompOffTransfers, getAvailableCompOffCredits } from '../api'
+import { applyLeave, getMyLeaveRequests, cancelLeave, requestCancellation, loadWorkspace, checkLeaveBalance, applyCompOff, getFloaterUsage, uploadMedicalCertificate, downloadMedicalCertificate, transferCompOff, getCompOffTransfers, getAvailableCompOffCredits, getEncashments, requestEncashment } from '../api'
 
 function statusClass(status) {
   const s = String(status || '').toLowerCase()
@@ -27,6 +27,9 @@ export default function LeaveHome() {
   const [showTransferForm, setShowTransferForm] = useState(false)
   const [availableCredits, setAvailableCredits] = useState([])
   const [loadingCredits, setLoadingCredits] = useState(false)
+  const [showEncash, setShowEncash] = useState(false)
+  const [encashForm, setEncashForm] = useState({ leaveTypeId: '', daysRequested: '', ratePerDay: '', reason: '', submitting: false })
+  const [myEncashments, setMyEncashments] = useState([])
 
   useEffect(() => {
     if (currentUser?.employeeId) {
@@ -34,6 +37,7 @@ export default function LeaveHome() {
         setMyLeaves({ requests: res.requests || [], loading: false })
       })
       getCompOffTransfers(currentUser.employeeId).then((t) => setTransfers(Array.isArray(t) ? t : t?.transfers || [])).catch(() => {})
+      getEncashments(currentUser.employeeId).then((r) => setMyEncashments(Array.isArray(r) ? r : r || [])).catch(() => {})
     }
   }, [currentUser?.employeeId])
 
@@ -197,6 +201,28 @@ export default function LeaveHome() {
     } catch (err) {
       setMessage({ type: 'error', text: err.response?.data?.message || 'Failed to submit comp off.' })
       setCompOffForm((f) => ({ ...f, submitting: false }))
+    }
+  }
+
+  const handleEncash = async (e) => {
+    e.preventDefault()
+    if (encashForm.submitting) return
+    setEncashForm((f) => ({ ...f, submitting: true }))
+    try {
+      await requestEncashment({
+        leaveTypeId: Number(encashForm.leaveTypeId),
+        daysRequested: Number(encashForm.daysRequested),
+        ratePerDay: Number(encashForm.ratePerDay || 0),
+        reason: encashForm.reason
+      })
+      setMessage({ type: 'success', text: 'Encashment request submitted for approval.' })
+      setEncashForm({ leaveTypeId: '', daysRequested: '', ratePerDay: '', reason: '', submitting: false })
+      setShowEncash(false)
+      const r = await getEncashments(currentUser?.employeeId)
+      setMyEncashments(Array.isArray(r) ? r : r || [])
+    } catch (err) {
+      setMessage({ type: 'error', text: err.response?.data?.message || 'Encashment request failed.' })
+      setEncashForm((f) => ({ ...f, submitting: false }))
     }
   }
 
@@ -489,6 +515,59 @@ export default function LeaveHome() {
             ))
           )}
         </div>
+      </div>
+      <div className="card-surface">
+        <div className="p-5">
+          <div className="flex items-center justify-between flex-wrap gap-2">
+            <div>
+              <h2 className="font-heading font-bold text-xl text-navy dark:text-white">Leave encashment</h2>
+              <p className="text-muted dark:text-white/60 text-xs mt-1">Convert unused leave days into a payout. Approved by HR, then marked paid.</p>
+            </div>
+            <button type="button" onClick={() => setShowEncash(!showEncash)} className="px-5 py-2.5 rounded-xl border border-navy/10 dark:border-white/10 text-navy/70 dark:text-white/70 font-bold text-sm hover:bg-navy/5">
+              {showEncash ? 'Close encashment request' : 'Request encashment'}
+            </button>
+          </div>
+        </div>
+        {showEncash && (
+          <form onSubmit={handleEncash} className="px-5 pb-5 border-t border-navy/10 pt-4 space-y-4">
+            <div className="grid md:grid-cols-2 gap-4">
+              <div>
+                <label className="text-xs font-bold text-navy/70 dark:text-white/70 uppercase tracking-wider">Leave type</label>
+                <select value={encashForm.leaveTypeId} disabled={encashForm.submitting} onChange={(e) => setEncashForm((f) => ({ ...f, leaveTypeId: e.target.value }))} required className="mt-1.5 w-full h-12 px-4 rounded-xl border border-navy/10 dark:border-white/10 bg-white dark:bg-[var(--bg-secondary)] text-navy dark:text-white">
+                  <option value="">Select leave type</option>
+                  {data.leaveTypes.filter((lt) => !lt.isCompOff && !lt.isFloaterHoliday).map((lt) => <option key={lt.id} value={lt.id}>{lt.name}</option>)}
+                </select>
+              </div>
+              <div>
+                <label className="text-xs font-bold text-navy/70 dark:text-white/70 uppercase tracking-wider">Days to encash</label>
+                <input type="number" min="0.5" step="0.5" value={encashForm.daysRequested} disabled={encashForm.submitting} onChange={(e) => setEncashForm((f) => ({ ...f, daysRequested: e.target.value }))} placeholder="e.g. 5" required className="mt-1.5 w-full h-12 px-4 rounded-xl border border-navy/10 dark:border-white/10 bg-white dark:bg-[var(--bg-secondary)] text-navy dark:text-white" />
+              </div>
+              <div>
+                <label className="text-xs font-bold text-navy/70 dark:text-white/70 uppercase tracking-wider">Rate per day (₹, optional)</label>
+                <input type="number" min="0" step="0.01" value={encashForm.ratePerDay} disabled={encashForm.submitting} onChange={(e) => setEncashForm((f) => ({ ...f, ratePerDay: e.target.value }))} placeholder="Leave blank to use your salary rate" className="mt-1.5 w-full h-12 px-4 rounded-xl border border-navy/10 dark:border-white/10 bg-white dark:bg-[var(--bg-secondary)] text-navy dark:text-white" />
+              </div>
+              <div className="md:col-span-2">
+                <label className="text-xs font-bold text-navy/70 dark:text-white/70 uppercase tracking-wider">Reason</label>
+                <textarea value={encashForm.reason} disabled={encashForm.submitting} onChange={(e) => setEncashForm((f) => ({ ...f, reason: e.target.value }))} placeholder="Why are you encashing leave?" required className="mt-1.5 w-full h-20 px-4 py-3 rounded-xl border border-navy/10 dark:border-white/10 bg-white dark:bg-[var(--bg-secondary)] text-navy dark:text-white resize-vertical" />
+              </div>
+            </div>
+            <button type="submit" disabled={encashForm.submitting} className="gold-button px-6 py-3 rounded-xl font-bold text-sm">{encashForm.submitting ? 'Submitting...' : 'Submit encashment request'}</button>
+          </form>
+        )}
+        {myEncashments.length > 0 && (
+          <div className="px-5 pb-5 space-y-2">
+            <h4 className="font-bold text-sm text-navy dark:text-white">My encashment requests</h4>
+            {myEncashments.map((en) => (
+              <div key={en.id} className="p-3 rounded-xl border border-navy/10 dark:border-white/10 bg-white dark:bg-[var(--bg-secondary)] flex items-center justify-between text-sm">
+                <div>
+                  <span className="font-bold text-navy dark:text-white">{en.leaveTypeName}</span>
+                  <span className="text-muted ml-2">{en.daysRequested} day(s) · ₹{(en.amount || 0).toLocaleString('en-IN')}</span>
+                </div>
+                <span className={`px-2 py-0.5 rounded text-[10px] font-bold ${en.status === 'Approved' ? 'bg-emerald-50 text-emerald-700' : en.status === 'Rejected' ? 'bg-red-50 text-red-700' : 'bg-amber-50 text-amber-700'}`}>{en.status}</span>
+              </div>
+            ))}
+          </div>
+        )}
       </div>
       {cancelDialog.request && (
         <div className="fixed inset-0 z-50 grid place-items-center p-6 bg-navy/40 backdrop-blur-sm">

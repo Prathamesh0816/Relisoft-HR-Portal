@@ -1,10 +1,10 @@
 import { useState, useEffect } from 'react'
 import { getAnnouncements, createAnnouncement, deleteAnnouncement } from '../api'
 import useStore from '../store'
-import { Megaphone, Plus, X, MessageCircle, AlertCircle, Info } from 'lucide-react'
+import { Megaphone, Plus, X, MessageCircle, AlertCircle, Info, UserPlus } from 'lucide-react'
 
 export default function Announcements() {
-  const { currentUser, announcements, setAnnouncements } = useStore()
+  const { currentUser } = useStore()
   const [list, setList] = useState([])
   const [showForm, setShowForm] = useState(false)
   const [form, setForm] = useState({ title: '', content: '', category: 'General', priority: 'Normal' })
@@ -48,6 +48,7 @@ export default function Announcements() {
     'HR Policy': MessageCircle,
     Event: Megaphone,
     Alert: AlertCircle,
+    Joining: UserPlus,
   }
 
   return (
@@ -123,6 +124,7 @@ export default function Announcements() {
               <div className="flex items-start justify-between gap-4">
                 <div className="flex items-start gap-3 flex-1">
                   <div className={`w-10 h-10 rounded-xl flex items-center justify-center shrink-0 ${
+                    a.category === 'Joining' ? 'bg-teal-100 dark:bg-teal-900/30 text-teal-700' :
                     a.priority === 'Urgent' ? 'bg-orange-100 dark:bg-orange-900/30 text-warning' :
                     a.priority === 'High' ? 'bg-red-100 dark:bg-red-900/30 text-danger' :
                     'bg-gold-1/10 text-gold-1'
@@ -132,6 +134,9 @@ export default function Announcements() {
                   <div className="flex-1">
                     <div className="flex items-center gap-2 flex-wrap">
                       <h3 className="font-heading font-bold text-navy dark:text-white">{a.title}</h3>
+                      {a.category === 'Joining' && (
+                        <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-teal-100 text-teal-700">NEW JOINER</span>
+                      )}
                       <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${priorityColors[a.priority] || priorityColors.Normal}`}>
                         {a.priority}
                       </span>

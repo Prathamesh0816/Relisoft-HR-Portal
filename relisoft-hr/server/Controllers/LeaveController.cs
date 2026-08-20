@@ -20,8 +20,9 @@ public class LeaveController : ControllerBase
     private readonly ILogger<LeaveController> _logger;
     private readonly ILeaveBalanceService _leaveBalanceService;
     private readonly LeaveCarryForwardService _carryForwardService;
+    private readonly ILeaveAccrualService _leaveAccrualService;
 
-    public LeaveController(AppDbContext db, IEmailService emailService, NotificationHelper notif, ILogger<LeaveController> logger, ILeaveBalanceService leaveBalanceService, LeaveCarryForwardService carryForwardService)
+    public LeaveController(AppDbContext db, IEmailService emailService, NotificationHelper notif, ILogger<LeaveController> logger, ILeaveBalanceService leaveBalanceService, LeaveCarryForwardService carryForwardService, ILeaveAccrualService leaveAccrualService)
     {
         _db = db;
         _emailService = emailService;
@@ -29,6 +30,7 @@ public class LeaveController : ControllerBase
         _logger = logger;
         _leaveBalanceService = leaveBalanceService;
         _carryForwardService = carryForwardService;
+        _leaveAccrualService = leaveAccrualService;
     }
 
     [HttpPost("apply-leave")]
@@ -169,7 +171,7 @@ public class LeaveController : ControllerBase
 
         var validation = leaveType.IsFloaterHoliday
             ? new LeaveBalanceValidation(0, totalDays, 0, 0, true, string.Empty, req.StartDate.Date)
-            : await _leaveBalanceService.ValidateLeaveBalanceAsync(req.EmployeeId, req.LeaveTypeId, req.StartDate, totalDays);
+            : await ValidateWithAccrualAsync(req.EmployeeId, req.LeaveTypeId, req.StartDate, totalDays);
         if (!validation.HasSufficientBalance && !req.ConfirmLossOfPay)
             return Conflict(validation);
         var lossOfPay = validation.LopDays > 0;
@@ -1330,5 +1332,19 @@ public class LeaveController : ControllerBase
             l.CarryForwardDays, l.LapsedDays,
             l.TriggerType, l.ProcessedById, l.ProcessedOn
         )).ToList());
+    }
+
+    private async Task<LeaveBalanceValidation> ValidateWithAccrualAsync(int employeeId, int leaveTypeId, DateTime fromDate, decimal requestedDays)
+    {
+        var leaveType = await _db.LeaveTypes.AsNoTracking().SingleOrDefaultAsync(type => type.Id == leaveTypeId);
+        if (leaveType != null && leaveType.Name != "Planned Leave" && !leaveType.IsCompOff && !leaveType.IsFloaterHoliday && leaveType.DefaultDaysPerYear > 0)
+        {
+            var allocated = await _leaveAccrualService.EnsureAccruedAsync(employeeId, leaveTypeId, fromDate);
+            if (allocated is > 0)
+                _logger.LogInformation("Lazy accrual: {Days} day(s) of {LeaveType} allocated to employee {EmployeeId} for FY {FY}",
+                    allocated, leaveType.Name, employeeId, LeaveCarryForwardService.GetFinancialYearFor(fromDate));
+        }
+
+        return await _leaveBalanceService.ValidateLeaveBalanceAsync(employeeId, leaveTypeId, fromDate, requestedDays);
     }
 }

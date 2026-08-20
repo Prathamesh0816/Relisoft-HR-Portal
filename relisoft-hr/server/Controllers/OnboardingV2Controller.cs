@@ -3,6 +3,7 @@ using Microsoft.EntityFrameworkCore;
 using RelisoftHR.Data;
 using RelisoftHR.DTOs;
 using RelisoftHR.Models;
+using RelisoftHR.Services;
 
 namespace RelisoftHR.Controllers;
 
@@ -11,8 +12,19 @@ namespace RelisoftHR.Controllers;
 public class OnboardingV2Controller : ControllerBase
 {
     private readonly AppDbContext _db;
+    private readonly JoinerAnnouncementService _joinerService;
 
-    public OnboardingV2Controller(AppDbContext db) => _db = db;
+    public OnboardingV2Controller(AppDbContext db, JoinerAnnouncementService joinerService)
+    {
+        _db = db;
+        _joinerService = joinerService;
+    }
+
+    private int GetUserId()
+    {
+        var claim = User.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)?.Value;
+        return claim != null && int.TryParse(claim, out var id) ? id : 0;
+    }
 
     [HttpGet("checklist")]
     public async Task<ActionResult<List<OnboardingChecklistDto>>> GetChecklist()
@@ -150,7 +162,11 @@ public class OnboardingV2Controller : ControllerBase
             onboarding.Status = "Completed";
             onboarding.CompletedOn = DateTime.UtcNow;
             var emp = await _db.Employees.FindAsync(onboarding.EmployeeId);
-            if (emp != null) emp.Status = "Active";
+            if (emp != null)
+            {
+                emp.Status = "Active";
+                await _joinerService.AnnounceJoinerAsync(emp, GetUserId());
+            }
         }
 
         await _db.SaveChangesAsync();
@@ -192,6 +208,8 @@ public class OnboardingV2Controller : ControllerBase
         }
 
         await _db.SaveChangesAsync();
+
+        await _joinerService.AnnounceJoinerAsync(emp, GetUserId());
 
         var loginExists = await _db.UserLogins.AnyAsync(ul => ul.EmployeeId == employeeId);
         if (!loginExists)

@@ -13,16 +13,16 @@ public static class WorkforceSeeder
 
         var employees = new List<WorkforceEmployee>
         {
-            new() { EmployeeCode = "WF-001", FullName = "Vikram Sharma", Team = "Sales", Role = "Sales Manager", Criticality = "High", BackupAvailable = "No", ExperienceYears = 12, AnnualSalaryUsd = 95000, TenureYears = 8.0, IsActive = true },
-            new() { EmployeeCode = "WF-002", FullName = "Priya Patel", Team = "Engineering", Role = "Engineering Lead", Criticality = "High", BackupAvailable = "No", ExperienceYears = 10, AnnualSalaryUsd = 110000, TenureYears = 6.0, IsActive = true },
-            new() { EmployeeCode = "WF-003", FullName = "Amit Verma", Team = "Engineering", Role = "Senior Developer", Criticality = "Medium", BackupAvailable = "Yes", ExperienceYears = 7, AnnualSalaryUsd = 85000, TenureYears = 4.0, IsActive = true },
-            new() { EmployeeCode = "WF-004", FullName = "Neha Gupta", Team = "HR", Role = "HR Manager", Criticality = "Medium", BackupAvailable = "Yes", ExperienceYears = 9, AnnualSalaryUsd = 72000, TenureYears = 5.0, IsActive = true },
-            new() { EmployeeCode = "WF-005", FullName = "Raj Kumar", Team = "DevOps", Role = "DevOps Lead", Criticality = "High", BackupAvailable = "No", ExperienceYears = 8, AnnualSalaryUsd = 98000, TenureYears = 5.0, IsActive = true },
-            new() { EmployeeCode = "WF-006", FullName = "Ankit Joshi", Team = "QA", Role = "QA Lead", Criticality = "Medium", BackupAvailable = "Yes", ExperienceYears = 6, AnnualSalaryUsd = 70000, TenureYears = 3.5, IsActive = true },
-            new() { EmployeeCode = "WF-007", FullName = "Deepa Iyer", Team = "Product", Role = "Product Manager", Criticality = "High", BackupAvailable = "No", ExperienceYears = 11, AnnualSalaryUsd = 105000, TenureYears = 7.0, IsActive = true },
-            new() { EmployeeCode = "WF-008", FullName = "Suresh Reddy", Team = "Design", Role = "Senior Designer", Criticality = "Medium", BackupAvailable = "Yes", ExperienceYears = 8, AnnualSalaryUsd = 78000, TenureYears = 5.0, IsActive = true },
-            new() { EmployeeCode = "WF-009", FullName = "Kavita Nair", Team = "Data", Role = "Data Analyst", Criticality = "Low", BackupAvailable = "No", ExperienceYears = 4, AnnualSalaryUsd = 62000, TenureYears = 2.0, IsActive = true },
-            new() { EmployeeCode = "WF-010", FullName = "Rohan Desai", Team = "Engineering", Role = "Junior Developer", Criticality = "Low", BackupAvailable = "Yes", ExperienceYears = 2, AnnualSalaryUsd = 55000, TenureYears = 1.0, IsActive = true }
+            new() { EmployeeCode = "WF-001", FullName = "Vikram Sharma", Team = "Sales", Role = "Sales Manager", Criticality = "High", BackupAvailable = "No", ExperienceYears = 12, AnnualSalaryUsd = 7900000, TenureYears = 8.0, IsActive = true },
+            new() { EmployeeCode = "WF-002", FullName = "Priya Patel", Team = "Engineering", Role = "Engineering Lead", Criticality = "High", BackupAvailable = "No", ExperienceYears = 10, AnnualSalaryUsd = 9150000, TenureYears = 6.0, IsActive = true },
+            new() { EmployeeCode = "WF-003", FullName = "Amit Verma", Team = "Engineering", Role = "Senior Developer", Criticality = "Medium", BackupAvailable = "Yes", ExperienceYears = 7, AnnualSalaryUsd = 7070000, TenureYears = 4.0, IsActive = true },
+            new() { EmployeeCode = "WF-004", FullName = "Neha Gupta", Team = "HR", Role = "HR Manager", Criticality = "Medium", BackupAvailable = "Yes", ExperienceYears = 9, AnnualSalaryUsd = 5990000, TenureYears = 5.0, IsActive = true },
+            new() { EmployeeCode = "WF-005", FullName = "Raj Kumar", Team = "DevOps", Role = "DevOps Lead", Criticality = "High", BackupAvailable = "No", ExperienceYears = 8, AnnualSalaryUsd = 8150000, TenureYears = 5.0, IsActive = true },
+            new() { EmployeeCode = "WF-006", FullName = "Ankit Joshi", Team = "QA", Role = "QA Lead", Criticality = "Medium", BackupAvailable = "Yes", ExperienceYears = 6, AnnualSalaryUsd = 5820000, TenureYears = 3.5, IsActive = true },
+            new() { EmployeeCode = "WF-007", FullName = "Deepa Iyer", Team = "Product", Role = "Product Manager", Criticality = "High", BackupAvailable = "No", ExperienceYears = 11, AnnualSalaryUsd = 8730000, TenureYears = 7.0, IsActive = true },
+            new() { EmployeeCode = "WF-008", FullName = "Suresh Reddy", Team = "Design", Role = "Senior Designer", Criticality = "Medium", BackupAvailable = "Yes", ExperienceYears = 8, AnnualSalaryUsd = 6490000, TenureYears = 5.0, IsActive = true },
+            new() { EmployeeCode = "WF-009", FullName = "Kavita Nair", Team = "Data", Role = "Data Analyst", Criticality = "Low", BackupAvailable = "No", ExperienceYears = 4, AnnualSalaryUsd = 5160000, TenureYears = 2.0, IsActive = true },
+            new() { EmployeeCode = "WF-010", FullName = "Rohan Desai", Team = "Engineering", Role = "Junior Developer", Criticality = "Low", BackupAvailable = "Yes", ExperienceYears = 2, AnnualSalaryUsd = 4570000, TenureYears = 1.0, IsActive = true }
         };
 
         db.WorkforceEmployees.AddRange(employees);
@@ -30,11 +30,11 @@ public static class WorkforceSeeder
 
         var projects = new List<WorkforceProject>
         {
-            new() { ProjectCode = "PRJ-001", ProjectName = "Sales Platform", Team = "Sales", Criticality = "High", DeadlineDays = 180, Client = "Client A", AnnualContractValueUsd = 500000, Status = "Active" },
-            new() { ProjectCode = "PRJ-002", ProjectName = "Cloud Migration", Team = "Engineering", Criticality = "High", DeadlineDays = 240, Client = "Client B", AnnualContractValueUsd = 800000, Status = "Active" },
-            new() { ProjectCode = "PRJ-003", ProjectName = "HR Portal", Team = "Engineering", Criticality = "Medium", DeadlineDays = 120, Client = "Internal", AnnualContractValueUsd = 200000, Status = "Active" },
-            new() { ProjectCode = "PRJ-004", ProjectName = "Mobile App", Team = "Design", Criticality = "Medium", DeadlineDays = 180, Client = "Client C", AnnualContractValueUsd = 350000, Status = "Active" },
-            new() { ProjectCode = "PRJ-005", ProjectName = "Data Pipeline", Team = "Data", Criticality = "High", DeadlineDays = 150, Client = "Client D", AnnualContractValueUsd = 450000, Status = "Active" }
+            new() { ProjectCode = "PRJ-001", ProjectName = "Sales Platform", Team = "Sales", Criticality = "High", DeadlineDays = 180, Client = "Client A", AnnualContractValueUsd = 41500000, Status = "Active" },
+            new() { ProjectCode = "PRJ-002", ProjectName = "Cloud Migration", Team = "Engineering", Criticality = "High", DeadlineDays = 240, Client = "Client B", AnnualContractValueUsd = 66500000, Status = "Active" },
+            new() { ProjectCode = "PRJ-003", ProjectName = "HR Portal", Team = "Engineering", Criticality = "Medium", DeadlineDays = 120, Client = "Internal", AnnualContractValueUsd = 16600000, Status = "Active" },
+            new() { ProjectCode = "PRJ-004", ProjectName = "Mobile App", Team = "Design", Criticality = "Medium", DeadlineDays = 180, Client = "Client C", AnnualContractValueUsd = 29100000, Status = "Active" },
+            new() { ProjectCode = "PRJ-005", ProjectName = "Data Pipeline", Team = "Data", Criticality = "High", DeadlineDays = 150, Client = "Client D", AnnualContractValueUsd = 37400000, Status = "Active" }
         };
 
         db.WorkforceProjects.AddRange(projects);

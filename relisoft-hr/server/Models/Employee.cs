@@ -33,6 +33,30 @@ public class Employee
     public DateTime? UpdatedOn { get; set; }
     [MaxLength(50)]
     public string? ManagerCode { get; set; }   // NEW
+    [MaxLength(30)]
+    public string? UanNumber { get; set; }     // PF/UAN for provident fund
+    [MaxLength(30)]
+    public string? PanNumber { get; set; }     // PAN for TDS
+    public bool IsUnpaidIntern { get; set; }   // excludes from payroll generation
+    [MaxLength(30)]
+    public string? PhoneNumber { get; set; }
+    [MaxLength(200)]
+    public string? PersonalEmail { get; set; }
+    public DateTime? DateOfBirth { get; set; }
+    [MaxLength(30)]
+    public string? BloodGroup { get; set; }
+    [MaxLength(30)]
+    public string? MaritalStatus { get; set; }
+    [MaxLength(500)]
+    public string? Address { get; set; }
+    [MaxLength(100)]
+    public string? EmergencyContactName { get; set; }
+    [MaxLength(30)]
+    public string? EmergencyContactPhone { get; set; }
+    [MaxLength(50)]
+    public string? EmergencyContactRelation { get; set; }
+    [MaxLength(1000)]
+    public string? ProfileImageUrl { get; set; }
 
     [ForeignKey(nameof(RoleId))]
     public OrganizationRole? Role { get; set; }

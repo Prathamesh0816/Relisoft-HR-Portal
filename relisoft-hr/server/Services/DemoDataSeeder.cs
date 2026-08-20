@@ -121,47 +121,90 @@ public static class DemoDataSeeder
         }
         await db.SaveChangesAsync();
 
-        // 9. Additional employees (checked individually so they survive re-seed)
+        // 9. Additional employees (checked individually so they survive re-seed).
+        // These rows use explicit identity values, so IDENTITY_INSERT must be enabled
+        // for the target table during the insert on a fresh database. The connection is
+        // held open so the SET applies to the same session that performs the inserts.
         if (!await db.Employees.AnyAsync(e => e.Id == 10))
         {
             var hash = "$2a$11$1OmqZ7Lg1.9.5dC2qwF3He4EDiSghkDr94W1CrHjxUML9COevlnhy";
-            db.Employees.AddRange(
-                new Employee { Id = 10, EmployeeCode = "EMP-010", FullName = "Bhushan Babras", Email = "bhushan.babras@relisofttechnologies.com", Department = "Engineering", Designation = "Software Engineer", JobRole = "Software Engineer", EmploymentType = "Full-time", Location = "Mumbai", JoinDate = new DateTime(2025, 1, 10), RoleId = 1, CreatedOn = utc },
-                new Employee { Id = 11, EmployeeCode = "EMP-011", FullName = "Sopan Bidgar", Email = "sopan.bidgar@relisofttechnologies.com", Department = "Engineering", Designation = "Software Engineer", JobRole = "Software Engineer", EmploymentType = "Full-time", Location = "Pune", JoinDate = new DateTime(2025, 2, 15), RoleId = 1, CreatedOn = utc },
-                new Employee { Id = 12, EmployeeCode = "EMP-012", FullName = "Supriya Gaikwad", Email = "supriya.gaikwad@relisofttechnologies.com", Department = "Engineering", Designation = "Software Engineer", JobRole = "Software Engineer", EmploymentType = "Full-time", Location = "Mumbai", JoinDate = new DateTime(2025, 3, 5), RoleId = 1, CreatedOn = utc }
-            );
-            await db.SaveChangesAsync();
+            await db.Database.OpenConnectionAsync();
+            await db.Database.ExecuteSqlRawAsync("SET IDENTITY_INSERT [Employees] ON");
+            try
+            {
+                db.Employees.AddRange(
+                    new Employee { Id = 10, EmployeeCode = "EMP-010", FullName = "Bhushan Babras", Email = "bhushan.babras@relisofttechnologies.com", Department = "Engineering", Designation = "Software Engineer", JobRole = "Software Engineer", EmploymentType = "Full-time", Location = "Mumbai", JoinDate = new DateTime(2025, 1, 10), RoleId = 1, CreatedOn = utc },
+                    new Employee { Id = 11, EmployeeCode = "EMP-011", FullName = "Sopan Bidgar", Email = "sopan.bidgar@relisofttechnologies.com", Department = "Engineering", Designation = "Software Engineer", JobRole = "Software Engineer", EmploymentType = "Full-time", Location = "Pune", JoinDate = new DateTime(2025, 2, 15), RoleId = 1, CreatedOn = utc },
+                    new Employee { Id = 12, EmployeeCode = "EMP-012", FullName = "Supriya Gaikwad", Email = "supriya.gaikwad@relisofttechnologies.com", Department = "Engineering", Designation = "Software Engineer", JobRole = "Software Engineer", EmploymentType = "Full-time", Location = "Mumbai", JoinDate = new DateTime(2025, 3, 5), RoleId = 1, CreatedOn = utc }
+                );
+                await db.SaveChangesAsync();
+            }
+            finally
+            {
+                await db.Database.ExecuteSqlRawAsync("SET IDENTITY_INSERT [Employees] OFF");
+                await db.Database.CloseConnectionAsync();
+            }
 
-            db.UserLogins.AddRange(
-                new UserLogin { EmployeeId = 10, Username = "bhushan", PasswordHash = hash, CreatedOn = utc },
-                new UserLogin { EmployeeId = 11, Username = "sopan", PasswordHash = hash, CreatedOn = utc },
-                new UserLogin { EmployeeId = 12, Username = "supriya", PasswordHash = hash, CreatedOn = utc }
-            );
-            await db.SaveChangesAsync();
+            await db.Database.OpenConnectionAsync();
+            await db.Database.ExecuteSqlRawAsync("SET IDENTITY_INSERT [UserLogins] ON");
+            try
+            {
+                db.UserLogins.AddRange(
+                    new UserLogin { Id = 10, EmployeeId = 10, Username = "bhushan", PasswordHash = hash, CreatedOn = utc },
+                    new UserLogin { Id = 11, EmployeeId = 11, Username = "sopan", PasswordHash = hash, CreatedOn = utc },
+                    new UserLogin { Id = 12, EmployeeId = 12, Username = "supriya", PasswordHash = hash, CreatedOn = utc }
+                );
+                await db.SaveChangesAsync();
+            }
+            finally
+            {
+                await db.Database.ExecuteSqlRawAsync("SET IDENTITY_INSERT [UserLogins] OFF");
+                await db.Database.CloseConnectionAsync();
+            }
         }
 
         if (!await db.Employees.AnyAsync(e => e.Id == 4))
         {
             var hash = "$2a$11$1OmqZ7Lg1.9.5dC2qwF3He4EDiSghkDr94W1CrHjxUML9COevlnhy"; // "password"
-            db.Employees.AddRange(
-                new Employee { Id = 4, EmployeeCode = "EMP-004", FullName = "Arif Nadeem Mirza", Email = "arif.nadeem.mirza@relisofttechnologies.com", Department = "Data Operations", Designation = "Technical Manager L2", JobRole = "Technical Delivery", EmploymentType = "Full-time", Location = "Pune", JoinDate = new DateTime(2025, 6, 12), RoleId = 8, CreatedOn = utc },
-                new Employee { Id = 5, EmployeeCode = "EMP-005", FullName = "Girish Patil", Email = "girish.patil@relisofttechnologies.com", Department = "Data Operations", Designation = "Technical Manager L2", JobRole = "Technical Delivery", EmploymentType = "Full-time", Location = "Bengaluru", JoinDate = new DateTime(2025, 8, 20), RoleId = 8, CreatedOn = utc },
-                new Employee { Id = 6, EmployeeCode = "EMP-006", FullName = "Shreerang Joshi", Email = "shreerang.joshi@relisofttechnologies.com", Department = "Quality Engineering", Designation = "Technical Manager L1", JobRole = "Quality Lead (All Areas)", EmploymentType = "Full-time", Location = "Pune", JoinDate = new DateTime(2024, 11, 1), RoleId = 5, CreatedOn = utc },
-                new Employee { Id = 7, EmployeeCode = "EMP-007", FullName = "Prathamesh Katikar", Email = "prathamesh.katikar@relisofttechnologies.com", Department = "Quality Engineering", Designation = "Quality Engineer", JobRole = "Quality Engineer (TLM / LQM)", EmploymentType = "Full-time", Location = "Mumbai", JoinDate = new DateTime(2026, 3, 1), RoleId = 1, CreatedOn = utc },
-                new Employee { Id = 8, EmployeeCode = "EMP-008", FullName = "Super HR", Email = "hr@relisofttechnologies.com", Department = "HR", Designation = "Super HR", JobRole = "Super HR", EmploymentType = "Full-time", Location = "Mumbai", JoinDate = new DateTime(2024, 6, 1), RoleId = 7, CreatedOn = utc },
-                new Employee { Id = 9, EmployeeCode = "EMP-009", FullName = "Unnati Gawali", Email = "unnati.gawali@relisofttechnologies.com", Department = "HR", Designation = "HR Executive", JobRole = "HR Executive", EmploymentType = "Full-time", Location = "Mumbai", JoinDate = new DateTime(2025, 9, 1), RoleId = 3, CreatedOn = utc }
-            );
-            await db.SaveChangesAsync();
+            await db.Database.OpenConnectionAsync();
+            await db.Database.ExecuteSqlRawAsync("SET IDENTITY_INSERT [Employees] ON");
+            try
+            {
+                db.Employees.AddRange(
+                    new Employee { Id = 4, EmployeeCode = "EMP-004", FullName = "Arif Nadeem Mirza", Email = "arif.nadeem.mirza@relisofttechnologies.com", Department = "Data Operations", Designation = "Technical Manager L2", JobRole = "Technical Delivery", EmploymentType = "Full-time", Location = "Pune", JoinDate = new DateTime(2025, 6, 12), RoleId = 8, CreatedOn = utc },
+                    new Employee { Id = 5, EmployeeCode = "EMP-005", FullName = "Girish Patil", Email = "girish.patil@relisofttechnologies.com", Department = "Data Operations", Designation = "Technical Manager L2", JobRole = "Technical Delivery", EmploymentType = "Full-time", Location = "Bengaluru", JoinDate = new DateTime(2025, 8, 20), RoleId = 8, CreatedOn = utc },
+                    new Employee { Id = 6, EmployeeCode = "EMP-006", FullName = "Shreerang Joshi", Email = "shreerang.joshi@relisofttechnologies.com", Department = "Quality Engineering", Designation = "Technical Manager L1", JobRole = "Quality Lead (All Areas)", EmploymentType = "Full-time", Location = "Pune", JoinDate = new DateTime(2024, 11, 1), RoleId = 5, CreatedOn = utc },
+                    new Employee { Id = 7, EmployeeCode = "EMP-007", FullName = "Prathamesh Katikar", Email = "prathamesh.katikar@relisofttechnologies.com", Department = "Quality Engineering", Designation = "Quality Engineer", JobRole = "Quality Engineer (TLM / LQM)", EmploymentType = "Full-time", Location = "Mumbai", JoinDate = new DateTime(2026, 3, 1), RoleId = 1, CreatedOn = utc },
+                    new Employee { Id = 8, EmployeeCode = "EMP-008", FullName = "Super HR", Email = "hr@relisofttechnologies.com", Department = "HR", Designation = "Super HR", JobRole = "Super HR", EmploymentType = "Full-time", Location = "Mumbai", JoinDate = new DateTime(2024, 6, 1), RoleId = 7, CreatedOn = utc },
+                    new Employee { Id = 9, EmployeeCode = "EMP-009", FullName = "Unnati Gawali", Email = "unnati.gawali@relisofttechnologies.com", Department = "HR", Designation = "HR Executive", JobRole = "HR Executive", EmploymentType = "Full-time", Location = "Mumbai", JoinDate = new DateTime(2025, 9, 1), RoleId = 3, CreatedOn = utc }
+                );
+                await db.SaveChangesAsync();
+            }
+            finally
+            {
+                await db.Database.ExecuteSqlRawAsync("SET IDENTITY_INSERT [Employees] OFF");
+                await db.Database.CloseConnectionAsync();
+            }
 
-            db.UserLogins.AddRange(
-                new UserLogin { Id = 4, EmployeeId = 4, Username = "arif", PasswordHash = hash, CreatedOn = utc },
-                new UserLogin { Id = 5, EmployeeId = 5, Username = "girish", PasswordHash = hash, CreatedOn = utc },
-                new UserLogin { Id = 6, EmployeeId = 6, Username = "shreerang", PasswordHash = hash, CreatedOn = utc },
-                new UserLogin { Id = 7, EmployeeId = 7, Username = "prathamesh", PasswordHash = hash, CreatedOn = utc },
-                new UserLogin { Id = 8, EmployeeId = 8, Username = "hr", PasswordHash = hash, CreatedOn = utc },
-                new UserLogin { Id = 9, EmployeeId = 9, Username = "unnati", PasswordHash = hash, CreatedOn = utc }
-            );
-            await db.SaveChangesAsync();
+            await db.Database.OpenConnectionAsync();
+            await db.Database.ExecuteSqlRawAsync("SET IDENTITY_INSERT [UserLogins] ON");
+            try
+            {
+                db.UserLogins.AddRange(
+                    new UserLogin { Id = 4, EmployeeId = 4, Username = "arif", PasswordHash = hash, CreatedOn = utc },
+                    new UserLogin { Id = 5, EmployeeId = 5, Username = "girish", PasswordHash = hash, CreatedOn = utc },
+                    new UserLogin { Id = 6, EmployeeId = 6, Username = "shreerang", PasswordHash = hash, CreatedOn = utc },
+                    new UserLogin { Id = 7, EmployeeId = 7, Username = "prathamesh", PasswordHash = hash, CreatedOn = utc },
+                    new UserLogin { Id = 8, EmployeeId = 8, Username = "hr", PasswordHash = hash, CreatedOn = utc },
+                    new UserLogin { Id = 9, EmployeeId = 9, Username = "unnati", PasswordHash = hash, CreatedOn = utc }
+                );
+                await db.SaveChangesAsync();
+            }
+            finally
+            {
+                await db.Database.ExecuteSqlRawAsync("SET IDENTITY_INSERT [UserLogins] OFF");
+                await db.Database.CloseConnectionAsync();
+            }
         }
     }
 }

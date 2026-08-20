@@ -15,3 +15,7 @@ public record LoginResponse(
 public record DemoUserDto(string Username, string Role);
 
 public record ChangePasswordRequest(string OldPassword, string NewPassword);
+
+public record ForgotPasswordRequest(string Username);
+
+public record ResetPasswordRequest(string Token, string NewPassword);

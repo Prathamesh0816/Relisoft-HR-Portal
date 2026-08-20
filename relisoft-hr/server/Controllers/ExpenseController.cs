@@ -71,7 +71,7 @@ public class ExpenseController : ControllerBase
         {
             var cat = await _db.ExpenseCategories.FindAsync(req.CategoryId);
             await _notif.NotifyEmployeeAsync(emp.Id, emp, "Expense Claim Submitted",
-                $"Your expense claim of {req.Amount:C} has been submitted.", "expense",
+                $"Your expense claim of ₹{req.Amount:N2} has been submitted.", "expense",
                 "Expense Claim Submitted", EmailTemplates.ExpenseSubmitted(emp.FullName, cat?.Name ?? "", req.Amount, ""),
                 link: "/expenses");
         }

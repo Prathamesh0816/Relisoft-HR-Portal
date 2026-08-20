@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
 import useStore from '../store'
-import { getVisitors, createVisitor, updateVisitor, checkInVisitor, checkOutVisitor, getTodayVisitors } from '../api'
+import { getVisitors, createVisitor, updateVisitor, checkInVisitor, checkOutVisitor, getTodayVisitors, getGatePass } from '../api'
 import { Users, Plus, LogIn, LogOut, Search, Filter, Calendar, Building, Phone, Mail } from 'lucide-react'
 
 function statusBadge(status) {
@@ -14,9 +14,10 @@ function statusBadge(status) {
 export default function VisitorManagement() {
   const { visitors, setVisitors, setMessage, currentUser } = useStore()
   const [tab, setTab] = useState('today')
-  const [form, setForm] = useState({ name: '', email: '', phone: '', company: '', hostEmployeeId: '', purpose: '', expectedDate: new Date().toISOString().slice(0, 10), expectedTime: '10:00' })
+  const [form, setForm] = useState({ fullName: '', email: '', phone: '', company: '', hostEmployeeId: '', purpose: '', expectedDate: new Date().toISOString().slice(0, 10), expectedTime: '10:00' })
   const [submitting, setSubmitting] = useState(false)
   const [statusFilter, setStatusFilter] = useState('')
+  const [preview, setPreview] = useState(null)
   const { data } = useStore()
 
   useEffect(() => {
@@ -37,7 +38,7 @@ export default function VisitorManagement() {
     try {
       const res = await createVisitor({ ...form, expectedDate: form.expectedDate, expectedTime: form.expectedTime })
       setMessage({ type: 'success', text: res.message || 'Visitor registered.' })
-      setForm({ name: '', email: '', phone: '', company: '', hostEmployeeId: '', purpose: '', expectedDate: new Date().toISOString().slice(0, 10), expectedTime: '10:00' })
+      setForm({ fullName: '', email: '', phone: '', company: '', hostEmployeeId: '', purpose: '', expectedDate: new Date().toISOString().slice(0, 10), expectedTime: '10:00' })
       await refreshAll()
     } catch (err) {
       setMessage({ type: 'error', text: err.response?.data?.message || 'Failed.' })
@@ -52,6 +53,15 @@ export default function VisitorManagement() {
   const handleCheckOut = async (id) => {
     try { await checkOutVisitor(id); setMessage({ type: 'success', text: 'Visitor checked out.' }); await refreshAll() }
     catch (err) { setMessage({ type: 'error', text: err.response?.data?.message || 'Failed.' }) }
+  }
+
+  const handleGatePass = async (v) => {
+    try {
+      const html = await getGatePass(v.id)
+      setPreview({ html, title: `${v.fullName} — Gate Pass` })
+    } catch (err) {
+      setMessage({ type: 'error', text: err.response?.data?.message || 'Could not open gate pass.' })
+    }
   }
 
   return (
@@ -77,12 +87,16 @@ export default function VisitorManagement() {
               {visitors.todayVisitors.map((v) => (
                 <div key={v.id} className="flex items-center justify-between p-4 rounded-xl border border-navy/10 dark:border-white/10 bg-white dark:bg-[var(--bg-secondary)]">
                   <div>
-                    <div className="font-bold text-navy dark:text-white text-sm">{v.name}</div>
-                    <div className="text-xs text-muted mt-1">{v.company} · {v.purpose} · Host: {v.hostName}</div>
+                    <div className="font-bold text-navy dark:text-white text-sm">{v.fullName}</div>
+                    <div className="text-xs text-muted mt-1">{v.company} · {v.purpose} · Host: {v.visitingEmployee}</div>
                     {v.expectedTime && <div className="text-xs text-muted">Expected: {v.expectedTime?.slice(0, 5)}</div>}
                   </div>
                   <div className="flex items-center gap-2">
-                    <span className={`px-3 py-1 rounded-full text-xs font-bold ${statusBadge(v.status)}`}>{v.status}</span>
+<div className="flex items-center gap-2">
+                  <button onClick={() => handleGatePass(v)} className="px-3 py-1.5 rounded-xl bg-gold-1/10 text-gold-1 border border-gold-2/30 font-bold text-xs hover:bg-gold-1/20">Gate Pass</button>
+                  <span className={`px-3 py-1 rounded-full text-xs font-bold ${statusBadge(v.status)}`}>{v.status}</span>
+                </div>
+                    <button onClick={() => handleGatePass(v)} className="px-3 py-1.5 rounded-xl bg-gold-1/10 text-gold-1 border border-gold-2/30 font-bold text-xs hover:bg-gold-1/20">Gate Pass</button>
                     {v.status === 'Pending' && (
                       <button onClick={() => handleCheckIn(v.id)} className="px-3 py-1.5 rounded-xl bg-emerald-50 text-emerald-700 border border-emerald-200 font-bold text-xs hover:bg-emerald-100"><LogIn size={14} className="inline mr-1" />Check In</button>
                     )}
@@ -116,9 +130,9 @@ export default function VisitorManagement() {
               {visitors.list.map((v) => (
                 <div key={v.id} className="flex items-center justify-between p-4 rounded-xl border border-navy/10 dark:border-white/10 bg-white dark:bg-[var(--bg-secondary)]">
                   <div>
-                    <div className="font-bold text-navy dark:text-white text-sm">{v.name}</div>
+                    <div className="font-bold text-navy dark:text-white text-sm">{v.fullName}</div>
                     <div className="text-xs text-muted mt-1">{v.email} · {v.phone}</div>
-                    <div className="text-xs text-muted">{v.company} · {v.purpose} · Host: {v.hostName}</div>
+                    <div className="text-xs text-muted">{v.company} · {v.purpose} · Host: {v.visitingEmployee}</div>
                     <div className="text-xs text-muted">{new Date(v.expectedDate).toLocaleDateString()} {v.expectedTime?.slice(0, 5)}</div>
                   </div>
                   <span className={`px-3 py-1 rounded-full text-xs font-bold ${statusBadge(v.status)}`}>{v.status}</span>
@@ -137,7 +151,7 @@ export default function VisitorManagement() {
             <div className="grid grid-cols-2 gap-4">
               <div>
                 <label className="label">Name</label>
-                <input value={form.name} onChange={(e) => setForm((s) => ({ ...s, name: e.target.value }))} required className="input w-full" />
+                <input value={form.fullName} onChange={(e) => setForm((s) => ({ ...s, fullName: e.target.value }))} required className="input w-full" />
               </div>
               <div>
                 <label className="label">Email</label>
@@ -176,6 +190,24 @@ export default function VisitorManagement() {
             {submitting && <div className="text-xs text-muted">Registering...</div>}
             <button type="submit" disabled={submitting} className="btn-primary"><Users size={16} /> {submitting ? 'Registering...' : 'Register Visitor'}</button>
           </form>
+        </div>
+      )}
+
+      {preview && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4" onClick={() => setPreview(null)}>
+          <div className="w-full max-w-3xl bg-white rounded-2xl shadow-2xl overflow-hidden" onClick={(e) => e.stopPropagation()}>
+            <div className="flex items-center justify-between px-5 py-3 border-b border-navy/10 bg-navy-dark text-white">
+              <h3 className="font-heading font-bold">{preview.title}</h3>
+              <button onClick={() => setPreview(null)} className="text-white/70 hover:text-white text-xl font-bold">&times;</button>
+            </div>
+            <div className="bg-slate-200 p-4 max-h-[70vh] overflow-auto">
+              <iframe srcDoc={preview.html} title={preview.title} className="w-full h-[60vh] bg-white rounded-lg border border-navy/10" />
+            </div>
+            <div className="flex items-center justify-end gap-2 px-5 py-3 bg-slate-50 border-t border-navy/10">
+              <button onClick={() => setPreview(null)} className="px-4 py-2 rounded-lg border border-navy/10 bg-white text-navy/70 font-bold text-xs">Close</button>
+              <button onClick={() => { const win = window.open('', '_blank'); if (win) { win.document.write(preview.html); win.document.close(); } }} className="px-4 py-2 rounded-lg bg-gold-1 text-navy-dark font-bold text-xs">Open & Print</button>
+            </div>
+          </div>
         </div>
       )}
     </div>

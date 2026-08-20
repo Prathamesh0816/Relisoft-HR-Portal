@@ -42,8 +42,9 @@ public class AppDbContext : DbContext
     public DbSet<AppraisalCycle> AppraisalCycles => Set<AppraisalCycle>();
     public DbSet<EmployeeAppraisal> EmployeeAppraisals => Set<EmployeeAppraisal>();
     public DbSet<EmployeeAppraisalGoal> EmployeeAppraisalGoals => Set<EmployeeAppraisalGoal>();
-    public DbSet<Announcement> Announcements => Set<Announcement>();
-    public DbSet<AttendanceRecord> AttendanceRecords => Set<AttendanceRecord>();
+public DbSet<Announcement> Announcements => Set<Announcement>();
+public DbSet<EmployeeProfileChangeRequest> EmployeeProfileChangeRequests => Set<EmployeeProfileChangeRequest>();
+public DbSet<AttendanceRecord> AttendanceRecords => Set<AttendanceRecord>();
     public DbSet<KnowledgeBaseArticle> KnowledgeBaseArticles => Set<KnowledgeBaseArticle>();
     public DbSet<MoodEntry> MoodEntries => Set<MoodEntry>();
     public DbSet<EmployeeSkill> EmployeeSkills => Set<EmployeeSkill>();
@@ -98,9 +99,79 @@ public class AppDbContext : DbContext
     public DbSet<WorkforceWorkload> WorkforceWorkloads => Set<WorkforceWorkload>();
     public DbSet<WorkforceScenario> WorkforceScenarios => Set<WorkforceScenario>();
     public DbSet<WorkforceFeedback> WorkforceFeedbacks => Set<WorkforceFeedback>();
+    public DbSet<PayComponent> PayComponents => Set<PayComponent>();
+    public DbSet<EmployeeSalaryStructure> EmployeeSalaryStructures => Set<EmployeeSalaryStructure>();
+    public DbSet<EmployeeSalaryStructureLine> EmployeeSalaryStructureLines => Set<EmployeeSalaryStructureLine>();
+    public DbSet<PayRun> PayRuns => Set<PayRun>();
+    public DbSet<Payslip> Payslips => Set<Payslip>();
+    public DbSet<PayslipLine> PayslipLines => Set<PayslipLine>();
+    public DbSet<PerformanceReview> PerformanceReviews => Set<PerformanceReview>();
+    public DbSet<ReviewCriterionScore> ReviewCriterionScores => Set<ReviewCriterionScore>();
+    public DbSet<Kudos> Kudos => Set<Kudos>();
+    public DbSet<RecognitionAward> RecognitionAwards => Set<RecognitionAward>();
+    public DbSet<RecognitionAwardRecipient> RecognitionAwardRecipients => Set<RecognitionAwardRecipient>();
+    public DbSet<FunFridayCelebration> FunFridayCelebrations => Set<FunFridayCelebration>();
+    public DbSet<JobPosting> JobPostings => Set<JobPosting>();
+    public DbSet<Candidate> Candidates => Set<Candidate>();
+    public DbSet<Interview> Interviews => Set<Interview>();
+    public DbSet<JobOffer> JobOffers => Set<JobOffer>();
+    public DbSet<PasswordResetToken> PasswordResetTokens => Set<PasswordResetToken>();
+    public DbSet<LeaveEncashment> LeaveEncashments => Set<LeaveEncashment>();
+    public DbSet<AuditLogEntry> AuditLogEntries => Set<AuditLogEntry>();
+    public DbSet<AttendanceRegularization> AttendanceRegularizations => Set<AttendanceRegularization>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
+        modelBuilder.Entity<Kudos>()
+            .HasOne(k => k.Giver).WithMany().HasForeignKey(k => k.GiverEmployeeId)
+            .OnDelete(DeleteBehavior.NoAction);
+        modelBuilder.Entity<Kudos>()
+            .HasOne(k => k.Receiver).WithMany().HasForeignKey(k => k.ReceiverEmployeeId)
+            .OnDelete(DeleteBehavior.NoAction);
+        modelBuilder.Entity<RecognitionAward>()
+            .HasOne(a => a.CreatedBy).WithMany().HasForeignKey(a => a.CreatedByEmployeeId)
+            .OnDelete(DeleteBehavior.NoAction);
+        modelBuilder.Entity<RecognitionAwardRecipient>()
+            .HasOne(r => r.Award).WithMany(a => a.Recipients).HasForeignKey(r => r.AwardId)
+            .OnDelete(DeleteBehavior.Cascade);
+        modelBuilder.Entity<RecognitionAwardRecipient>()
+            .HasOne(r => r.Employee).WithMany().HasForeignKey(r => r.EmployeeId)
+            .OnDelete(DeleteBehavior.NoAction);
+        modelBuilder.Entity<RecognitionAwardRecipient>()
+            .HasOne(r => r.AwardedBy).WithMany().HasForeignKey(r => r.AwardedByEmployeeId)
+            .OnDelete(DeleteBehavior.NoAction);
+        modelBuilder.Entity<FunFridayCelebration>()
+            .HasOne(f => f.CreatedBy).WithMany().HasForeignKey(f => f.CreatedByEmployeeId)
+            .OnDelete(DeleteBehavior.NoAction);
+
+        modelBuilder.Entity<JobPosting>()
+            .HasOne(j => j.CreatedBy).WithMany().HasForeignKey(j => j.CreatedByEmployeeId)
+            .OnDelete(DeleteBehavior.NoAction);
+        modelBuilder.Entity<Candidate>()
+            .HasOne(c => c.JobPosting).WithMany(j => j.Candidates).HasForeignKey(c => c.JobPostingId)
+            .OnDelete(DeleteBehavior.Cascade);
+        modelBuilder.Entity<Candidate>()
+            .HasOne(c => c.AppliedBy).WithMany().HasForeignKey(c => c.AppliedByEmployeeId)
+            .OnDelete(DeleteBehavior.NoAction);
+        modelBuilder.Entity<Interview>()
+            .HasOne(i => i.Candidate).WithMany(c => c.Interviews).HasForeignKey(i => i.CandidateId)
+            .OnDelete(DeleteBehavior.Cascade);
+        modelBuilder.Entity<Interview>()
+            .HasOne(i => i.JobPosting).WithMany().HasForeignKey(i => i.JobPostingId)
+            .OnDelete(DeleteBehavior.NoAction);
+        modelBuilder.Entity<Interview>()
+            .HasOne(i => i.Interviewer).WithMany().HasForeignKey(i => i.InterviewerEmployeeId)
+            .OnDelete(DeleteBehavior.NoAction);
+        modelBuilder.Entity<JobOffer>()
+            .HasOne(o => o.Candidate).WithMany().HasForeignKey(o => o.CandidateId)
+            .OnDelete(DeleteBehavior.Cascade);
+        modelBuilder.Entity<JobOffer>()
+            .HasOne(o => o.JobPosting).WithMany().HasForeignKey(o => o.JobPostingId)
+            .OnDelete(DeleteBehavior.NoAction);
+        modelBuilder.Entity<JobOffer>()
+            .HasOne(o => o.CreatedBy).WithMany().HasForeignKey(o => o.CreatedByEmployeeId)
+            .OnDelete(DeleteBehavior.NoAction);
+
         modelBuilder.Entity<EmployeeTeam>()
             .HasIndex(et => new { et.EmployeeId, et.TeamId }).IsUnique();
         modelBuilder.Entity<EmployeeTeam>()
@@ -239,6 +310,17 @@ public class AppDbContext : DbContext
             .WithMany()
             .HasForeignKey(a => a.CreatedById)
             .OnDelete(DeleteBehavior.NoAction);
+        modelBuilder.Entity<Announcement>()
+            .HasOne(a => a.Employee)
+            .WithMany()
+            .HasForeignKey(a => a.EmployeeId)
+            .OnDelete(DeleteBehavior.NoAction);
+        modelBuilder.Entity<EmployeeProfileChangeRequest>()
+            .HasOne(p => p.Employee).WithMany().HasForeignKey(p => p.EmployeeId).OnDelete(DeleteBehavior.NoAction);
+        modelBuilder.Entity<EmployeeProfileChangeRequest>()
+            .HasOne(p => p.RequestedBy).WithMany().HasForeignKey(p => p.RequestedById).OnDelete(DeleteBehavior.NoAction);
+        modelBuilder.Entity<EmployeeProfileChangeRequest>()
+            .HasOne(p => p.ReviewedBy).WithMany().HasForeignKey(p => p.ReviewedById).OnDelete(DeleteBehavior.NoAction);
         modelBuilder.Entity<AttendanceRecord>()
             .HasOne(a => a.Employee)
             .WithMany()
@@ -463,6 +545,80 @@ public class AppDbContext : DbContext
             .HasForeignKey(ad => ad.DelegateId)
             .OnDelete(DeleteBehavior.NoAction);
 
+        modelBuilder.Entity<PayComponent>().HasIndex(c => c.Name).IsUnique();
+        modelBuilder.Entity<EmployeeSalaryStructure>().HasIndex(s => s.EmployeeId).IsUnique();
+        modelBuilder.Entity<PayRun>().HasIndex(r => new { r.PeriodYear, r.PeriodMonth }).IsUnique();
+        modelBuilder.Entity<Payslip>()
+            .HasOne(p => p.PayRun)
+            .WithMany(r => r.Payslips)
+            .HasForeignKey(p => p.PayRunId)
+            .OnDelete(DeleteBehavior.Cascade);
+        modelBuilder.Entity<PerformanceReview>()
+            .HasOne(r => r.Employee)
+            .WithMany()
+            .HasForeignKey(r => r.EmployeeId)
+            .OnDelete(DeleteBehavior.NoAction);
+        modelBuilder.Entity<PerformanceReview>()
+            .HasOne(r => r.Reviewer)
+            .WithMany()
+            .HasForeignKey(r => r.ReviewerId)
+            .OnDelete(DeleteBehavior.NoAction);
+        modelBuilder.Entity<ReviewCriterionScore>()
+            .HasOne(s => s.PerformanceReview)
+            .WithMany(r => r.Criteria)
+            .HasForeignKey(s => s.PerformanceReviewId)
+            .OnDelete(DeleteBehavior.Cascade);
+
+        modelBuilder.Entity<PasswordResetToken>()
+            .HasOne(t => t.Employee)
+            .WithMany()
+            .HasForeignKey(t => t.EmployeeId)
+            .OnDelete(DeleteBehavior.Cascade);
+
+        modelBuilder.Entity<LeaveEncashment>()
+            .HasOne(e => e.Employee)
+            .WithMany()
+            .HasForeignKey(e => e.EmployeeId)
+            .OnDelete(DeleteBehavior.NoAction);
+        modelBuilder.Entity<LeaveEncashment>()
+            .HasOne(e => e.LeaveType)
+            .WithMany()
+            .HasForeignKey(e => e.LeaveTypeId)
+            .OnDelete(DeleteBehavior.NoAction);
+        modelBuilder.Entity<LeaveEncashment>()
+            .HasOne(e => e.ApprovedBy)
+            .WithMany()
+            .HasForeignKey(e => e.ApprovedById)
+            .OnDelete(DeleteBehavior.NoAction);
+
+        modelBuilder.Entity<AuditLogEntry>()
+            .HasOne(a => a.Actor)
+            .WithMany()
+            .HasForeignKey(a => a.ActorEmployeeId)
+            .OnDelete(DeleteBehavior.NoAction);
+
+        modelBuilder.Entity<AttendanceRegularization>()
+            .HasOne(r => r.Employee)
+            .WithMany()
+            .HasForeignKey(r => r.EmployeeId)
+            .OnDelete(DeleteBehavior.NoAction);
+        modelBuilder.Entity<AttendanceRegularization>()
+            .HasOne(r => r.AttendanceRecord)
+            .WithMany()
+            .HasForeignKey(r => r.AttendanceRecordId)
+            .OnDelete(DeleteBehavior.Cascade);
+        modelBuilder.Entity<AttendanceRegularization>()
+            .HasOne(r => r.ApprovedBy)
+            .WithMany()
+            .HasForeignKey(r => r.ApprovedById)
+            .OnDelete(DeleteBehavior.NoAction);
+
+        modelBuilder.Entity<EmployeeDocument>()
+            .HasOne(d => d.VerifiedBy)
+            .WithMany()
+            .HasForeignKey(d => d.VerifiedById)
+            .OnDelete(DeleteBehavior.NoAction);
+
         modelBuilder.Entity<OrganizationRole>().HasData(
             new OrganizationRole { Id = 1, Name = "Employee", Importance = 100, IsCustom = false, BaseRoleId = 1 },
             new OrganizationRole { Id = 2, Name = "TeamLead", Label = "Team Lead", Importance = 200, IsCustom = false, BaseRoleId = 1 },
@@ -487,15 +643,15 @@ public class AppDbContext : DbContext
         );
 
         modelBuilder.Entity<LeaveType>().HasData(
-            new LeaveType { Id = 1, Name = "Sick/Casual Leave", SortOrder = 1, CarryForwardPct = 50, MaxConsecutiveDays = 3, RequiresAdvanceNotice = false },
-            new LeaveType { Id = 2, Name = "Planned Leave", SortOrder = 2, CarryForwardPct = 0, MaxConsecutiveDays = 15, RequiresAdvanceNotice = true, AdvanceNoticeDays = 3 },
-            new LeaveType { Id = 3, Name = "Maternity Leave", SortOrder = 3, MaxConsecutiveDays = 180, RequiresAdvanceNotice = true, AdvanceNoticeDays = 30 },
-            new LeaveType { Id = 4, Name = "Paternity Leave", SortOrder = 4, MaxConsecutiveDays = 15, RequiresAdvanceNotice = true, AdvanceNoticeDays = 7 },
-            new LeaveType { Id = 5, Name = "Bereavement Leave", SortOrder = 5, MaxConsecutiveDays = 3, RequiresAdvanceNotice = false },
-            new LeaveType { Id = 6, Name = "Compensatory Off", SortOrder = 6, IsCompOff = true, CompOffValidityDays = 60, MaxConsecutiveDays = 1, RequiresAdvanceNotice = false },
-            new LeaveType { Id = 7, Name = "Marriage Leave", SortOrder = 7, MaxConsecutiveDays = 5, RequiresAdvanceNotice = true, AdvanceNoticeDays = 7 },
-            new LeaveType { Id = 8, Name = "Special Leave", SortOrder = 8, MaxConsecutiveDays = 30, RequiresAdvanceNotice = true, AdvanceNoticeDays = 15 },
-            new LeaveType { Id = 9, Name = "Floater Holiday", SortOrder = 9, IsFloaterHoliday = true, MaxFloaterPerYear = 2, MaxConsecutiveDays = 1, RequiresAdvanceNotice = false }
+            new LeaveType { Id = 1, Name = "Sick/Casual Leave", SortOrder = 1, CarryForwardPct = 50, MaxConsecutiveDays = 3, RequiresAdvanceNotice = false, DefaultDaysPerYear = 12 },
+            new LeaveType { Id = 2, Name = "Planned Leave", SortOrder = 2, CarryForwardPct = 0, MaxConsecutiveDays = 15, RequiresAdvanceNotice = true, AdvanceNoticeDays = 3, DefaultDaysPerYear = 12 },
+            new LeaveType { Id = 3, Name = "Maternity Leave", SortOrder = 3, MaxConsecutiveDays = 180, RequiresAdvanceNotice = true, AdvanceNoticeDays = 30, DefaultDaysPerYear = 180 },
+            new LeaveType { Id = 4, Name = "Paternity Leave", SortOrder = 4, MaxConsecutiveDays = 15, RequiresAdvanceNotice = true, AdvanceNoticeDays = 7, DefaultDaysPerYear = 15 },
+            new LeaveType { Id = 5, Name = "Bereavement Leave", SortOrder = 5, MaxConsecutiveDays = 3, RequiresAdvanceNotice = false, DefaultDaysPerYear = 3 },
+            new LeaveType { Id = 6, Name = "Compensatory Off", SortOrder = 6, IsCompOff = true, CompOffValidityDays = 60, MaxConsecutiveDays = 1, RequiresAdvanceNotice = false, DefaultDaysPerYear = 0 },
+            new LeaveType { Id = 7, Name = "Marriage Leave", SortOrder = 7, MaxConsecutiveDays = 5, RequiresAdvanceNotice = true, AdvanceNoticeDays = 7, DefaultDaysPerYear = 5 },
+            new LeaveType { Id = 8, Name = "Special Leave", SortOrder = 8, MaxConsecutiveDays = 30, RequiresAdvanceNotice = true, AdvanceNoticeDays = 15, DefaultDaysPerYear = 30 },
+            new LeaveType { Id = 9, Name = "Floater Holiday", SortOrder = 9, IsFloaterHoliday = true, MaxFloaterPerYear = 2, MaxConsecutiveDays = 1, RequiresAdvanceNotice = false, DefaultDaysPerYear = 0 }
         );
 
         modelBuilder.Entity<HrPolicy>().HasData(

@@ -47,4 +47,40 @@ public class EmailService : IEmailService
             _logger.LogError(ex, "[EMAIL-FAILED] To: {To}, Subject: {Subject}", to, subject);
         }
     }
+
+    public async Task SendEmailWithAttachmentAsync(string to, string subject, string body, byte[] attachmentBytes, string attachmentFileName, string? cc = null, string? mimeType = "application/pdf")
+    {
+        var smtpHost = _config["Email:SmtpHost"];
+        if (string.IsNullOrEmpty(smtpHost))
+        {
+            _logger.LogInformation("[EMAIL-DEV] To: {To}, Subject: {Subject}, Attachment: {File} ({Bytes} bytes)", to, subject, attachmentFileName, attachmentBytes?.Length ?? 0);
+            return;
+        }
+
+        try
+        {
+            using var client = new SmtpClient(smtpHost)
+            {
+                Port = int.Parse(_config["Email:SmtpPort"] ?? "587"),
+                Credentials = new NetworkCredential(
+                    _config["Email:Username"],
+                    _config["Email:Password"]),
+                EnableSsl = bool.Parse(_config["Email:EnableSsl"] ?? "true")
+            };
+
+            var from = _config["Email:From"] ?? "noreply@relisofttechnologies.com";
+            using var msg = new MailMessage(from, to, subject, body) { IsBodyHtml = true };
+            if (!string.IsNullOrEmpty(cc))
+                msg.CC.Add(cc);
+            if (attachmentBytes is { Length: > 0 })
+                msg.Attachments.Add(new Attachment(new MemoryStream(attachmentBytes), attachmentFileName, mimeType));
+
+            await client.SendMailAsync(msg);
+            _logger.LogInformation("[EMAIL-SENT] To: {To}, Subject: {Subject}, Attachment: {File}", to, subject, attachmentFileName);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "[EMAIL-FAILED] To: {To}, Subject: {Subject}", to, subject);
+        }
+    }
 }

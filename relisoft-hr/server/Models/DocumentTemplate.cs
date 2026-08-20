@@ -32,12 +32,23 @@ public class EmployeeDocument
     public string? FilePath { get; set; }
     public string? AutoFilledData { get; set; } // JSON snapshot of data used
     [MaxLength(50)]
-    public string Status { get; set; } = "Generated"; // Generated, Sent, Acknowledged
+    public string Status { get; set; } = "Generated"; // Generated, Sent, Acknowledged, Verified
     public DateTime GeneratedOn { get; set; } = DateTime.UtcNow;
     public DateTime? SentOn { get; set; }
+    public DateTime? ExpiryDate { get; set; }
+    [MaxLength(50)]
+    public string VerificationStatus { get; set; } = "NotVerified"; // NotVerified, Pending, Verified, Rejected
+    public DateTime? VerifiedOn { get; set; }
+    public int? VerifiedById { get; set; }
+    [MaxLength(1000)]
+    public string? OneDrivePath { get; set; }
+    [MaxLength(500)]
+    public string? MimeType { get; set; }
 
     [ForeignKey(nameof(EmployeeId))]
     public Employee? Employee { get; set; }
     [ForeignKey(nameof(TemplateId))]
     public DocumentTemplate? Template { get; set; }
+    [ForeignKey(nameof(VerifiedById))]
+    public Employee? VerifiedBy { get; set; }
 }

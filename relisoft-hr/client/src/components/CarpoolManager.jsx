@@ -190,7 +190,7 @@ export default function CarpoolManager() {
                     ))}
                   </div>
                 </div>
-                {g.members?.some(m => m.employeeId === useStore.getState().currentUser?.id) ? (
+                {g.members?.some(m => m.employeeId === useStore.getState().currentUser?.employeeId) ? (
                   <button onClick={() => handleLeave(g.id)} className="text-xs font-bold text-red-500 hover:text-red-700"><LogOut size={16} /></button>
                 ) : (
                   <button onClick={() => handleJoin(g.id)} className="btn-primary text-xs py-1.5"><UserPlus size={14} /> Join</button>

@@ -22,68 +22,61 @@ namespace RelisoftHR.Migrations
                     ALTER TABLE [Employees] ADD CONSTRAINT [AK_Employees_EmployeeCode] UNIQUE ([EmployeeCode]);
                 """);
 
-            migrationBuilder.UpdateData(
-                 table: "Employees",
-                 keyColumn: "Id",
-                 keyValue: 1,
-                 column: "ManagerCode",
-                 value: "EMP-002"); // Preeti Patil -> Rakesh Patil
+            // Only apply manager mappings when the target employees exist. On a fresh
+            // database only EMP-001..003 are seeded (see SeedDemoUsers), so referencing
+            // EMP-004 here would violate the self-referencing FK. Each UPDATE is guarded
+            // by a check that both the source employee row and the manager row exist.
+            migrationBuilder.Sql("""
+                IF EXISTS (SELECT 1 FROM [Employees] WHERE [Id] = 1)
+                AND EXISTS (SELECT 1 FROM [Employees] WHERE [EmployeeCode] = N'EMP-002')
+                    UPDATE [Employees] SET [ManagerCode] = N'EMP-002' WHERE [Id] = 1;
+                """);
 
-            migrationBuilder.UpdateData(
-                table: "Employees",
-                keyColumn: "Id",
-                keyValue: 2,
-                column: "ManagerCode",
-                value: null); // Rakesh Patil (CEO) -> no manager
+            migrationBuilder.Sql("""
+                IF EXISTS (SELECT 1 FROM [Employees] WHERE [Id] = 2)
+                    UPDATE [Employees] SET [ManagerCode] = NULL WHERE [Id] = 2;
+                """);
 
-            migrationBuilder.UpdateData(
-                table: "Employees",
-                keyColumn: "Id",
-                keyValue: 3,
-                column: "ManagerCode",
-                value: "EMP-004"); // Aradhana Shinde -> Arif Nadeem Mirza
+            migrationBuilder.Sql("""
+                IF EXISTS (SELECT 1 FROM [Employees] WHERE [Id] = 3)
+                AND EXISTS (SELECT 1 FROM [Employees] WHERE [EmployeeCode] = N'EMP-004')
+                    UPDATE [Employees] SET [ManagerCode] = N'EMP-004' WHERE [Id] = 3;
+                """);
 
-            migrationBuilder.UpdateData(
-                table: "Employees",
-                keyColumn: "Id",
-                keyValue: 4,
-                column: "ManagerCode",
-                value: null); // Arif Nadeem Mirza -> no manager
+            migrationBuilder.Sql("""
+                IF EXISTS (SELECT 1 FROM [Employees] WHERE [Id] = 4)
+                    UPDATE [Employees] SET [ManagerCode] = NULL WHERE [Id] = 4;
+                """);
 
-            migrationBuilder.UpdateData(
-                table: "Employees",
-                keyColumn: "Id",
-                keyValue: 5,
-                column: "ManagerCode",
-                value: "EMP-004"); // Girish Patil -> Arif Nadeem Mirza
+            migrationBuilder.Sql("""
+                IF EXISTS (SELECT 1 FROM [Employees] WHERE [Id] = 5)
+                AND EXISTS (SELECT 1 FROM [Employees] WHERE [EmployeeCode] = N'EMP-004')
+                    UPDATE [Employees] SET [ManagerCode] = N'EMP-004' WHERE [Id] = 5;
+                """);
 
-            migrationBuilder.UpdateData(
-                table: "Employees",
-                keyColumn: "Id",
-                keyValue: 6,
-                column: "ManagerCode",
-                value: "EMP-004"); // Shreerang Joshi -> Arif Nadeem Mirza
+            migrationBuilder.Sql("""
+                IF EXISTS (SELECT 1 FROM [Employees] WHERE [Id] = 6)
+                AND EXISTS (SELECT 1 FROM [Employees] WHERE [EmployeeCode] = N'EMP-004')
+                    UPDATE [Employees] SET [ManagerCode] = N'EMP-004' WHERE [Id] = 6;
+                """);
 
-            migrationBuilder.UpdateData(
-                table: "Employees",
-                keyColumn: "Id",
-                keyValue: 7,
-                column: "ManagerCode",
-                value: "EMP-004"); // Prathamesh Katikar -> Arif Nadeem Mirza
+            migrationBuilder.Sql("""
+                IF EXISTS (SELECT 1 FROM [Employees] WHERE [Id] = 7)
+                AND EXISTS (SELECT 1 FROM [Employees] WHERE [EmployeeCode] = N'EMP-004')
+                    UPDATE [Employees] SET [ManagerCode] = N'EMP-004' WHERE [Id] = 7;
+                """);
 
-            migrationBuilder.UpdateData(
-                table: "Employees",
-                keyColumn: "Id",
-                keyValue: 8,
-                column: "ManagerCode",
-                value: "EMP-002"); // Super HR -> Rakesh Patil
+            migrationBuilder.Sql("""
+                IF EXISTS (SELECT 1 FROM [Employees] WHERE [Id] = 8)
+                AND EXISTS (SELECT 1 FROM [Employees] WHERE [EmployeeCode] = N'EMP-002')
+                    UPDATE [Employees] SET [ManagerCode] = N'EMP-002' WHERE [Id] = 8;
+                """);
 
-            migrationBuilder.UpdateData(
-                table: "Employees",
-                keyColumn: "Id",
-                keyValue: 9,
-                column: "ManagerCode",
-                value: "EMP-002"); // Unnati Gawali -> Rakesh Patil
+            migrationBuilder.Sql("""
+                IF EXISTS (SELECT 1 FROM [Employees] WHERE [Id] = 9)
+                AND EXISTS (SELECT 1 FROM [Employees] WHERE [EmployeeCode] = N'EMP-002')
+                    UPDATE [Employees] SET [ManagerCode] = N'EMP-002' WHERE [Id] = 9;
+                """);
 
             migrationBuilder.Sql("""
                 IF NOT EXISTS (SELECT 1 FROM sys.indexes WHERE object_id = OBJECT_ID(N'dbo.Employees') AND [name] = N'IX_Employees_EmployeeCode')

@@ -86,7 +86,7 @@ export default function ExpenseManagement() {
                 <div key={c.id} className="p-4 rounded-xl border border-navy/10 dark:border-white/10 bg-white dark:bg-[var(--bg-secondary)] flex items-center justify-between gap-4">
                   <div className="flex-1">
                     <div className="font-bold text-navy dark:text-white text-sm">{c.title}</div>
-                    <div className="text-xs text-muted mt-1">{c.categoryName} · {new Date(c.expenseDate).toLocaleDateString()} · ${Number(c.amount).toFixed(2)}</div>
+                    <div className="text-xs text-muted mt-1">{c.categoryName} · {new Date(c.expenseDate).toLocaleDateString()} · ₹{Number(c.amount).toLocaleString('en-IN', { minimumFractionDigits: 2 })}</div>
                     {c.description && <div className="text-xs text-muted mt-1">{c.description}</div>}
                   </div>
                   <div className="flex items-center gap-2">
@@ -121,7 +121,7 @@ export default function ExpenseManagement() {
             </div>
             <div className="grid grid-cols-2 gap-4">
               <div>
-                <label className="label">Amount ($)</label>
+                <label className="label">Amount (₹)</label>
                 <input type="number" min={0} step="0.01" value={form.amount} onChange={(e) => setForm((s) => ({ ...s, amount: e.target.value }))} required placeholder="0.00" className="input w-full" />
               </div>
               <div>
@@ -148,7 +148,7 @@ export default function ExpenseManagement() {
                   <div className="flex items-start justify-between gap-4">
                     <div>
                       <div className="font-bold text-navy dark:text-white text-sm">{c.title}</div>
-                      <div className="text-xs text-muted mt-1">{c.employeeName} · {c.categoryName} · ${Number(c.amount).toFixed(2)} · {new Date(c.expenseDate).toLocaleDateString()}</div>
+                      <div className="text-xs text-muted mt-1">{c.employeeName} · {c.categoryName} · ₹{Number(c.amount).toLocaleString('en-IN', { minimumFractionDigits: 2 })} · {new Date(c.expenseDate).toLocaleDateString()}</div>
                       {c.description && <div className="text-xs text-muted mt-1">{c.description}</div>}
                     </div>
                   </div>

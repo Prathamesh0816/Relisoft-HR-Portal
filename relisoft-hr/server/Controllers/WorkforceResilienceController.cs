@@ -377,7 +377,7 @@ pre {{ background: #f5f5f5; padding: 12px; border-radius: 6px; overflow-x: auto;
     <div class=""label"">Retention Score</div>
     <div class=""value"">{health.RetentionScore}</div>
 </div>
-<p><strong>Employees:</strong> {health.EmployeeCount} &nbsp; <strong>SPOFs:</strong> {health.SpofCount} &nbsp; <strong>Revenue at Risk:</strong> ${health.RevenueAtRisk:N0}</p>
+<p><strong>Employees:</strong> {health.EmployeeCount} &nbsp; <strong>SPOFs:</strong> {health.SpofCount} &nbsp; <strong>Revenue at Risk:</strong> ₹{health.RevenueAtRisk:N0}</p>
 
 <h2>Employee Roster</h2>
 <table><thead><tr><th>Name</th><th>Team</th><th>Role</th><th>Criticality</th><th>Backup</th><th>Experience</th></tr></thead><tbody>{rows}</tbody></table>

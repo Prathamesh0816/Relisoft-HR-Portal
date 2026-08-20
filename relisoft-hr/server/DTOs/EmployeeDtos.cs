@@ -5,14 +5,20 @@ public record CreateEmployeeRequest(
     string Designation, string JobRole, string EmploymentType, string Location,
     SalaryStructureDto? SalaryStructure, DateTime JoinDate, int Role,
     int PrimaryTeamId, List<int> TeamIds,
-    int? ManagerId = null   // NEW
+    int? ManagerId = null,   // NEW
+    string? UanNumber = null,
+    string? PanNumber = null,
+    bool IsUnpaidIntern = false
 );
 
 public record UpdateEmployeeRequest(
     string EmployeeCode, string FullName, string Email, string Department,
     string Designation, string JobRole, string EmploymentType, string Location,
     SalaryStructureDto? SalaryStructure, DateTime JoinDate, int Role,
-    int PrimaryTeamId, List<int> TeamIds
+    int PrimaryTeamId, List<int> TeamIds,
+    string? UanNumber = null,
+    string? PanNumber = null,
+    bool IsUnpaidIntern = false
 );
 
 public record SalaryStructureDto(
@@ -31,7 +37,10 @@ public record EmployeeDto(
     DateTime JoinDate, string Role, int RoleId, string? RoleLabel,
     TeamDto? PrimaryTeam, int? PrimaryTeamId,
     List<TeamDto> Teams, List<LeaveBalanceDto> LeaveBalances,
-    string? ApproverName
+    string? ApproverName,
+    string? UanNumber = null,
+    string? PanNumber = null,
+    bool IsUnpaidIntern = false
 );
 
 public record TeamDto(int Id, string Name, int ProjectId, string ProjectName, int LeadId, string LeadName);

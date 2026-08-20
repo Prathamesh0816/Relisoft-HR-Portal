@@ -10,7 +10,7 @@ export default function WorkforceEmployees() {
   const [profile, setProfile] = useState(null)
 
   useEffect(() => {
-    getWorkforceEmployees().then((d) => setResilience({ employees: d.employees || [], loading: false })).catch(() => setResilience({ loading: false }))
+    getWorkforceEmployees().then((d) => setResilience({ employees: Array.isArray(d) ? d : (d.employees || []), loading: false })).catch(() => setResilience({ loading: false }))
   }, [])
 
   const viewProfile = async (id) => {

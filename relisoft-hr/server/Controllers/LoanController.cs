@@ -75,7 +75,7 @@ public class LoanController : ControllerBase
         if (emp != null)
         {
             await _notif.NotifyEmployeeAsync(emp.Id, emp, "Loan Application Submitted",
-                $"Your loan application for {loanType.Name} of {req.Amount:C} has been submitted.", "loan",
+                $"Your loan application for {loanType.Name} of ₹{req.Amount:N2} has been submitted.", "loan",
                 "Loan Application Submitted", EmailTemplates.LoanSubmitted(emp.FullName, loanType.Name, req.Amount, ""),
                 link: "/loans");
         }
