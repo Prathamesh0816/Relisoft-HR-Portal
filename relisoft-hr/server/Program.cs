@@ -49,9 +49,18 @@ builder.Services.AddSwaggerGen(options =>
     });
 });
 
+var connectionString = builder.Configuration.GetConnectionString("DefaultConnection") ?? "";
+var isSqlite = connectionString.StartsWith("Data Source=", StringComparison.OrdinalIgnoreCase);
+
 builder.Services.AddDbContext<AppDbContext>(options =>
-    options.UseSqlServer(builder.Configuration.GetConnectionString("DefaultConnection"))
-           .ConfigureWarnings(w => w.Ignore(Microsoft.EntityFrameworkCore.Diagnostics.RelationalEventId.PendingModelChangesWarning)));
+{
+    if (isSqlite)
+        options.UseSqlite(connectionString);
+    else
+        options.UseSqlServer(connectionString);
+
+    options.ConfigureWarnings(w => w.Ignore(Microsoft.EntityFrameworkCore.Diagnostics.RelationalEventId.PendingModelChangesWarning));
+});
 
 builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
     .AddJwtBearer(options =>
@@ -110,7 +119,10 @@ var app = builder.Build();
 using (var scope = app.Services.CreateScope())
 {
     var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
-    db.Database.Migrate();
+    if (isSqlite)
+        db.Database.EnsureCreated();
+    else
+        db.Database.Migrate();
 }
 
 var openApiEnabled = builder.Configuration.GetValue<bool>("OpenApi:Enabled", true);

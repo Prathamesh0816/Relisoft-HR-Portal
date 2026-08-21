@@ -125,11 +125,14 @@ public static class DemoDataSeeder
         // These rows use explicit identity values, so IDENTITY_INSERT must be enabled
         // for the target table during the insert on a fresh database. The connection is
         // held open so the SET applies to the same session that performs the inserts.
+        // SQLite does not support IDENTITY_INSERT, so we skip it for that provider.
+        var isSqlite = db.Database.ProviderName?.Contains("Sqlite", StringComparison.OrdinalIgnoreCase) == true;
+
         if (!await db.Employees.AnyAsync(e => e.Id == 10))
         {
             var hash = "$2a$11$1OmqZ7Lg1.9.5dC2qwF3He4EDiSghkDr94W1CrHjxUML9COevlnhy";
-            await db.Database.OpenConnectionAsync();
-            await db.Database.ExecuteSqlRawAsync("SET IDENTITY_INSERT [Employees] ON");
+            if (!isSqlite) await db.Database.OpenConnectionAsync();
+            if (!isSqlite) await db.Database.ExecuteSqlRawAsync("SET IDENTITY_INSERT [Employees] ON");
             try
             {
                 db.Employees.AddRange(
@@ -141,12 +144,12 @@ public static class DemoDataSeeder
             }
             finally
             {
-                await db.Database.ExecuteSqlRawAsync("SET IDENTITY_INSERT [Employees] OFF");
-                await db.Database.CloseConnectionAsync();
+                if (!isSqlite) await db.Database.ExecuteSqlRawAsync("SET IDENTITY_INSERT [Employees] OFF");
+                if (!isSqlite) await db.Database.CloseConnectionAsync();
             }
 
-            await db.Database.OpenConnectionAsync();
-            await db.Database.ExecuteSqlRawAsync("SET IDENTITY_INSERT [UserLogins] ON");
+            if (!isSqlite) await db.Database.OpenConnectionAsync();
+            if (!isSqlite) await db.Database.ExecuteSqlRawAsync("SET IDENTITY_INSERT [UserLogins] ON");
             try
             {
                 db.UserLogins.AddRange(
@@ -158,16 +161,16 @@ public static class DemoDataSeeder
             }
             finally
             {
-                await db.Database.ExecuteSqlRawAsync("SET IDENTITY_INSERT [UserLogins] OFF");
-                await db.Database.CloseConnectionAsync();
+                if (!isSqlite) await db.Database.ExecuteSqlRawAsync("SET IDENTITY_INSERT [UserLogins] OFF");
+                if (!isSqlite) await db.Database.CloseConnectionAsync();
             }
         }
 
         if (!await db.Employees.AnyAsync(e => e.Id == 4))
         {
             var hash = "$2a$11$1OmqZ7Lg1.9.5dC2qwF3He4EDiSghkDr94W1CrHjxUML9COevlnhy"; // "password"
-            await db.Database.OpenConnectionAsync();
-            await db.Database.ExecuteSqlRawAsync("SET IDENTITY_INSERT [Employees] ON");
+            if (!isSqlite) await db.Database.OpenConnectionAsync();
+            if (!isSqlite) await db.Database.ExecuteSqlRawAsync("SET IDENTITY_INSERT [Employees] ON");
             try
             {
                 db.Employees.AddRange(
@@ -182,12 +185,12 @@ public static class DemoDataSeeder
             }
             finally
             {
-                await db.Database.ExecuteSqlRawAsync("SET IDENTITY_INSERT [Employees] OFF");
-                await db.Database.CloseConnectionAsync();
+                if (!isSqlite) await db.Database.ExecuteSqlRawAsync("SET IDENTITY_INSERT [Employees] OFF");
+                if (!isSqlite) await db.Database.CloseConnectionAsync();
             }
 
-            await db.Database.OpenConnectionAsync();
-            await db.Database.ExecuteSqlRawAsync("SET IDENTITY_INSERT [UserLogins] ON");
+            if (!isSqlite) await db.Database.OpenConnectionAsync();
+            if (!isSqlite) await db.Database.ExecuteSqlRawAsync("SET IDENTITY_INSERT [UserLogins] ON");
             try
             {
                 db.UserLogins.AddRange(
@@ -202,8 +205,8 @@ public static class DemoDataSeeder
             }
             finally
             {
-                await db.Database.ExecuteSqlRawAsync("SET IDENTITY_INSERT [UserLogins] OFF");
-                await db.Database.CloseConnectionAsync();
+                if (!isSqlite) await db.Database.ExecuteSqlRawAsync("SET IDENTITY_INSERT [UserLogins] OFF");
+                if (!isSqlite) await db.Database.CloseConnectionAsync();
             }
         }
     }

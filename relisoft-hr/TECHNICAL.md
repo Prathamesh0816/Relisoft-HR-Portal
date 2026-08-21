@@ -41,7 +41,7 @@ Full-stack enterprise HRMS for ReliSoft Technologies Private Limited. .NET 10 + 
 |---|---|
 | **.NET 10** | Web API framework |
 | **Entity Framework Core 10** | ORM |
-| **SQL Server (LocalDB)** | Database (dev), SQL Server (production) |
+| **SQL Server Express** | Database (dev), SQL Server (production) |
 | **JWT Bearer** | Authentication tokens |
 | **BCrypt.Net-Next** | Password hashing |
 | **ClosedXML** | Excel generation |
@@ -127,9 +127,38 @@ Browser → React App → Axios (JWT) → /api/* → .NET Controller
 ### Prerequisites
 
 - **.NET 10 SDK**
-- **SQL Server** (LocalDB for dev, SQL Server for production)
+- **SQL Server** (SQL Server Express recommended for development, SQL Server for production)
+- **SQL Server Management Studio (SSMS)** — for database management
 - **Node.js v20+** and **npm**
 - **PowerShell 5.1+**
+
+### SQL Server Setup for Developers
+
+1. **Install SQL Server Express** (free): https://www.microsoft.com/en-us/sql-server/sql-server-downloads
+2. **Install SSMS**: https://learn.microsoft.com/en-us/sql/ssms/download-sql-server-management-studio-ssms
+3. **Create the database** in SSMS:
+   ```sql
+   CREATE DATABASE RelisoftHRDb;
+   ```
+4. **Configure your connection string** — copy the template and edit:
+   ```powershell
+   Copy-Item server\appsettings.Development.json.example server\appsettings.Development.json
+   ```
+   Edit `server\appsettings.Development.json` with your SQL Server instance:
+   ```json
+   {
+     "ConnectionStrings": {
+       "DefaultConnection": "Server=.\\SQLEXPRESS;Database=RelisoftHRDb;Integrated Security=true;TrustServerCertificate=True"
+     }
+   }
+   ```
+   Common connection string patterns:
+   - SQL Express: `Server=.\SQLEXPRESS;Database=RelisoftHRDb;Integrated Security=true;TrustServerCertificate=True`
+   - Default instance: `Server=.;Database=RelisoftHRDb;Integrated Security=true;TrustServerCertificate=True`
+   - Named instance: `Server=.\YOURINSTANCE;Database=RelisoftHRDb;Integrated Security=true;TrustServerCertificate=True`
+   - LocalDB (fallback): `Server=(localdb)\MSSQLLocalDB;Database=RelisoftHRDb;Integrated Security=true;TrustServerCertificate=True`
+
+> **Note:** `appsettings.Development.json` is gitignored — each developer maintains their own local config.
 
 ### Development
 

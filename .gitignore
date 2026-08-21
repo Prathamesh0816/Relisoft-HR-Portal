@@ -25,6 +25,7 @@ relisoft-hr/server/App_Data/
 .env
 *.env
 appsettings.*.local.json
+appsettings.Development.json
 
 # Logs / temp
 *.log

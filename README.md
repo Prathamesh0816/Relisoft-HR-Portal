@@ -15,12 +15,25 @@ scripts/
 └── sweep-endpoints.ps1 # Sweeps all GET endpoints for 500/404
 ```
 
+## Prerequisites
+
+- **SQL Server Express** (or full SQL Server) — [Download](https://www.microsoft.com/en-us/sql-server/sql-server-downloads)
+- **SQL Server Management Studio (SSMS)** — [Download](https://learn.microsoft.com/en-us/sql/ssms/download-sql-server-management-studio-ssms)
+- **.NET 10 SDK**
+- **Node.js v20+**
+
 ## Quick start
 
-```powershell
-cd relisoft-hr
-npm run dev          # starts backend (:5049) + frontend (:5173) together
-```
+1. **Set up SQL Server** — create database `RelisoftHRDb` in SSMS
+2. **Configure connection** — copy the template and edit with your SQL Server instance:
+   ```powershell
+   Copy-Item relisoft-hr\server\appsettings.Development.json.example relisoft-hr\server\appsettings.Development.json
+   ```
+3. **Run the app**:
+   ```powershell
+   cd relisoft-hr
+   npm run dev          # starts backend (:5049) + frontend (:5173) together
+   ```
 
 Open http://localhost:5173 — login with any demo username and password `password`.
 
