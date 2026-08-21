@@ -176,6 +176,7 @@ using (var scope = app.Services.CreateScope())
     await PayrollDefaultsSeeder.SeedAsync(db);
     await AppraisalCycleSeeder.SeedAsync(db);
     await DemoSeedService.SeedAsync(db);
+    await DemoSeedService.SeedDocumentTemplatesAsync(db);
 }
 
 app.Run();

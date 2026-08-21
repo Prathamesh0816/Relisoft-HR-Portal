@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react'
 import useStore from '../store'
-import { getAssets, createAsset, getEmployeeAssets, assignAsset, returnAsset, getAllAssignments } from '../api'
+import { getAssets, createAsset, getEmployeeAssets, assignAsset, returnAsset, getAllAssignments, deleteAsset, getAssetTemplate, uploadAssetExcel } from '../api'
+import { Upload, Download, Trash2, Package } from 'lucide-react'
 
 export default function AssetManagement() {
   const { setMessage, currentUser } = useStore()
@@ -11,6 +12,9 @@ export default function AssetManagement() {
   const [showForm, setShowForm] = useState(false)
   const [assignEmpId, setAssignEmpId] = useState('')
   const [assignAssetId, setAssignAssetId] = useState('')
+  const [uploadFile, setUploadFile] = useState(null)
+  const [uploading, setUploading] = useState(false)
+  const [uploadResult, setUploadResult] = useState(null)
 
   useEffect(() => { refreshAssets(); refreshAssignments() }, [])
 
@@ -35,6 +39,44 @@ export default function AssetManagement() {
     await returnAsset(id); refreshAssignments(); setMessage({ type: 'success', text: 'Asset returned.' })
   }
 
+  const handleDelete = async (id) => {
+    if (!confirm('Delete this asset?')) return
+    try {
+      await deleteAsset(id)
+      setMessage({ type: 'success', text: 'Asset deleted.' })
+      refreshAssets()
+    } catch (err) {
+      setMessage({ type: 'error', text: err.response?.data?.message || 'Delete failed.' })
+    }
+  }
+
+  const handleDownloadTemplate = async () => {
+    try {
+      const blob = await getAssetTemplate()
+      const url = window.URL.createObjectURL(new Blob([blob]))
+      const a = document.createElement('a')
+      a.href = url; a.download = 'asset-upload-template.xlsx'
+      document.body.appendChild(a); a.click(); a.remove()
+      window.URL.revokeObjectURL(url)
+    } catch { setMessage({ type: 'error', text: 'Download failed.' }) }
+  }
+
+  const handleUploadExcel = async () => {
+    if (!uploadFile) return
+    setUploading(true); setUploadResult(null)
+    try {
+      const fd = new FormData()
+      fd.append('file', uploadFile)
+      const result = await uploadAssetExcel(fd)
+      setUploadResult(result)
+      setMessage({ type: 'success', text: `Processed: ${result.recordsProcessed}, Skipped: ${result.recordsSkipped}, Failed: ${result.recordsFailed}` })
+      setUploadFile(null)
+      refreshAssets()
+    } catch (err) {
+      setMessage({ type: 'error', text: err.response?.data?.message || 'Upload failed.' })
+    } finally { setUploading(false) }
+  }
+
   const availableAssets = assets.filter((a) => a.status === 'Available')
   const { data } = useStore()
 
@@ -48,9 +90,9 @@ export default function AssetManagement() {
       </div>
       <div className="card-surface">
         <div className="p-5 flex items-center gap-3 border-b border-navy/10">
-          {['catalog', 'assignments'].map((t) => (
+          {['catalog', 'assignments', 'upload'].map((t) => (
             <button key={t} onClick={() => setTab(t)} className={`px-5 py-2 rounded-xl text-xs font-bold transition-all ${tab === t ? 'bg-gradient-to-r from-gold-1 to-gold-2 text-navy-dark' : 'border border-navy/10 dark:border-white/10 text-navy/70 dark:text-white/70'}`}>
-              {t === 'catalog' ? 'Asset catalog' : 'Assignments'}
+              {t === 'catalog' ? 'Asset catalog' : t === 'assignments' ? 'Assignments' : 'Upload Excel'}
             </button>
           ))}
         </div>
@@ -69,11 +111,18 @@ export default function AssetManagement() {
             <div className="grid md:grid-cols-3 gap-3">
               {assets.map((a) => (
                 <div key={a.id} className="p-4 rounded-xl border border-navy/10 dark:border-white/10 bg-white dark:bg-[var(--bg-secondary)]">
-                  <div className="font-heading font-bold text-navy dark:text-white text-sm">{a.name}</div>
-                  <div className="text-xs text-navy/50 dark:text-white/50 mt-1">Tag: {a.assetTag}</div>
-                  <div className="text-xs text-navy/50 dark:text-white/50">Category: {a.category}</div>
-                  {a.serialNumber && <div className="text-xs text-navy/50 dark:text-white/50">S/N: {a.serialNumber}</div>}
-                  <span className={`inline-block mt-2 text-[10px] px-2 py-0.5 rounded font-bold ${a.status === 'Available' ? 'bg-emerald-50 dark:bg-emerald-900/30 text-emerald-700' : a.status === 'Assigned' ? 'bg-amber-50 dark:bg-amber-900/30 text-amber-700' : 'bg-red-50 dark:bg-red-900/30 text-red-700'}`}>{a.status}</span>
+                  <div className="flex items-start justify-between">
+                    <div>
+                      <div className="font-heading font-bold text-navy dark:text-white text-sm">{a.name}</div>
+                      <div className="text-xs text-navy/50 dark:text-white/50 mt-1">Tag: {a.assetTag}</div>
+                      <div className="text-xs text-navy/50 dark:text-white/50">Category: {a.category}</div>
+                      {a.serialNumber && <div className="text-xs text-navy/50 dark:text-white/50">S/N: {a.serialNumber}</div>}
+                      <span className={`inline-block mt-2 text-[10px] px-2 py-0.5 rounded font-bold ${a.status === 'Available' ? 'bg-emerald-50 dark:bg-emerald-900/30 text-emerald-700' : a.status === 'Assigned' ? 'bg-amber-50 dark:bg-amber-900/30 text-amber-700' : 'bg-red-50 dark:bg-red-900/30 text-red-700'}`}>{a.status}</span>
+                    </div>
+                    <button onClick={() => handleDelete(a.id)} className="text-red-400 hover:text-red-600 p-1" title="Delete asset">
+                      <Trash2 size={14} />
+                    </button>
+                  </div>
                 </div>
               ))}
             </div>
@@ -109,6 +158,39 @@ export default function AssetManagement() {
               ))}
               {assignments.filter((a) => a.status === 'Assigned').length === 0 && <p className="text-xs text-navy/50 dark:text-white/50 text-center py-4">No active assignments.</p>}
             </div>
+          </div>
+        )}
+        {tab === 'upload' && (
+          <div className="p-5 space-y-4">
+            <h3 className="font-heading font-bold text-lg text-navy dark:text-white">Bulk Upload Assets from Excel</h3>
+            <p className="text-sm text-muted">Upload an Excel file maintained by vendors to auto-populate the asset catalog. Download the template first to ensure correct column format.</p>
+            <div className="flex items-center gap-3">
+              <button onClick={handleDownloadTemplate} className="px-4 py-2 rounded-xl bg-emerald-50 text-emerald-700 border border-emerald-200 font-bold text-xs hover:bg-emerald-100">
+                <Download size={14} className="inline mr-1" />Download Template
+              </button>
+            </div>
+            <div className="p-4 rounded-xl border border-navy/10 dark:border-white/10 bg-amber-50/30 space-y-3">
+              <input type="file" onChange={(e) => setUploadFile(e.target.files[0])} className="input w-full" accept=".xlsx,.xls" />
+              {uploadFile && <p className="text-xs text-muted">{uploadFile.name} ({(uploadFile.size / 1024).toFixed(1)} KB)</p>}
+              <button onClick={handleUploadExcel} disabled={uploading || !uploadFile} className="px-4 py-2 bg-gradient-to-r from-gold-1 to-gold-2 text-navy-dark font-bold text-xs rounded-xl">
+                <Upload size={14} className="inline mr-1" />{uploading ? 'Uploading...' : 'Upload & Process'}
+              </button>
+            </div>
+            {uploadResult && (
+              <div className="p-4 rounded-xl border border-navy/10 dark:border-white/10 bg-white dark:bg-[var(--bg-secondary)]">
+                <h4 className="font-bold text-sm text-navy dark:text-white mb-2">Upload Results</h4>
+                <div className="grid grid-cols-3 gap-4 text-center">
+                  <div><div className="text-2xl font-bold text-emerald-600">{uploadResult.recordsProcessed}</div><div className="text-xs text-muted">Processed</div></div>
+                  <div><div className="text-2xl font-bold text-amber-600">{uploadResult.recordsSkipped}</div><div className="text-xs text-muted">Skipped</div></div>
+                  <div><div className="text-2xl font-bold text-red-600">{uploadResult.recordsFailed}</div><div className="text-xs text-muted">Failed</div></div>
+                </div>
+                {uploadResult.errors?.length > 0 && (
+                  <div className="mt-3 text-xs text-red-600">
+                    {uploadResult.errors.map((e, i) => <div key={i}>{e}</div>)}
+                  </div>
+                )}
+              </div>
+            )}
           </div>
         )}
       </div>

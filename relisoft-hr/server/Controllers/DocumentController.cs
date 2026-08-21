@@ -180,8 +180,15 @@ public class DocumentController : ControllerBase
         if (!System.IO.File.Exists(fullPath)) return NotFound(new { message = "Stored file is missing." });
 
         var bytes = await System.IO.File.ReadAllBytesAsync(fullPath);
-        var mime = doc.MimeType ?? "application/octet-stream";
-        return File(bytes, mime, $"{doc.DocumentName}.{ExtensionFor(mime)}");
+        var ext = Path.GetExtension(fullPath).ToLowerInvariant();
+        var mime = ext switch
+        {
+            ".html" or ".htm" => "text/html",
+            ".pdf" => "application/pdf",
+            ".txt" => "text/plain",
+            _ => doc.MimeType ?? "application/octet-stream"
+        };
+        return File(bytes, mime, $"{doc.DocumentName}{ext}");
     }
 
     private static string ExtensionFor(string mime) => mime switch
@@ -284,14 +291,20 @@ public class DocumentController : ControllerBase
     [HttpGet("auto-generate/{employeeId}")]
     public async Task<ActionResult> AutoGenerateAll(int employeeId)
     {
-        var emp = await _db.Employees.FindAsync(employeeId);
+        var emp = await _db.Employees
+            .Include(e => e.Probation)
+            .FirstOrDefaultAsync(e => e.Id == employeeId);
         if (emp == null) return NotFound();
 
         var types = new List<string>();
         if (emp.EmploymentType == "Intern")
             types.AddRange(new[] { "OfferLetter", "InternshipCompletionLetter" });
         else
+        {
             types.AddRange(new[] { "OfferLetter", "JoiningLetter", "Form16" });
+            if (emp.Probation?.CurrentEndDate != null && emp.Probation.CurrentEndDate.Value <= DateTime.UtcNow)
+                types.Add("ProbationConfirmation");
+        }
 
         var results = new List<object>();
         foreach (var t in types)

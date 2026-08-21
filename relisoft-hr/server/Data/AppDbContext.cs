@@ -119,6 +119,7 @@ public DbSet<AttendanceRecord> AttendanceRecords => Set<AttendanceRecord>();
     public DbSet<LeaveEncashment> LeaveEncashments => Set<LeaveEncashment>();
     public DbSet<AuditLogEntry> AuditLogEntries => Set<AuditLogEntry>();
     public DbSet<AttendanceRegularization> AttendanceRegularizations => Set<AttendanceRegularization>();
+    public DbSet<HrPolicyDocument> HrPolicyDocuments => Set<HrPolicyDocument>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {

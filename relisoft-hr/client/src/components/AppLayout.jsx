@@ -43,6 +43,7 @@ import CarpoolManager from './CarpoolManager'
 import DeskRoomBooking from './DeskRoomBooking'
 import MoodTracker from './MoodTracker'
 import KnowledgeBase from './KnowledgeBase'
+import HrPolicyDocs from './HrPolicyDocs'
 import Announcements from './Announcements'
 import NotificationCenter from './NotificationCenter'
 import AssetManagement from './AssetManagement'
@@ -112,6 +113,7 @@ const meta = {
   bookings: { label: 'Employee', title: 'Desk & room booking', subtitle: 'Reserve desks and meeting rooms, and manage bookings.' },
   mood: { label: 'Employee', title: 'Mood & wellness', subtitle: 'Check in daily and see team sentiment trends.' },
   knowledge: { label: 'Employee', title: 'Knowledge base', subtitle: 'Search and read company articles and policies.' },
+  hrPolicies: { label: 'Employee', title: 'HR Policies & Documents', subtitle: 'Company-wide policies, handbooks, and guidelines.' },
   announcements: { label: 'Employee', title: 'Announcements', subtitle: 'Company-wide news and updates.' },
   notifications: { label: 'Employee', title: 'Notifications', subtitle: 'Your in-app notifications and alerts.' },
   assets: { label: 'Manager', title: 'Asset management', subtitle: 'Inventory, assignments, and returns across the company.' },
@@ -254,6 +256,7 @@ export default function AppLayout({ onLogout }) {
           {activeView === 'bookings' && <DeskRoomBooking />}
           {activeView === 'mood' && <MoodTracker />}
           {activeView === 'knowledge' && <KnowledgeBase />}
+          {activeView === 'hrPolicies' && <HrPolicyDocs />}
           {activeView === 'announcements' && <Announcements />}
           {activeView === 'notifications' && <NotificationCenter />}
           {activeView === 'assets' && <AssetManagement />}

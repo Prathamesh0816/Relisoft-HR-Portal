@@ -255,4 +255,81 @@ public class ExcelController : ControllerBase
             errors = errors.Take(20).ToList()
         });
     }
+
+    // ─── Asset Excel Upload ───
+
+    [HttpGet("asset-template")]
+    public ActionResult DownloadAssetTemplate()
+    {
+        using var workbook = new XLWorkbook();
+        var ws = workbook.Worksheets.Add("Assets");
+        ws.Cell(1, 1).Value = "Name";
+        ws.Cell(1, 2).Value = "AssetTag";
+        ws.Cell(1, 3).Value = "Category";
+        ws.Cell(1, 4).Value = "SerialNumber";
+        ws.Row(1).Style.Font.Bold = true;
+        using var stream = new MemoryStream();
+        workbook.SaveAs(stream);
+        stream.Position = 0;
+        return File(stream.ToArray(), "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", "asset-upload-template.xlsx");
+    }
+
+    [HttpPost("upload-assets")]
+    public async Task<ActionResult> UploadAssets(IFormFile file)
+    {
+        if (file == null || file.Length == 0)
+            return BadRequest(new { message = "Please upload an Excel file." });
+
+        var processed = 0; var skipped = 0; var failed = 0;
+        var errors = new List<string>();
+
+        using var stream = new MemoryStream();
+        await file.CopyToAsync(stream);
+        using var workbook = new XLWorkbook(stream);
+        var ws = workbook.Worksheet(1);
+        var rows = ws.RowsUsed().Skip(1);
+
+        foreach (var row in rows)
+        {
+            try
+            {
+                var name = row.Cell(1).GetString().Trim();
+                if (string.IsNullOrEmpty(name)) { skipped++; continue; }
+
+                var assetTag = row.Cell(2).GetString().Trim();
+                var category = row.Cell(3).GetString().Trim();
+                var serialNumber = row.Cell(4).GetString().Trim();
+
+                var existing = await _db.Assets.FirstOrDefaultAsync(a =>
+                    a.AssetTag == assetTag || (a.Name == name && a.SerialNumber == serialNumber));
+                if (existing != null) { skipped++; continue; }
+
+                _db.Assets.Add(new Asset
+                {
+                    Name = name,
+                    AssetTag = assetTag,
+                    Category = category,
+                    SerialNumber = serialNumber,
+                    Status = "Available",
+                    CreatedOn = DateTime.UtcNow
+                });
+                processed++;
+            }
+            catch (Exception ex)
+            {
+                failed++;
+                errors.Add($"Row {row.RowNumber()}: {ex.Message}");
+            }
+        }
+
+        await _db.SaveChangesAsync();
+
+        return Ok(new
+        {
+            recordsProcessed = processed,
+            recordsSkipped = skipped,
+            recordsFailed = failed,
+            errors = errors.Take(20).ToList()
+        });
+    }
 }

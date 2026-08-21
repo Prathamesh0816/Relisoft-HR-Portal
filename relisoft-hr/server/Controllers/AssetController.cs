@@ -125,4 +125,16 @@ public class AssetController : ControllerBase
         ea.Asset?.Name ?? "", ea.Asset?.AssetTag ?? "", ea.Asset?.Category ?? "",
         ea.AssignedOn, ea.ReturnedOn, ea.Status
     );
+
+    [HttpDelete("{id}")]
+    public async Task<ActionResult> DeleteAsset(int id)
+    {
+        var asset = await _db.Assets.FindAsync(id);
+        if (asset == null) return NotFound();
+        if (asset.Status == "Assigned")
+            return BadRequest(new { message = "Cannot delete an assigned asset. Return it first." });
+        _db.Assets.Remove(asset);
+        await _db.SaveChangesAsync();
+        return Ok(new { message = "Asset deleted." });
+    }
 }

@@ -68,6 +68,7 @@ const sections = [
       { view: 'bookings', label: 'Desk & Room Booking', icon: DoorOpen },
       { view: 'mood', label: 'Mood & Wellness', icon: Smile },
       { view: 'knowledge', label: 'Knowledge Base', icon: BookOpen },
+      { view: 'hrPolicies', label: 'HR Policies', icon: FileText },
       { view: 'announcements', label: 'Announcements', icon: Megaphone },
       { view: 'notifications', label: 'Notifications', icon: Bell },
     ]

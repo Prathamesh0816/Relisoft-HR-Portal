@@ -870,4 +870,148 @@ public static class DemoSeedService
         await db.SaveChangesAsync();
         return r with { Visitors = r.Visitors + 2 };
     }
+
+    // ------------------------------------------------------------------
+    // Document Templates.
+    // ------------------------------------------------------------------
+    public static async Task SeedDocumentTemplatesAsync(AppDbContext db)
+    {
+        if (await db.DocumentTemplates.AnyAsync()) return;
+
+        db.DocumentTemplates.AddRange(
+            new DocumentTemplate { Name = "Offer Letter", DocumentType = "OfferLetter", Description = "Standard offer letter template", TemplateContent = OFFER_LETTER_HTML, IsActive = true },
+            new DocumentTemplate { Name = "Joining Letter", DocumentType = "JoiningLetter", Description = "Joining confirmation letter", TemplateContent = JOINING_LETTER_HTML, IsActive = true },
+            new DocumentTemplate { Name = "Form 16", DocumentType = "Form16", Description = "Income tax Form 16", TemplateContent = FORM16_HTML, IsActive = true },
+            new DocumentTemplate { Name = "Internship Completion", DocumentType = "InternshipCompletionLetter", Description = "Internship completion certificate", TemplateContent = INTERNSHIP_COMPLETION_HTML, IsActive = true },
+            new DocumentTemplate { Name = "Probation Confirmation", DocumentType = "ProbationConfirmation", Description = "Probation confirmation letter", TemplateContent = PROBATION_CONFIRMATION_HTML, IsActive = true }
+        );
+        await db.SaveChangesAsync();
+    }
+
+    private const string OFFER_LETTER_HTML = @"<!DOCTYPE html><html><head><meta charset='utf-8'/><style>
+body{font-family:'Segoe UI',Arial,sans-serif;margin:40px;color:#1a1a2e;line-height:1.6}
+.header{text-align:center;border-bottom:3px solid #d4af37;padding-bottom:20px;margin-bottom:30px}
+.header h1{color:#1a1a2e;font-size:22px;margin:0}.header p{color:#666;font-size:12px}
+.content{margin:20px 0}.content p{margin:10px 0}.highlight{background:#f8f6f0;padding:15px;border-left:4px solid #d4af37;margin:20px 0}
+table{width:100%;border-collapse:collapse;margin:15px 0}td{padding:8px 12px;border-bottom:1px solid #eee}td:first-child{font-weight:600;width:40%;color:#1a1a2e}
+.footer{margin-top:40px;border-top:2px solid #d4af37;padding-top:20px;text-align:center;color:#666;font-size:12px}
+</style></head><body>
+<div class='header'><h1>ReliSoft Technologies</h1><p>Employment Offer Letter</p></div>
+<div class='content'><p>Date: {{GeneratedDate}}</p>
+<p>Dear <strong>{{FullName}}</strong>,</p>
+<p>We are pleased to offer you the position of <strong>{{Designation}}</strong> in the <strong>{{Department}}</strong> department at ReliSoft Technologies. Your employment details are as follows:</p>
+<div class='highlight'><table>
+<tr><td>Employee Code</td><td>{{EmployeeCode}}</td></tr>
+<tr><td>Designation</td><td>{{Designation}}</td></tr>
+<tr><td>Department</td><td>{{Department}}</td></tr>
+<tr><td>Job Role</td><td>{{JobRole}}</td></tr>
+<tr><td>Employment Type</td><td>{{EmploymentType}}</td></tr>
+<tr><td>Location</td><td>{{Location}}</td></tr>
+<tr><td>Date of Joining</td><td>{{JoinDate}}</td></tr>
+<tr><td>Fixed Pay (Annual)</td><td>INR {{FixedPay}}</td></tr>
+<tr><td>Variable Pay (Annual)</td><td>INR {{VariablePay}}</td></tr>
+<tr><td>CTC (Annual)</td><td>INR {{CTC}}</td></tr>
+</table></div>
+<p>This offer is subject to the terms and conditions outlined in your employment contract. We look forward to welcoming you to the team.</p>
+<p>Warm regards,<br/><strong>HR Department</strong><br/>ReliSoft Technologies</p></div>
+<div class='footer'>This is a system-generated document. No signature required.</div>
+</body></html>";
+
+    private const string JOINING_LETTER_HTML = @"<!DOCTYPE html><html><head><meta charset='utf-8'/><style>
+body{font-family:'Segoe UI',Arial,sans-serif;margin:40px;color:#1a1a2e;line-height:1.6}
+.header{text-align:center;border-bottom:3px solid #d4af37;padding-bottom:20px;margin-bottom:30px}
+.header h1{color:#1a1a2e;font-size:22px;margin:0}.header p{color:#666;font-size:12px}
+.content{margin:20px 0}.content p{margin:10px 0}.highlight{background:#f8f6f0;padding:15px;border-left:4px solid #d4af37;margin:20px 0}
+table{width:100%;border-collapse:collapse;margin:15px 0}td{padding:8px 12px;border-bottom:1px solid #eee}td:first-child{font-weight:600;width:40%;color:#1a1a2e}
+.footer{margin-top:40px;border-top:2px solid #d4af37;padding-top:20px;text-align:center;color:#666;font-size:12px}
+</style></head><body>
+<div class='header'><h1>ReliSoft Technologies</h1><p>Joining Confirmation Letter</p></div>
+<div class='content'><p>Date: {{GeneratedDate}}</p>
+<p>Dear <strong>{{FullName}}</strong>,</p>
+<p>This letter confirms your joining at ReliSoft Technologies as <strong>{{Designation}}</strong>. Below are your employment details:</p>
+<div class='highlight'><table>
+<tr><td>Employee Code</td><td>{{EmployeeCode}}</td></tr>
+<tr><td>Designation</td><td>{{Designation}}</td></tr>
+<tr><td>Department</td><td>{{Department}}</td></tr>
+<tr><td>Location</td><td>{{Location}}</td></tr>
+<tr><td>Date of Joining</td><td>{{JoinDate}}</td></tr>
+<tr><td>Employment Type</td><td>{{EmploymentType}}</td></tr>
+</table></div>
+<p>Please ensure all onboarding documents are submitted within the first week. Welcome aboard!</p>
+<p>Warm regards,<br/><strong>HR Department</strong><br/>ReliSoft Technologies</p></div>
+<div class='footer'>This is a system-generated document. No signature required.</div>
+</body></html>";
+
+    private const string FORM16_HTML = @"<!DOCTYPE html><html><head><meta charset='utf-8'/><style>
+body{font-family:'Segoe UI',Arial,sans-serif;margin:40px;color:#1a1a2e;line-height:1.6}
+.header{text-align:center;border-bottom:3px solid #d4af37;padding-bottom:20px;margin-bottom:30px}
+.header h1{color:#1a1a2e;font-size:22px;margin:0}.header p{color:#666;font-size:12px}
+.content{margin:20px 0}.content p{margin:10px 0}.highlight{background:#f8f6f0;padding:15px;border-left:4px solid #d4af37;margin:20px 0}
+table{width:100%;border-collapse:collapse;margin:15px 0}td{padding:8px 12px;border-bottom:1px solid #eee}td:first-child{font-weight:600;width:40%;color:#1a1a2e}
+.footer{margin-top:40px;border-top:2px solid #d4af37;padding-top:20px;text-align:center;color:#666;font-size:12px}
+</style></head><body>
+<div class='header'><h1>ReliSoft Technologies</h1><p>Form 16 — Certificate of Tax Deducted at Source</p></div>
+<div class='content'><p>Assessment Year: {{GeneratedDate}}</p>
+<p>This is to certify that tax has been deducted at source from the income payable to <strong>{{FullName}}</strong> (PAN: XXXXX1234X) under Section 203 of the Income Tax Act, 1961.</p>
+<div class='highlight'><table>
+<tr><td>Employee Code</td><td>{{EmployeeCode}}</td></tr>
+<tr><td>Employee Name</td><td>{{FullName}}</td></tr>
+<tr><td>Designation</td><td>{{Designation}}</td></tr>
+<tr><td>Department</td><td>{{Department}}</td></tr>
+<tr><td>Gross Salary</td><td>INR {{CTC}}</td></tr>
+<tr><td>Tax Deducted</td><td>As applicable</td></tr>
+</table></div>
+<p>This Form 16 is issued as per the provisions of the Income Tax Act, 1961.</p>
+<p>For <strong>ReliSoft Technologies</strong><br/>Authorized Signatory</p></div>
+<div class='footer'>This is a system-generated document. No signature required.</div>
+</body></html>";
+
+    private const string INTERNSHIP_COMPLETION_HTML = @"<!DOCTYPE html><html><head><meta charset='utf-8'/><style>
+body{font-family:'Segoe UI',Arial,sans-serif;margin:40px;color:#1a1a2e;line-height:1.6}
+.header{text-align:center;border-bottom:3px solid #d4af37;padding-bottom:20px;margin-bottom:30px}
+.header h1{color:#1a1a2e;font-size:22px;margin:0}.header p{color:#666;font-size:12px}
+.content{margin:20px 0}.content p{margin:10px 0}.highlight{background:#f8f6f0;padding:15px;border-left:4px solid #d4af37;margin:20px 0}
+table{width:100%;border-collapse:collapse;margin:15px 0}td{padding:8px 12px;border-bottom:1px solid #eee}td:first-child{font-weight:600;width:40%;color:#1a1a2e}
+.footer{margin-top:40px;border-top:2px solid #d4af37;padding-top:20px;text-align:center;color:#666;font-size:12px}
+</style></head><body>
+<div class='header'><h1>ReliSoft Technologies</h1><p>Internship Completion Certificate</p></div>
+<div class='content'><p>Date: {{GeneratedDate}}</p>
+<p>To Whom It May Concern,</p>
+<p>This is to certify that <strong>{{FullName}}</strong> ({{EmployeeCode}}) has successfully completed their internship at ReliSoft Technologies.</p>
+<div class='highlight'><table>
+<tr><td>Intern Name</td><td>{{FullName}}</td></tr>
+<tr><td>Employee Code</td><td>{{EmployeeCode}}</td></tr>
+<tr><td>Department</td><td>{{Department}}</td></tr>
+<tr><td>Role</td><td>{{JobRole}}</td></tr>
+<tr><td>Duration</td><td>{{JoinDate}} to {{GeneratedDate}}</td></tr>
+</table></div>
+<p>During the internship, {{FullName}} demonstrated professionalism and a strong willingness to learn. We wish them all the best in their future endeavors.</p>
+<p>Warm regards,<br/><strong>HR Department</strong><br/>ReliSoft Technologies</p></div>
+<div class='footer'>This is a system-generated document. No signature required.</div>
+</body></html>";
+
+    private const string PROBATION_CONFIRMATION_HTML = @"<!DOCTYPE html><html><head><meta charset='utf-8'/><style>
+body{font-family:'Segoe UI',Arial,sans-serif;margin:40px;color:#1a1a2e;line-height:1.6}
+.header{text-align:center;border-bottom:3px solid #d4af37;padding-bottom:20px;margin-bottom:30px}
+.header h1{color:#1a1a2e;font-size:22px;margin:0}.header p{color:#666;font-size:12px}
+.content{margin:20px 0}.content p{margin:10px 0}.highlight{background:#f8f6f0;padding:15px;border-left:4px solid #d4af37;margin:20px 0}
+table{width:100%;border-collapse:collapse;margin:15px 0}td{padding:8px 12px;border-bottom:1px solid #eee}td:first-child{font-weight:600;width:40%;color:#1a1a2e}
+.footer{margin-top:40px;border-top:2px solid #d4af37;padding-top:20px;text-align:center;color:#666;font-size:12px}
+</style></head><body>
+<div class='header'><h1>ReliSoft Technologies</h1><p>Probation Confirmation Letter</p></div>
+<div class='content'><p>Date: {{GeneratedDate}}</p>
+<p>Dear <strong>{{FullName}}</strong>,</p>
+<p>We are pleased to inform you that you have successfully completed your probation period and are now confirmed as a permanent employee of ReliSoft Technologies.</p>
+<div class='highlight'><table>
+<tr><td>Employee Code</td><td>{{EmployeeCode}}</td></tr>
+<tr><td>Designation</td><td>{{Designation}}</td></tr>
+<tr><td>Department</td><td>{{Department}}</td></tr>
+<tr><td>Probation Start</td><td>{{ProbationStartDate}}</td></tr>
+<tr><td>Probation End</td><td>{{ProbationEndDate}}</td></tr>
+<tr><td>Confirmation Date</td><td>{{GeneratedDate}}</td></tr>
+</table></div>
+<p>With this confirmation, you are entitled to all benefits applicable to permanent employees as per company policy. Congratulations!</p>
+<p>Warm regards,<br/><strong>HR Department</strong><br/>ReliSoft Technologies</p></div>
+<div class='footer'>This is a system-generated document. No signature required.</div>
+</body></html>";
 }

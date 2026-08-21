@@ -22,13 +22,13 @@ export default function VisitorManagement() {
 
   useEffect(() => {
     Promise.all([getTodayVisitors(), getVisitors()]).then(([t, all]) =>
-      setVisitors({ todayVisitors: t.visitors || [], list: all.visitors || [], loading: false })
-    )
+      setVisitors({ todayVisitors: Array.isArray(t) ? t : [], list: Array.isArray(all) ? all : [], loading: false })
+    ).catch(() => setVisitors({ todayVisitors: [], list: [], loading: false }))
   }, [])
 
   const refreshAll = async () => {
     const [t, all] = await Promise.all([getTodayVisitors(), getVisitors(statusFilter || undefined)])
-    setVisitors({ todayVisitors: t.visitors || [], list: all.visitors || [] })
+    setVisitors({ todayVisitors: Array.isArray(t) ? t : [], list: Array.isArray(all) ? all : [] })
   }
 
   const handleRegister = async (e) => {
@@ -92,11 +92,8 @@ export default function VisitorManagement() {
                     {v.expectedTime && <div className="text-xs text-muted">Expected: {v.expectedTime?.slice(0, 5)}</div>}
                   </div>
                   <div className="flex items-center gap-2">
-<div className="flex items-center gap-2">
-                  <button onClick={() => handleGatePass(v)} className="px-3 py-1.5 rounded-xl bg-gold-1/10 text-gold-1 border border-gold-2/30 font-bold text-xs hover:bg-gold-1/20">Gate Pass</button>
-                  <span className={`px-3 py-1 rounded-full text-xs font-bold ${statusBadge(v.status)}`}>{v.status}</span>
-                </div>
                     <button onClick={() => handleGatePass(v)} className="px-3 py-1.5 rounded-xl bg-gold-1/10 text-gold-1 border border-gold-2/30 font-bold text-xs hover:bg-gold-1/20">Gate Pass</button>
+                    <span className={`px-3 py-1 rounded-full text-xs font-bold ${statusBadge(v.status)}`}>{v.status}</span>
                     {v.status === 'Pending' && (
                       <button onClick={() => handleCheckIn(v.id)} className="px-3 py-1.5 rounded-xl bg-emerald-50 text-emerald-700 border border-emerald-200 font-bold text-xs hover:bg-emerald-100"><LogIn size={14} className="inline mr-1" />Check In</button>
                     )}
@@ -115,7 +112,7 @@ export default function VisitorManagement() {
         <div className="card-surface p-6">
           <div className="flex items-center justify-between gap-4 mb-4">
             <h2 className="font-heading font-bold text-xl text-navy dark:text-white">All Visitors</h2>
-            <select value={statusFilter} onChange={(e) => { setStatusFilter(e.target.value); getVisitors(e.target.value || undefined).then((r) => setVisitors({ list: r.visitors || [] })) }} className="input w-40 text-xs">
+            <select value={statusFilter} onChange={(e) => { setStatusFilter(e.target.value); getVisitors(e.target.value || undefined).then((r) => setVisitors({ list: Array.isArray(r) ? r : [] })) }} className="input w-40 text-xs">
               <option value="">All Status</option>
               <option value="Pending">Pending</option>
               <option value="Checked-In">Checked In</option>
@@ -167,7 +164,7 @@ export default function VisitorManagement() {
               </div>
               <div>
                 <label className="label">Host</label>
-                <select value={form.hostEmployeeId} onChange={(e) => setForm((s) => ({ ...s, hostEmployeeId: e.target.value }))} required className="input w-full">
+                <select value={form.hostEmployeeId} onChange={(e) => setForm((s) => ({ ...s, hostEmployeeId: e.target.value ? parseInt(e.target.value) : '' }))} required className="input w-full">
                   <option value="">Select host...</option>
                   {data.employees.filter((e) => e.status === 'Active').map((e) => (
                     <option key={e.id} value={e.id}>{e.fullName}</option>
